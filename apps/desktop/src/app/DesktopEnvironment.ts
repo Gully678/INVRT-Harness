@@ -9,6 +9,7 @@ import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
 import * as Path from "effect/Path";
 
 import * as DesktopAppSettings from "../settings/DesktopAppSettings.ts";
@@ -149,6 +150,20 @@ const make = Effect.fn("desktop.environment.make")(function* (
   const homeDirectory = input.homeDirectory;
   const devServerUrl = config.devServerUrl;
   const isDevelopment = Option.isSome(devServerUrl);
+  if (Option.isSome(config.desktopAppDataDirectory)) {
+    yield* Schema.decodeUnknownEffect(
+      Schema.String.check(
+        Schema.makeFilter((value) =>
+          path.isAbsolute(value) &&
+          (input.platform !== "win32" || /^[A-Za-z]:[\\/]/.test(value) || value.startsWith("\\\\"))
+            ? undefined
+            : "T3CODE_DESKTOP_APP_DATA_DIR must be an absolute path on this platform",
+        ),
+      ),
+    )(config.desktopAppDataDirectory.value).pipe(
+      Effect.mapError((cause) => new Config.ConfigError(cause)),
+    );
+  }
   const appDataDirectory = Option.getOrElse(config.desktopAppDataDirectory, () =>
     input.platform === "win32"
       ? Option.getOrElse(config.appDataDirectory, () =>

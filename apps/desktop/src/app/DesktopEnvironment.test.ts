@@ -6,6 +6,7 @@ import * as Layer from "effect/Layer";
 
 import * as DesktopEnvironment from "./DesktopEnvironment.ts";
 import * as DesktopConfig from "./DesktopConfig.ts";
+import * as DesktopUserData from "./DesktopUserData.ts";
 
 const defaultInput = {
   dirname: "/repo/apps/desktop/dist-electron",
@@ -22,20 +23,23 @@ const defaultInput = {
 const layerEnvironment = (
   overrides: Partial<DesktopEnvironment.MakeDesktopEnvironmentInput> = {},
   env: Record<string, string | undefined> = {},
+  pathLayer = NodePath.layerPosix,
 ) =>
   DesktopEnvironment.layer({
     ...defaultInput,
     ...overrides,
   }).pipe(
-    Layer.provide(
-      Layer.mergeAll(NodeServices.layer, NodePath.layerPosix, DesktopConfig.layerTest(env)),
-    ),
+    Layer.provide(Layer.mergeAll(NodeServices.layer, pathLayer, DesktopConfig.layerTest(env))),
   );
 
 const makeEnvironment = (
   overrides: Partial<DesktopEnvironment.MakeDesktopEnvironmentInput> = {},
   env: Record<string, string | undefined> = {},
-) => DesktopEnvironment.DesktopEnvironment.pipe(Effect.provide(layerEnvironment(overrides, env)));
+  pathLayer = NodePath.layerPosix,
+) =>
+  DesktopEnvironment.DesktopEnvironment.pipe(
+    Effect.provide(layerEnvironment(overrides, env, pathLayer)),
+  );
 
 describe("DesktopEnvironment", () => {
   it.effect("uses the packaged Windows server sidecar as the backend root", () =>
@@ -73,7 +77,7 @@ describe("DesktopEnvironment", () => {
     }),
   );
 
-  it.effect.each(["darwin", "linux", "win32"] as const)(
+  it.effect.each(["darwin", "linux"] as const)(
     "uses an explicit desktop app data directory on %s",
     (platform) =>
       Effect.gen(function* () {
@@ -82,6 +86,10 @@ describe("DesktopEnvironment", () => {
           { T3CODE_DESKTOP_APP_DATA_DIR: " /isolated/pilot " },
         );
         assert.equal(environment.appDataDirectory, "/isolated/pilot");
+        const userData = yield* DesktopUserData.resolveUserDataPath(environment).pipe(
+          Effect.provide(Layer.mergeAll(NodeServices.layer, NodePath.layerPosix)),
+        );
+        assert.equal(userData, "/isolated/pilot/t3code-v2");
       }),
   );
 
@@ -122,8 +130,32 @@ describe("DesktopEnvironment", () => {
         const environment = yield* makeEnvironment(
           { platform: "win32" },
           { T3CODE_DESKTOP_APP_DATA_DIR: directory },
+          NodePath.layerWin32,
         );
         assert.equal(environment.appDataDirectory, directory);
+        const userData = yield* DesktopUserData.resolveUserDataPath(environment).pipe(
+          Effect.provide(Layer.mergeAll(NodeServices.layer, NodePath.layerWin32)),
+        );
+        assert.equal(userData, `${directory}\\t3code-v2`);
       }),
+  );
+
+  it.effect.each([
+    { platform: "darwin", directory: "C:\\pilot" },
+    { platform: "linux", directory: "C:\\pilot" },
+    { platform: "darwin", directory: "\\\\server\\pilot" },
+    { platform: "linux", directory: "\\\\server\\pilot" },
+    { platform: "win32", directory: "/isolated/pilot" },
+    { platform: "win32", directory: "C:pilot" },
+  ] as const)("rejects $directory on $platform", ({ platform, directory }) =>
+    Effect.gen(function* () {
+      const result = yield* makeEnvironment(
+        { platform },
+        { T3CODE_DESKTOP_APP_DATA_DIR: directory },
+        platform === "win32" ? NodePath.layerWin32 : NodePath.layerPosix,
+      ).pipe(Effect.flip);
+      assert.equal(result._tag, "ConfigError");
+      assert.include(result.message, "absolute path");
+    }),
   );
 });
