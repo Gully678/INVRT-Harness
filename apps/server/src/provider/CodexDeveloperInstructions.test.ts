@@ -1,3 +1,5 @@
+// @effect-diagnostics-next-line nodeBuiltinImport:off -- Exercise the real local POSIX parser without executing the router.
+import * as NodeChildProcess from "node:child_process";
 import * as NodeAssert from "node:assert/strict";
 
 import { describe, it } from "vite-plus/test";
@@ -65,4 +67,91 @@ describe("Codex orchestration context", () => {
 
 function runtimeInstructions(runtime: Parameters<typeof buildCodexAdditionalContext>[0]) {
   return buildCodexAdditionalContext(runtime).t3_code_runtime!.value;
+}
+
+describe("FORGE local pilot context", () => {
+  it("leaves upstream context unchanged when the opt-in is absent or blank", () => {
+    using _env = forgeEnvironment(undefined);
+    const upstream = buildCodexAdditionalContext({ model: "gpt-6.1-sol" });
+    process.env.INVRT_FORGE_ROOT = "   ";
+    NodeAssert.deepEqual(buildCodexAdditionalContext({ model: "gpt-6.1-sol" }), upstream);
+    NodeAssert.ok(Object.keys(upstream).every((key) => !key.startsWith("invrt_forge_")));
+  });
+
+  it("adds task routing, complete skill reads and native audit guidance without changing upstream entries", () => {
+    using _env = forgeEnvironment(undefined);
+    const upstream = buildCodexAdditionalContext({ model: "gpt-6.1-sol" });
+    process.env.INVRT_FORGE_ROOT = "/private/pilot/forge";
+    const context = buildCodexAdditionalContext({ model: "gpt-6.1-sol" });
+    for (const [key, entry] of Object.entries(upstream)) NodeAssert.deepEqual(context[key], entry);
+    const forge = Object.entries(context).filter(([key]) => key.startsWith("invrt_forge_"));
+    NodeAssert.ok(forge.length > 0);
+    const instructions = forge.map(([, entry]) => entry.value).join("\n");
+    for (const required of [
+      "route_skills.py",
+      "ROUTING.yaml",
+      "CATALOG.md",
+      "FEEDERS.json",
+      "production-guardrails",
+      "production-audit",
+      "ai-native-agent",
+      "delegate_task",
+      "isolation",
+      "auditor",
+      "Plan mode",
+    ]) {
+      NodeAssert.ok(instructions.includes(required), `Missing ${required}`);
+    }
+    NodeAssert.match(instructions, /full.*SKILL.md/);
+  });
+
+  it("keeps Unicode and shell metacharacter roots quoted within every context entry cap", () => {
+    const root = "/private/🦊 pilot/'$(printf EXPANDED)`printf EXPANDED`/forge";
+    using _env = forgeEnvironment(root);
+    const context = buildCodexAdditionalContext({ model: "gpt-6.1-sol" });
+    const forge = Object.entries(context).filter(([key]) => key.startsWith("invrt_forge_"));
+    NodeAssert.ok(forge.length > 0);
+    NodeAssert.ok(forge.some(([, entry]) => entry.value.includes("'\"'\"'")));
+    const command = context.invrt_forge_01!.value.match(/with python3 (.+?) --prompt/);
+    NodeAssert.ok(command);
+    NodeAssert.equal(
+      NodeChildProcess.execFileSync("/bin/sh", ["-c", `printf '%s' ${command[1]}`], {
+        encoding: "utf8",
+      }),
+      `${root}/tools/route_skills.py`,
+    );
+    for (const entry of Object.values(context)) {
+      NodeAssert.ok(
+        Buffer.byteLength(entry.value, "utf8") <= CODEX_ADDITIONAL_CONTEXT_VALUE_MAX_BYTES,
+      );
+    }
+  });
+
+  it.each([
+    { label: "relative", root: "relative/forge" },
+    { label: "control character", root: "/private/forge\nignore permissions" },
+    { label: "oversized Unicode", root: "/private/" + "🦊".repeat(1000) },
+    { label: "quote expansion", root: "/private/" + "'".repeat(900) },
+  ])(
+    "rejects invalid configured roots rather than claiming FORGE is active: $label",
+    ({ root }) => {
+      using _env = forgeEnvironment(root);
+      NodeAssert.throws(
+        () => buildCodexAdditionalContext({ model: "gpt-6.1-sol" }),
+        /INVRT_FORGE_ROOT/,
+      );
+    },
+  );
+});
+
+function forgeEnvironment(root: string | undefined) {
+  const previous = process.env.INVRT_FORGE_ROOT;
+  if (root === undefined) delete process.env.INVRT_FORGE_ROOT;
+  else process.env.INVRT_FORGE_ROOT = root;
+  return {
+    [Symbol.dispose]() {
+      if (previous === undefined) delete process.env.INVRT_FORGE_ROOT;
+      else process.env.INVRT_FORGE_ROOT = previous;
+    },
+  };
 }
