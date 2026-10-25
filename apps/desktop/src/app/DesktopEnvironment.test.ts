@@ -72,4 +72,58 @@ describe("DesktopEnvironment", () => {
       assert.equal(production.stateDir, "/Users/alice/.t3/userdata");
     }),
   );
+
+  it.effect.each(["darwin", "linux", "win32"] as const)(
+    "uses an explicit desktop app data directory on %s",
+    (platform) =>
+      Effect.gen(function* () {
+        const environment = yield* makeEnvironment(
+          { platform },
+          { T3CODE_DESKTOP_APP_DATA_DIR: " /isolated/pilot " },
+        );
+        assert.equal(environment.appDataDirectory, "/isolated/pilot");
+      }),
+  );
+
+  it.effect.each([
+    { platform: "darwin", expected: "/Users/alice/Library/Application Support" },
+    { platform: "linux", expected: "/Users/alice/.config" },
+    { platform: "win32", expected: "/Users/alice/AppData/Roaming" },
+  ] as const)("retains the default app data directory on $platform", ({ platform, expected }) =>
+    Effect.gen(function* () {
+      const environment = yield* makeEnvironment({ platform });
+      assert.equal(environment.appDataDirectory, expected);
+    }),
+  );
+
+  it.effect.each(["relative/pilot", "   ", "/pilot\nother"])(
+    "rejects an invalid explicit desktop app data directory %j",
+    (directory) =>
+      Effect.gen(function* () {
+        const result = yield* makeEnvironment({}, { T3CODE_DESKTOP_APP_DATA_DIR: directory }).pipe(
+          Effect.flip,
+        );
+        assert.equal(result._tag, "ConfigError");
+        assert.include(result.message, "absolute path");
+      }),
+  );
+
+  it.effect("treats an empty override as unset", () =>
+    Effect.gen(function* () {
+      const environment = yield* makeEnvironment({}, { T3CODE_DESKTOP_APP_DATA_DIR: "" });
+      assert.equal(environment.appDataDirectory, "/Users/alice/Library/Application Support");
+    }),
+  );
+
+  it.effect.each(["C:\\pilot\\app-data", "\\\\server\\pilot"])(
+    "accepts an absolute Windows override %j",
+    (directory) =>
+      Effect.gen(function* () {
+        const environment = yield* makeEnvironment(
+          { platform: "win32" },
+          { T3CODE_DESKTOP_APP_DATA_DIR: directory },
+        );
+        assert.equal(environment.appDataDirectory, directory);
+      }),
+  );
 });

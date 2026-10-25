@@ -2,6 +2,7 @@ import { OtlpHeadersFromString, OtlpProtocol } from "@t3tools/shared/observabili
 import * as Config from "effect/Config";
 import * as ConfigProvider from "effect/ConfigProvider";
 import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
 
 const trimNonEmptyOption = (value: string): Option.Option<string> => {
   const trimmed = value.trim();
@@ -35,6 +36,20 @@ const compactEnv = (env: Readonly<Record<string, string | undefined>>): Record<s
 
 export const DesktopConfig = Config.all({
   appDataDirectory: trimmedString("APPDATA"),
+  desktopAppDataDirectory: Config.schema(
+    Schema.Trim.check(
+      Schema.makeFilter((value) =>
+        (value.startsWith("/") || /^[A-Za-z]:[\\/]/.test(value) || value.startsWith("\\\\")) &&
+        !Array.from(value).some((character) => {
+          const code = character.charCodeAt(0);
+          return code < 32 || code === 127;
+        })
+          ? undefined
+          : "must be an absolute path without control characters",
+      ),
+    ),
+    "T3CODE_DESKTOP_APP_DATA_DIR",
+  ).pipe(Config.option),
   xdgConfigHome: trimmedString("XDG_CONFIG_HOME"),
   xdgDataHome: trimmedString("XDG_DATA_HOME"),
   t3Home: trimmedString("T3CODE_HOME"),
