@@ -599,6 +599,9 @@ importers:
       '@t3tools/provider-pi':
         specifier: workspace:*
         version: link:../../packages/provider-pi
+      '@t3tools/provider-zcode':
+        specifier: workspace:*
+        version: link:../../packages/provider-zcode
       '@t3tools/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -1057,6 +1060,9 @@ importers:
       '@t3tools/provider-pi':
         specifier: workspace:*
         version: link:../../packages/provider-pi
+      '@t3tools/provider-zcode':
+        specifier: workspace:*
+        version: link:../../packages/provider-zcode
       '@t3tools/shared':
         specifier: workspace:*
         version: link:../../packages/shared
