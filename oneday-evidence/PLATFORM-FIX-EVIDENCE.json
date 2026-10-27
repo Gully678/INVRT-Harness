@@ -60,7 +60,8 @@
       "research": "empirical on expo-modules-autolinking 58.0.13: app.config expo.autolinking is ignored by resolution (tested both directions); package.json autolinking is the only honoured source and supports a static list only; use_expo_modules!(exclude:) forwards ['--exclude', ...] (autolinking_manager.rb:213-226)",
       "tests": "plugins/withIosTerminalNativeExclusion.test.ts 6/6",
       "verification_chain": "default resolve -p ios lists @t3tools/mobile-terminal-native (arm64 keeps it); the same CLI with --exclude omits it (what the Podfile passes); ruby eval of the generated conditional prints env=1 -> [package], unset -> []; prebuild -p ios --no-install produced the patched Podfile with use_expo_modules_widgets! untouched",
-      "limits": "no pod install, xcodebuild, signing or physical device; pod-install-time and generated-autolinking-for-arm64 checks need a capable host; Expo fingerprint changes by design"
+      "limits": "CLI and generated Ruby verified with a fake command spawner and real Ruby interpreter. No native compilation, signing or physical-device test; source selection is not native acceptance. No booted simulator available for actual uname probe.",
+      "recovery": "Codex CP-01: actual CLI validates a Booted simulator then reads its architecture with simctl spawn <UDID> uname -m. x86_64 sets exclusion1, arm64 sets0, overriding inherited flags across Expo fingerprint/prebuild, pod install and xcodebuild. Cached fingerprints include simulator architecture; changing target forces clean prebuild/pod generation. Physical-device IDs remain unsupported by this simulator CLI and fail before setup; plugin default retains the module for normal device builds."
     },
     "P4": {
       "status": "FIXED",
@@ -79,11 +80,11 @@
         {
           "destination": "185.199.108-111.133:443 (raw.githubusercontent.com)",
           "caller": "apps/server/src/provider/ModelManifest.ts:226 (URL lines 24-25), forked at startup by refreshInBackground (line 255)",
-          "toggle": "settings enableProviderUpdateChecks (contracts/src/settings.ts:1122, default true; guard ModelManifest.ts:223); gap: fresh state without a settings file still fetches",
+          "toggle": "enableProviderUpdateChecks defaults true. serverSettings.ts:647-680 returns decoded defaults for a missing file; ModelManifest.ts:220-223 separately catches getSettings failure as null and permits fetching. First-run consent and read-error policy remain open.",
           "related_not_startup": "apps/server/src/usage/UsageService.ts:259 litellm rates fetch on the usage-read path (line 715); no toggle exists (gap recorded)"
         },
         {
-          "destination": "ingest.t3.codes (Cloudflare edges 104.16.7.34, 104.16.10.34, 104.21.3.218, 172.67.153.155; DNS verified)",
+          "destination": "ingest.t3.codes is the default telemetry host. Observed shared Cloudflare IP-to-host attribution is inferred; hostname, origin and payload are not established by an IP alone.",
           "caller": "apps/server/src/telemetry/AnalyticsService.ts:68 (PostHog host default; key default lines 62-64)",
           "toggle": "T3CODE_TELEMETRY_ENABLED (AnalyticsService.ts:73, default true)"
         }
@@ -93,8 +94,9 @@
         "B_same_state_restart": ["185.199.109.133:443 (~4s)", "104.21.3.218:443 (~14s)"],
         "C_fresh_telemetry_off": ["185.199.110.133:443 only"],
         "E_fresh_update_checks_off": ["172.67.153.155:443 only"],
-        "child_processes": "no child opened any socket in any capture",
-        "package_tarball": "not re-run here (controlled packaging step); Codex package-mode lsof PID 22830 shows the same two destinations"
+        "child_processes": "Builder reported no child sockets; deleted raw captures prevent independent verification.",
+        "package_tarball": "not re-run here (controlled packaging step); Codex package-mode lsof PID 22830 shows the same two destinations",
+        "evidence_limit": "Historical builder summaries only; raw captures and DNS files were deleted. No fresh network reproduction by Codex recovery."
       }
     }
   },
@@ -120,5 +122,6 @@
     "retained": ["worktree node_modules (gitignored build state for the next auditor)"]
   },
   "blocked": [],
-  "notes": "Nothing under /Users/mac/My Drive modified; sibling fix-adapter worktree untouched; nothing pushed."
+  "notes": "Nothing under /Users/mac/My Drive modified; sibling fix-adapter worktree untouched; nothing pushed.",
+  "recovery_correction": "27 October 2026, Codex: CP-01 CLI destination wiring and CP-02 settings rationale corrected; separate audit owed. Android safe zone is 66x66 within 108x108, not 66 percent; artwork retained."
 }

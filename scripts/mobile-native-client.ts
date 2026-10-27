@@ -169,6 +169,7 @@ const command = Effect.fn("nativeClient.command")(function* (
   args: string[],
   inherit = false,
   cwd?: string,
+  nativeEnvironment: NodeJS.ProcessEnv = {},
 ) {
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
   const environment = yield* HostProcess.Environment;
@@ -184,6 +185,7 @@ const command = Effect.fn("nativeClient.command")(function* (
         T3CODE_IOS_PERSONAL_TEAM: "0",
         CI: "1",
         EXPO_NO_GIT_STATUS: "1",
+        ...nativeEnvironment,
       },
       stdin: "ignore",
       stdout: inherit ? "inherit" : "pipe",
@@ -201,8 +203,12 @@ const command = Effect.fn("nativeClient.command")(function* (
   return stdout.trim();
 }, Effect.scoped);
 
-const fingerprint = Effect.fn("nativeClient.fingerprint")(function* (platform: NativePlatform) {
-  const output = yield* command(yield* HostProcess.ExecutablePath, [
+const fingerprint = Effect.fn("nativeClient.fingerprint")(function* (
+  platform: NativePlatform,
+  run: typeof command = command,
+  simulatorArchitecture?: string,
+) {
+  const output = yield* run(yield* HostProcess.ExecutablePath, [
     "--eval",
     `require('expo/fingerprint').createFingerprintAsync(process.cwd(), { platforms: [process.argv[1]], silent: true }).then(fp => console.log('T3_NATIVE_FINGERPRINT=' + fp.hash)).catch(e => { console.error(e); process.exitCode = 1; });`,
     platform,
@@ -213,7 +219,7 @@ const fingerprint = Effect.fn("nativeClient.fingerprint")(function* (platform: N
     ?.split("=")[1];
   if (!hash || !/^[a-f0-9]{40,64}$/.test(hash))
     return yield* new NativeClientError({ message: "Expo did not return a native fingerprint." });
-  return hash;
+  return simulatorArchitecture ? `${hash}:ios-simulator:${simulatorArchitecture}` : hash;
 });
 
 const validateDevice = Effect.fn("nativeClient.validateDevice")(function* (
@@ -315,7 +321,7 @@ export const prebuildAndroid = Effect.fn("nativeClient.prebuildAndroid")(functio
   );
 });
 
-const main = Command.make(
+export const main = Command.make(
   "mobile-native-client",
   {
     mode: Argument.Literals("mode", ["check", "ensure"]),
@@ -324,6 +330,23 @@ const main = Command.make(
   },
   Effect.fn("nativeClient.main")(function* ({ mode, platform, device }) {
     yield* validateDevice(platform, device);
+    const simulatorArchitecture =
+      platform === "ios"
+        ? yield* command("xcrun", ["simctl", "spawn", device, "uname", "-m"])
+        : undefined;
+    if (
+      platform === "ios" &&
+      simulatorArchitecture !== "x86_64" &&
+      simulatorArchitecture !== "arm64"
+    )
+      return yield* new NativeClientError({
+        message: `Unsupported iOS simulator architecture: ${simulatorArchitecture}`,
+      });
+    // Resolve from the booted destination, including translated simulators; override stale shell flags.
+    const run: typeof command = (program, args, inherit, cwd) =>
+      command(program, args, inherit, cwd, {
+        T3CODE_IOS_EXCLUDE_TERMINAL_NATIVE: simulatorArchitecture === "x86_64" ? "1" : "0",
+      });
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
     const environment = yield* HostProcess.Environment;
@@ -339,8 +362,8 @@ const main = Command.make(
       `${yield* digest(device)}.json`,
     );
     const operations = {
-      fingerprint: fingerprint(platform),
-      installedBinary: installedBinary(platform, device),
+      fingerprint: fingerprint(platform, run, simulatorArchitecture),
+      installedBinary: installedBinary(platform, device, run),
       readRecord: fs.readFileString(recordPath).pipe(
         Effect.flatMap(decodeRecord),
         Effect.catchTags({ SchemaError: () => Effect.succeed(null) }),
@@ -353,7 +376,7 @@ const main = Command.make(
         yield* Console.error(
           "Native client is missing, stale, or unverified. Building and installing a development client...",
         );
-        const tracked = yield* command(
+        const tracked = yield* run(
           "git",
           ["ls-files", `apps/mobile/${platform}`],
           false,
@@ -364,7 +387,7 @@ const main = Command.make(
             message:
               "Native directory contains tracked files; clean prebuild would overwrite them.",
           });
-        const prebuild = command(
+        const prebuild = run(
           "vp",
           ["exec", "expo", "prebuild", "--clean", "--platform", platform, "--no-install"],
           true,
@@ -373,8 +396,8 @@ const main = Command.make(
         if (platform === "ios") {
           const output = yield* fs.makeTempDirectoryScoped({ prefix: "t3-native-client-" });
           const { mobile } = yield* roots;
-          yield* command("pod", ["install"], true, path.join(mobile, "ios"));
-          yield* command(
+          yield* run("pod", ["install"], true, path.join(mobile, "ios"));
+          yield* run(
             "xcrun",
             [
               "xcodebuild",
@@ -392,7 +415,7 @@ const main = Command.make(
             ],
             true,
           );
-          yield* command(
+          yield* run(
             "xcrun",
             [
               "simctl",
@@ -403,7 +426,7 @@ const main = Command.make(
             true,
           );
         } else {
-          yield* command(
+          yield* run(
             "vp",
             [
               "exec",
