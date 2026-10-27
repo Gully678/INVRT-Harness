@@ -201,3 +201,108 @@ it.live.each(["completed", "aborted", "error"])(
       ).pipe(Effect.provide(ProjectionStore.layer.pipe(Layer.provideMerge(Sqlite.layerMemory))));
     }).pipe(Effect.scoped),
 );
+
+it.live.each([false, true])(
+  "ZCode fresh native budget reset preserves same-native context and failed replacement (%s)",
+  (failReplacement) =>
+    Effect.gen(function* () {
+      const fake = yield* Effect.acquireRelease(
+        Effect.promise(() =>
+          startFakeZcodeAppServer({
+            ...(failReplacement
+              ? {
+                  sessionCreateError: { code: -32603, message: "synthetic create failure" },
+                  sessionCreateErrorAfter: 1,
+                }
+              : {}),
+            turnEvents: [
+              {
+                sessionId: "sess_fake_1",
+                payload: { usage: { contextWindow: { usedTokens: 400, maxTokens: 1000 } } },
+              },
+            ],
+          }),
+        ),
+        (fake) => Effect.promise(() => fake.dispose()),
+      );
+      yield* Effect.promise(() => NodeFSP.chmod(fake.command[1]!, 0o755));
+      const settings = decodeSettings({ enabled: true, binaryPath: fake.command[1] });
+      const adapter = yield* makeZcodeAdapterV2({
+        instanceId: ZCODE_DEFAULT_INSTANCE_ID,
+        settings,
+        environment: { ...process.env },
+      });
+      const threadId = ThreadId.make("thread:budget");
+      const runtimePolicy = {
+        runtimeMode: "approval-required",
+        interactionMode: "default",
+        cwd: null,
+      } as const;
+      const modelSelection = { instanceId: ZCODE_DEFAULT_INSTANCE_ID, model: "zcode-default" };
+      const runtime = yield* adapter.openSession({
+        threadId,
+        providerSessionId: ProviderSessionId.make("session:budget"),
+        modelSelection,
+        runtimePolicy,
+      });
+      const thread = yield* runtime.ensureThread({ threadId, modelSelection, runtimePolicy });
+      const collect = yield* Stream.runCollect(
+        runtime.events.pipe(
+          Stream.filter(
+            (e) =>
+              e.type === "provider_thread.updated" &&
+              e.providerThread.contextUsage?.usedTokens === 400,
+          ),
+          Stream.take(1),
+        ),
+      ).pipe(Effect.forkScoped);
+      yield* runtime.startTurn({
+        threadId,
+        runId: "run:budget",
+        runOrdinal: 1,
+        providerTurnOrdinal: 1,
+        attemptId: "attempt:budget",
+        rootNodeId: "node:budget",
+        providerThread: thread,
+        message: { messageId: "message:budget", text: "hi" },
+        modelSelection,
+        runtimePolicy,
+        appThread: {},
+      } as never);
+      yield* Fiber.join(collect);
+      expect(runtime.getModelContextWindow?.(modelSelection)).toBe(1000);
+      yield* runtime.ensureThread({
+        threadId,
+        existingProviderThread: thread,
+        modelSelection,
+        runtimePolicy,
+      });
+      expect(runtime.getModelContextWindow?.(modelSelection)).toBe(1000);
+      yield* runtime.resumeThread({
+        threadId,
+        providerThread: thread,
+        modelSelection,
+        runtimePolicy,
+      });
+      expect(runtime.getModelContextWindow?.(modelSelection)).toBe(1000);
+      const replacement = yield* runtime
+        .ensureThread({
+          threadId,
+          existingProviderThread: { ...thread, nativeThreadRef: null },
+          modelSelection,
+          runtimePolicy,
+        })
+        .pipe(Effect.result);
+      if (failReplacement) {
+        expect(replacement._tag).toBe("Failure");
+        expect(runtime.getModelContextWindow?.(modelSelection)).toBe(1000);
+      } else {
+        expect(replacement._tag).toBe("Success");
+        if (replacement._tag === "Success") {
+          expect(replacement.success.nativeThreadRef?.nativeId).toBe("sess_fake_2");
+          expect(replacement.success.contextUsage).toBeNull();
+        }
+        expect(runtime.getModelContextWindow?.(modelSelection)).toBeUndefined();
+      }
+    }).pipe(Effect.scoped),
+);

@@ -18,6 +18,8 @@ export interface FakeServerScript {
   sessionRead?: Record<string, unknown>;
   /** Error to reply for session/create. */
   sessionCreateError?: { code: number; message: string; data?: unknown };
+  /** Allow this many successful creates before sessionCreateError applies. */
+  sessionCreateErrorAfter?: number;
   /** sessionId returned by session/create. */
   sessionCreateSessionId?: string;
   /** session/event notifications emitted after session/send, one per line of delayMs. */
@@ -87,11 +89,12 @@ function handle(frame) {
     send({ id: "server-1", method: S.probeUnknownServerRequest, params: {} });
   }
   if (frame.method === "session/create") {
-    if (S.sessionCreateError) {
+    if (S.sessionCreateError && nativeSessionCounter >= (S.sessionCreateErrorAfter ?? 0)) {
       send({ id: frame.id, error: S.sessionCreateError });
       return;
     }
-    const sessionId = S.sessionCreateSessionId ?? ("sess_fake_" + (++nativeSessionCounter));
+    nativeSessionCounter += 1;
+    const sessionId = S.sessionCreateSessionId ?? ("sess_fake_" + nativeSessionCounter);
     send({ id: frame.id, result: { sessionId } });
     return;
   }

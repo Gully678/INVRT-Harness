@@ -424,7 +424,11 @@ export const makeZcodeAdapterV2 = Effect.fn("makeZcodeAdapterV2")(function* (
             providerSessionId,
             cause,
           }),
-      });
+      }).pipe(
+        Effect.tap((sessionId) =>
+          sessionId === nativeSessionId ? Effect.void : Ref.set(contextUsageRef, undefined),
+        ),
+      );
 
     const readSessionTranscript = (
       providerThreadId: import("@t3tools/contracts").ProviderThreadId,
