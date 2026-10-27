@@ -122,8 +122,9 @@ lsof -nP -iTCP:14036 -sTCP:LISTEN        # expect empty (port released)
 ```
 
 SIGTERM is clean: the server releases its ownership lock and flushes SQLite. Verified across
-two runs on 27 October 2026. Use SIGKILL only if SIGTERM was ignored; then delete
-`statev2.sqlite-shm`/`-wal` are left for SQLite to recover automatically on next start.
+two runs on 27 October 2026. Use SIGKILL only if SIGTERM was ignored. Do not delete the
+`statev2.sqlite-shm` and `-wal` files manually; leave them in place for SQLite to recover
+automatically on next start.
 
 ## 7. Backup and restore of the state dir
 
