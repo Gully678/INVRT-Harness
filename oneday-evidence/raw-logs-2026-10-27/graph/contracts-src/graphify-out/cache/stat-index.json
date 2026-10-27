@@ -1,0 +1,620 @@
+{
+  "acpRegistry.test.ts": {
+    "size": 1856,
+    "mtime_ns": 1793107470135462310,
+    "indexed_at_ns": 1793109467627650000,
+    "word_count": 111
+  },
+  "acpRegistry.ts": {
+    "size": 13048,
+    "mtime_ns": 1793107470140316446,
+    "indexed_at_ns": 1793109467628602000,
+    "word_count": 862
+  },
+  "agentSessions.ts": {
+    "size": 3441,
+    "mtime_ns": 1793107470124842030,
+    "indexed_at_ns": 1793109467629525000,
+    "word_count": 274
+  },
+  "applicationEvent.ts": {
+    "size": 4539,
+    "mtime_ns": 1793107470107904451,
+    "indexed_at_ns": 1793109467630509000,
+    "word_count": 281
+  },
+  "assets.ts": {
+    "size": 11309,
+    "mtime_ns": 1793107470105873277,
+    "indexed_at_ns": 1793109467631192000,
+    "word_count": 909
+  },
+  "assistantCitations.ts": {
+    "size": 1360,
+    "mtime_ns": 1793107470137133744,
+    "indexed_at_ns": 1793109467631984000,
+    "word_count": 86
+  },
+  "auth.test.ts": {
+    "size": 4408,
+    "mtime_ns": 1793107470098361999,
+    "indexed_at_ns": 1793109467632953000,
+    "word_count": 359
+  },
+  "auth.ts": {
+    "size": 21013,
+    "mtime_ns": 1793107470137621046,
+    "indexed_at_ns": 1793109467634196000,
+    "word_count": 1501
+  },
+  "background.ts": {
+    "size": 4053,
+    "mtime_ns": 1793107470118573379,
+    "indexed_at_ns": 1793109467635368000,
+    "word_count": 285
+  },
+  "baseSchemas.test.ts": {
+    "size": 3703,
+    "mtime_ns": 1793107470097911359,
+    "indexed_at_ns": 1793109467635927000,
+    "word_count": 418
+  },
+  "baseSchemas.ts": {
+    "size": 13258,
+    "mtime_ns": 1793107470119088077,
+    "indexed_at_ns": 1793109467636601000,
+    "word_count": 1314
+  },
+  "browserImport.ts": {
+    "size": 3745,
+    "mtime_ns": 1793107470096933211,
+    "indexed_at_ns": 1793109467637434000,
+    "word_count": 337
+  },
+  "browserProfile.test.ts": {
+    "size": 1160,
+    "mtime_ns": 1793107470104756105,
+    "indexed_at_ns": 1793109467638484000,
+    "word_count": 116
+  },
+  "browserProfile.ts": {
+    "size": 2271,
+    "mtime_ns": 1793107470099864935,
+    "indexed_at_ns": 1793109467639270000,
+    "word_count": 221
+  },
+  "chatAttachment.test.ts": {
+    "size": 2244,
+    "mtime_ns": 1793107470120429542,
+    "indexed_at_ns": 1793109467639966000,
+    "word_count": 204
+  },
+  "chatAttachment.ts": {
+    "size": 9667,
+    "mtime_ns": 1793107470087131541,
+    "indexed_at_ns": 1793109467640615000,
+    "word_count": 667
+  },
+  "checkpointDiff.ts": {
+    "size": 2165,
+    "mtime_ns": 1793107470122574328,
+    "indexed_at_ns": 1793109467641316000,
+    "word_count": 168
+  },
+  "clientRpcPermissions.ts": {
+    "size": 4223,
+    "mtime_ns": 1793107470131719144,
+    "indexed_at_ns": 1793109467642197000,
+    "word_count": 249
+  },
+  "composerContext.test.ts": {
+    "size": 6964,
+    "mtime_ns": 1793107470131206433,
+    "indexed_at_ns": 1793109467642855000,
+    "word_count": 653
+  },
+  "composerContext.ts": {
+    "size": 10781,
+    "mtime_ns": 1793107470132233219,
+    "indexed_at_ns": 1793109467643905000,
+    "word_count": 779
+  },
+  "composerContextClipboard.ts": {
+    "size": 955,
+    "mtime_ns": 1793107470092111998,
+    "indexed_at_ns": 1793109467645351000,
+    "word_count": 70
+  },
+  "desktopAppActivation.ts": {
+    "size": 1976,
+    "mtime_ns": 1793107470107409350,
+    "indexed_at_ns": 1793109467646196000,
+    "word_count": 134
+  },
+  "desktopBootstrap.ts": {
+    "size": 1697,
+    "mtime_ns": 1793107470097343790,
+    "indexed_at_ns": 1793109467646738000,
+    "word_count": 140
+  },
+  "desktopBrowser.ts": {
+    "size": 1287,
+    "mtime_ns": 1793107470117765961,
+    "indexed_at_ns": 1793109467647383000,
+    "word_count": 127
+  },
+  "device.test.ts": {
+    "size": 2704,
+    "mtime_ns": 1793107470114638898,
+    "indexed_at_ns": 1793109467647892000,
+    "word_count": 297
+  },
+  "device.ts": {
+    "size": 22449,
+    "mtime_ns": 1793107470125820147,
+    "indexed_at_ns": 1793109467648460000,
+    "word_count": 1957
+  },
+  "editor.ts": {
+    "size": 9679,
+    "mtime_ns": 1793107470098787273,
+    "indexed_at_ns": 1793109467649545000,
+    "word_count": 897
+  },
+  "environment.test.ts": {
+    "size": 1339,
+    "mtime_ns": 1793107470114277936,
+    "indexed_at_ns": 1793109467650178000,
+    "word_count": 119
+  },
+  "environment.ts": {
+    "size": 9009,
+    "mtime_ns": 1793107470103836037,
+    "indexed_at_ns": 1793109467650909000,
+    "word_count": 611
+  },
+  "environmentHttp.ts": {
+    "size": 30405,
+    "mtime_ns": 1793107470092638954,
+    "indexed_at_ns": 1793109467651706000,
+    "word_count": 1858
+  },
+  "filesystem.test.ts": {
+    "size": 1191,
+    "mtime_ns": 1793107470138538774,
+    "indexed_at_ns": 1793109467652902000,
+    "word_count": 105
+  },
+  "filesystem.ts": {
+    "size": 3428,
+    "mtime_ns": 1793107470122135317,
+    "indexed_at_ns": 1793109467653602000,
+    "word_count": 260
+  },
+  "git.test.ts": {
+    "size": 1983,
+    "mtime_ns": 1793107470126225459,
+    "indexed_at_ns": 1793109467654333000,
+    "word_count": 165
+  },
+  "git.ts": {
+    "size": 17404,
+    "mtime_ns": 1793107470134365742,
+    "indexed_at_ns": 1793109467655037000,
+    "word_count": 1230
+  },
+  "guestShare.test.ts": {
+    "size": 660,
+    "mtime_ns": 1793107470090130948,
+    "indexed_at_ns": 1793109467655917000,
+    "word_count": 74
+  },
+  "guestShare.ts": {
+    "size": 5776,
+    "mtime_ns": 1793107470096089735,
+    "indexed_at_ns": 1793109467656642000,
+    "word_count": 698
+  },
+  "guestStream.ts": {
+    "size": 1749,
+    "mtime_ns": 1793107470087954741,
+    "indexed_at_ns": 1793109467657262000,
+    "word_count": 188
+  },
+  "index.ts": {
+    "size": 2468,
+    "mtime_ns": 1793107470127795616,
+    "indexed_at_ns": 1793109467657951000,
+    "word_count": 280
+  },
+  "ipc.ts": {
+    "size": 42164,
+    "mtime_ns": 1793107470125403922,
+    "indexed_at_ns": 1793109467658805000,
+    "word_count": 3473
+  },
+  "keybindings.test.ts": {
+    "size": 1385,
+    "mtime_ns": 1793107470133784203,
+    "indexed_at_ns": 1793109467659963000,
+    "word_count": 144
+  },
+  "keybindings.ts": {
+    "size": 6421,
+    "mtime_ns": 1793107470124339590,
+    "indexed_at_ns": 1793109467660794000,
+    "word_count": 456
+  },
+  "mcpApps.ts": {
+    "size": 3149,
+    "mtime_ns": 1793107470130124519,
+    "indexed_at_ns": 1793109467661673000,
+    "word_count": 283
+  },
+  "model.ts": {
+    "size": 7788,
+    "mtime_ns": 1793107470111667505,
+    "indexed_at_ns": 1793109467662275000,
+    "word_count": 609
+  },
+  "modelSelection.test.ts": {
+    "size": 2424,
+    "mtime_ns": 1793107470095129934,
+    "indexed_at_ns": 1793109467663109000,
+    "word_count": 219
+  },
+  "modelSelection.ts": {
+    "size": 1742,
+    "mtime_ns": 1793107470120020148,
+    "indexed_at_ns": 1793109467663927000,
+    "word_count": 150
+  },
+  "orchestrationDispatch.ts": {
+    "size": 441,
+    "mtime_ns": 1793107470100345001,
+    "indexed_at_ns": 1793109467664757000,
+    "word_count": 29
+  },
+  "orchestrationProject.ts": {
+    "size": 1105,
+    "mtime_ns": 1793107470113903545,
+    "indexed_at_ns": 1793109467665422000,
+    "word_count": 83
+  },
+  "orchestrationV2.test.ts": {
+    "size": 22595,
+    "mtime_ns": 1793107470112962211,
+    "indexed_at_ns": 1793109467665956000,
+    "word_count": 1767
+  },
+  "orchestrationV2.ts": {
+    "size": 148445,
+    "mtime_ns": 1793107470117243540,
+    "indexed_at_ns": 1793109467666824000,
+    "word_count": 9439
+  },
+  "orchestrationV2IdTable.test.ts": {
+    "size": 2177,
+    "mtime_ns": 1793107470133266655,
+    "indexed_at_ns": 1793109467668674000,
+    "word_count": 264
+  },
+  "orchestrationV2IdTable.ts": {
+    "size": 4823,
+    "mtime_ns": 1793107470139138978,
+    "indexed_at_ns": 1793109467669487000,
+    "word_count": 640
+  },
+  "orchestratorMcp.test.ts": {
+    "size": 2381,
+    "mtime_ns": 1793107470106984474,
+    "indexed_at_ns": 1793109467670278000,
+    "word_count": 164
+  },
+  "orchestratorMcp.ts": {
+    "size": 28265,
+    "mtime_ns": 1793107470123937971,
+    "indexed_at_ns": 1793109467670998000,
+    "word_count": 2002
+  },
+  "preview.test.ts": {
+    "size": 1504,
+    "mtime_ns": 1793107470120813846,
+    "indexed_at_ns": 1793109467672443000,
+    "word_count": 135
+  },
+  "preview.ts": {
+    "size": 12995,
+    "mtime_ns": 1793107470139756012,
+    "indexed_at_ns": 1793109467674874000,
+    "word_count": 1061
+  },
+  "previewAutomation.ts": {
+    "size": 37010,
+    "mtime_ns": 1793107470116401928,
+    "indexed_at_ns": 1793109467675790000,
+    "word_count": 2895
+  },
+  "previewCapture.ts": {
+    "size": 1544,
+    "mtime_ns": 1793107470101277906,
+    "indexed_at_ns": 1793109467676826000,
+    "word_count": 168
+  },
+  "project.test.ts": {
+    "size": 7007,
+    "mtime_ns": 1793107470136378510,
+    "indexed_at_ns": 1793109467680099000,
+    "word_count": 513
+  },
+  "project.ts": {
+    "size": 18886,
+    "mtime_ns": 1793107470088371860,
+    "indexed_at_ns": 1793109467680871000,
+    "word_count": 1379
+  },
+  "projectClone.ts": {
+    "size": 4179,
+    "mtime_ns": 1793107470102331020,
+    "indexed_at_ns": 1793109467681598000,
+    "word_count": 338
+  },
+  "provider.test.ts": {
+    "size": 1796,
+    "mtime_ns": 1793107470090682334,
+    "indexed_at_ns": 1793109467682384000,
+    "word_count": 175
+  },
+  "provider.ts": {
+    "size": 5342,
+    "mtime_ns": 1793107470128936279,
+    "indexed_at_ns": 1793109467683321000,
+    "word_count": 374
+  },
+  "providerInstance.ts": {
+    "size": 3531,
+    "mtime_ns": 1793107470094639339,
+    "indexed_at_ns": 1793109467683961000,
+    "word_count": 241
+  },
+  "providerPolicy.ts": {
+    "size": 3090,
+    "mtime_ns": 1793107470128201359,
+    "indexed_at_ns": 1793109467684496000,
+    "word_count": 246
+  },
+  "providerRuntime.ts": {
+    "size": 43489,
+    "mtime_ns": 1793107470130751726,
+    "indexed_at_ns": 1793109467685529000,
+    "word_count": 2679
+  },
+  "providerSetup.test.ts": {
+    "size": 1008,
+    "mtime_ns": 1793107470089589514,
+    "indexed_at_ns": 1793109467686468000,
+    "word_count": 108
+  },
+  "providerSetup.ts": {
+    "size": 9017,
+    "mtime_ns": 1793107470132730375,
+    "indexed_at_ns": 1793109467687242000,
+    "word_count": 582
+  },
+  "providerUsageLimits.ts": {
+    "size": 5193,
+    "mtime_ns": 1793107470138076413,
+    "indexed_at_ns": 1793109467687967000,
+    "word_count": 374
+  },
+  "pullRequest.test.ts": {
+    "size": 4883,
+    "mtime_ns": 1793107470101799970,
+    "indexed_at_ns": 1793109467688921000,
+    "word_count": 449
+  },
+  "pullRequest.ts": {
+    "size": 35461,
+    "mtime_ns": 1793107470129601221,
+    "indexed_at_ns": 1793109467689647000,
+    "word_count": 2737
+  },
+  "pullRequestReviewGuide.ts": {
+    "size": 2525,
+    "mtime_ns": 1793107470121588489,
+    "indexed_at_ns": 1793109467690847000,
+    "word_count": 182
+  },
+  "relay.test.ts": {
+    "size": 1010,
+    "mtime_ns": 1793107470111009702,
+    "indexed_at_ns": 1793109467691839000,
+    "word_count": 92
+  },
+  "relay.ts": {
+    "size": 47835,
+    "mtime_ns": 1793107470108694276,
+    "indexed_at_ns": 1793109467692529000,
+    "word_count": 3282
+  },
+  "relayClient.ts": {
+    "size": 1827,
+    "mtime_ns": 1793107470115489510,
+    "indexed_at_ns": 1793109467693842000,
+    "word_count": 122
+  },
+  "remoteAccess.ts": {
+    "size": 2299,
+    "mtime_ns": 1793107470106438253,
+    "indexed_at_ns": 1793109467694720000,
+    "word_count": 160
+  },
+  "resourceTelemetry.ts": {
+    "size": 18653,
+    "mtime_ns": 1793107470091372114,
+    "indexed_at_ns": 1793109467695522000,
+    "word_count": 1194
+  },
+  "review.ts": {
+    "size": 2671,
+    "mtime_ns": 1793107470113442321,
+    "indexed_at_ns": 1793109467696156000,
+    "word_count": 192
+  },
+  "rpc.test.ts": {
+    "size": 1767,
+    "mtime_ns": 1793107470115010708,
+    "indexed_at_ns": 1793109467696704000,
+    "word_count": 152
+  },
+  "rpc.ts": {
+    "size": 74783,
+    "mtime_ns": 1793107470109300779,
+    "indexed_at_ns": 1793109467697081000,
+    "word_count": 3999
+  },
+  "scheduledTask.test.ts": {
+    "size": 2265,
+    "mtime_ns": 1793107470102743087,
+    "indexed_at_ns": 1793109467698004000,
+    "word_count": 232
+  },
+  "scheduledTask.ts": {
+    "size": 13644,
+    "mtime_ns": 1793107470109727744,
+    "indexed_at_ns": 1793109467698626000,
+    "word_count": 1036
+  },
+  "secretRequest.ts": {
+    "size": 2042,
+    "mtime_ns": 1793107470099251429,
+    "indexed_at_ns": 1793109467699505000,
+    "word_count": 221
+  },
+  "server.test.ts": {
+    "size": 4637,
+    "mtime_ns": 1793107470134970531,
+    "indexed_at_ns": 1793109467700230000,
+    "word_count": 417
+  },
+  "server.ts": {
+    "size": 35759,
+    "mtime_ns": 1793107470135874895,
+    "indexed_at_ns": 1793109467700889000,
+    "word_count": 2435
+  },
+  "settings.test.ts": {
+    "size": 14476,
+    "mtime_ns": 1793107470112505188,
+    "indexed_at_ns": 1793109467701950000,
+    "word_count": 1266
+  },
+  "settings.ts": {
+    "size": 73447,
+    "mtime_ns": 1793107470103312692,
+    "indexed_at_ns": 1793109467702716000,
+    "word_count": 4655
+  },
+  "sourceControl.ts": {
+    "size": 7952,
+    "mtime_ns": 1793107470121204733,
+    "indexed_at_ns": 1793109467704229000,
+    "word_count": 530
+  },
+  "t3ProjectFile.ts": {
+    "size": 5627,
+    "mtime_ns": 1793107470095664736,
+    "indexed_at_ns": 1793109467705302000,
+    "word_count": 595
+  },
+  "terminal.test.ts": {
+    "size": 1796,
+    "mtime_ns": 1793107470096549092,
+    "indexed_at_ns": 1793109467706014000,
+    "word_count": 162
+  },
+  "terminal.ts": {
+    "size": 12532,
+    "mtime_ns": 1793107470127254977,
+    "indexed_at_ns": 1793109467706651000,
+    "word_count": 877
+  },
+  "threadMetadataMcp.test.ts": {
+    "size": 812,
+    "mtime_ns": 1793107470087568615,
+    "indexed_at_ns": 1793109467707344000,
+    "word_count": 73
+  },
+  "threadMetadataMcp.ts": {
+    "size": 2478,
+    "mtime_ns": 1793107470118171877,
+    "indexed_at_ns": 1793109467708037000,
+    "word_count": 233
+  },
+  "threadPullRequest.test.ts": {
+    "size": 1068,
+    "mtime_ns": 1793107470115975141,
+    "indexed_at_ns": 1793109467708847000,
+    "word_count": 90
+  },
+  "threadPullRequest.ts": {
+    "size": 4435,
+    "mtime_ns": 1793107470105287074,
+    "indexed_at_ns": 1793109467709652000,
+    "word_count": 361
+  },
+  "threadSearch.ts": {
+    "size": 2345,
+    "mtime_ns": 1793107470100769513,
+    "indexed_at_ns": 1793109467710427000,
+    "word_count": 226
+  },
+  "threadTitle.ts": {
+    "size": 286,
+    "mtime_ns": 1793107470112080334,
+    "indexed_at_ns": 1793109467711350000,
+    "word_count": 29
+  },
+  "usage.ts": {
+    "size": 5168,
+    "mtime_ns": 1793107470093257326,
+    "indexed_at_ns": 1793109467712367000,
+    "word_count": 439
+  },
+  "usageLimitSourceId.ts": {
+    "size": 283,
+    "mtime_ns": 1793107470123533672,
+    "indexed_at_ns": 1793109467713048000,
+    "word_count": 29
+  },
+  "vcs.ts": {
+    "size": 8684,
+    "mtime_ns": 1793107470104287944,
+    "indexed_at_ns": 1793109467713602000,
+    "word_count": 712
+  },
+  "worktreeMcp.ts": {
+    "size": 3244,
+    "mtime_ns": 1793107470119594952,
+    "indexed_at_ns": 1793109467714399000,
+    "word_count": 239
+  },
+  "worktreeSetup.ts": {
+    "size": 3495,
+    "mtime_ns": 1793107470089073375,
+    "indexed_at_ns": 1793109467715139000,
+    "word_count": 276
+  },
+  "programmeDomain.test.ts": {
+    "size": 30136,
+    "mtime_ns": 1793109467253138911,
+    "indexed_at_ns": 1793109467677761000,
+    "word_count": 2945
+  },
+  "programmeDomain.ts": {
+    "size": 40801,
+    "mtime_ns": 1793109467245883093,
+    "indexed_at_ns": 1793109467679065000,
+    "word_count": 3704
+  }
+}

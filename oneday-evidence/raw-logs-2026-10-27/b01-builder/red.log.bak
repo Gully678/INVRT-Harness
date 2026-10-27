@@ -1,0 +1,707 @@
+note: You are running `vp test` as a Vite+ built-in command. If you meant to run the test npm script, use `vpr test` instead.
+
+ RUN  v5.0.5 /Users/mac/Repos/.worktrees/invrt-claude-domain-core-b01-20261027
+
+ ❯ |root| packages/contracts/src/programmeDomain.test.ts (53 tests | 41 failed) 33ms
+   ✓ schema negatives (11)
+     ✓ rejects an approval without actionScopes 3ms
+     ✓ rejects a work item without revision 0ms
+     ✓ rejects malformed and upper-case digests 1ms
+     ✓ rejects a malformed base commit hex 0ms
+     ✓ rejects negative and non-integer revisions 0ms
+     ✓ rejects an unknown schema major version 0ms
+     ✓ rejects blank branded identifiers 0ms
+     ✓ rejects invalid dates 1ms
+     ✓ rejects unsupported work item states including releaseReady and live 1ms
+     ✓ rejects unsupported approval effects 0ms
+     ✓ rejects evidence with a missing or malformed digest 0ms
+   ❯ admitBuildComplete (10)
+     × admits from running, freezing the exact source commit and build proof; tested stays separate 4ms
+     × admits from fixing as well 0ms
+     × rejects states outside running|fixing 4ms
+     × denies a stale expectedRevision with zero mutation 1ms
+     × denies a terminal work item 1ms
+     × denies when the programme is closed: cancellation cannot revive terminal 1ms
+     × denies an unknown or wrong assignment 1ms
+     × denies forged principal claims: the port, not the body, names the actor 1ms
+     × denies a wrong project 0ms
+     × denies a wrong organisation 0ms
+   ❯ authority and approval gates (11)
+     × denies when the port cannot resolve the actor: capability_unavailable 0ms
+     × denies when the approval record is absent or unresolvable 0ms
+     × denies when the attempt ledger is absent 0ms
+     × denies an expired approval 1ms
+     × denies a revoked approval 0ms
+     × denies an approval bound to a different spec hash 0ms
+     × denies when the effect is not in the approval actionScopes 0ms
+     × denies an environment outside the approval scope 1ms
+     × denies a project outside the approval scope 0ms
+     × denies paths the approval excludes 0ms
+     × denies an exceeded attempt budget 0ms
+   ❯ replay and idempotency (4)
+     × replays the original result for the same scoped key and payload with no second revision 0ms
+     × denies the same key with a different payload digest: idempotency_conflict 0ms
+     × denies cross-principal reuse of the same aggregate/operation/key 0ms
+     × denies startReview on a terminal work item even with a fresh key 0ms
+   ❯ startReview (3)
+     × moves a buildComplete work item to reviewQueued with verified authority 0ms
+     × denies startReview from a non-buildComplete state 0ms
+     × denies startReview when the port cannot verify the actor 0ms
+   ❯ recordReview (13)
+     × accepts a separate eligible review and records the disposition with exact data comparison 0ms
+     × accepts an auditor on a model name that appears on no fixed list 0ms
+     × rejects self-review: the auditor run cannot be the builder run 0ms
+     × rejects shared lineage: the auditor identity may not equal any builder-run lineage entry 0ms
+     × rejects an auditor with unknown model/context identity 0ms
+     × rejects an auditor run bound to the wrong task 0ms
+     × rejects a review bound to the wrong task packet 0ms
+     × rejects a review whose exactCommit differs from the frozen source 0ms
+     × rejects evidence references that do not resolve 0ms
+     × rejects evidence produced outside the builder lineage 0ms
+     × rejects a review whose evidence does not satisfy the required coverage 0ms
+     × rejects when the authoritative source moved after the build was frozen: source_stale 0ms
+     × denies recording a review outside reviewQueued|reviewing 1ms
+   ✓ typed errors (1)
+     ✓ exposes the exercised PRD error subset as distinct tags 1ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 41 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |root| packages/contracts/src/programmeDomain.test.ts > admitBuildComplete > admits from running, freezing the exact source commit and build proof; tested stays separate
+ProgrammeNotImplementedError: admitBuildComplete not implemented
+ ❯ admitBuildComplete packages/contracts/src/programmeDomain.ts:681:9
+    679|  */
+    680| export const admitBuildComplete = (input: AdmitBuildCompleteInput): { …
+    681|   throw new ProgrammeNotImplementedError({ message: "admitBuildComplet…
+       |         ^
+    682| };
+    683|
+ ❯ packages/contracts/src/programmeDomain.test.ts:435:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/41]⎯
+
+ FAIL  |root| packages/contracts/src/programmeDomain.test.ts > admitBuildComplete > admits from fixing as well
+ProgrammeNotImplementedError: admitBuildComplete not implemented
+ ❯ admitBuildComplete packages/contracts/src/programmeDomain.ts:681:9
+    679|  */
+    680| export const admitBuildComplete = (input: AdmitBuildCompleteInput): { …
+    681|   throw new ProgrammeNotImplementedError({ message: "admitBuildComplet…
+       |         ^
+    682| };
+    683|
+ ❯ packages/contracts/src/programmeDomain.test.ts:447:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/41]⎯
+
+ FAIL  |root| packages/contracts/src/programmeDomain.test.ts > admitBuildComplete > rejects states outside running|fixing
+AssertionError: expected 'ProgrammeNotImplementedError' to be 'ProgrammeInvalidRequestError' // Object.is equality
+
+Expected: "ProgrammeInvalidRequestError"
+Received: "ProgrammeNotImplementedError"
+
+ ❯ expectTagged packages/contracts/src/programmeDomain.test.ts:53:55
+     51|   }
+     52|   expect(thrown, `expected a denial tagged ${tag}`).toBeDefined();
+     53|   expect((thrown as { readonly _tag?: string })._tag).toBe(tag);
+       |                                                       ^
+     54| };
+     55|
+ ❯ packages/contracts/src/programmeDomain.test.ts:452:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/41]⎯
+
+ FAIL  |root| packages/contracts/src/programmeDomain.test.ts > admitBuildComplete > denies a stale expectedRevision with zero mutation
+AssertionError: expected 'ProgrammeNotImplementedError' to be 'ProgrammeRevisionConflictError' // Object.is equality
+
+Expected: "ProgrammeRevisionConflictError"
+Received: "ProgrammeNotImplementedError"
+
+ ❯ expectTagged packages/contracts/src/programmeDomain.test.ts:53:55
+     51|   }
+     52|   expect(thrown, `expected a denial tagged ${tag}`).toBeDefined();
+     53|   expect((thrown as { readonly _tag?: string })._tag).toBe(tag);
+       |                                                       ^
+     54| };
+     55|
+ ❯ packages/contracts/src/programmeDomain.test.ts:459:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/41]⎯
+
+ FAIL  |root| packages/contracts/src/programmeDomain.test.ts > admitBuildComplete > denies a terminal work item
+AssertionError: expected 'ProgrammeNotImplementedError' to be 'ProgrammeForbiddenError' // Object.is equality
+
+Expected: "ProgrammeForbiddenError"
+Received: "ProgrammeNotImplementedError"
+
+ ❯ expectTagged packages/contracts/src/programmeDomain.test.ts:53:55
+     51|   }
+     52|   expect(thrown, `expected a denial tagged ${tag}`).toBeDefined();
+     53|   expect((thrown as { readonly _tag?: string })._tag).toBe(tag);
+       |                                                       ^
+     54| };
+     55|
+ ❯ packages/contracts/src/programmeDomain.test.ts:465:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/41]⎯
+
+ FAIL  |root| packages/contracts/src/programmeDomain.test.ts > admitBuildComplete > denies when the programme is closed: cancellation cannot revive terminal
+AssertionError: expected 'ProgrammeNotImplementedError' to be 'ProgrammeForbiddenError' // Object.is equality
+
+Expected: "ProgrammeForbiddenError"
+Received: "ProgrammeNotImplementedError"
+
+ ❯ expectTagged packages/contracts/src/programmeDomain.test.ts:53:55
+     51|   }
+     52|   expect(thrown, `expected a denial tagged ${tag}`).toBeDefined();
+     53|   expect((thrown as { readonly _tag?: string })._tag).toBe(tag);
+       |                                                       ^
+     54| };
+     55|
+ ❯ packages/contracts/src/programmeDomain.test.ts:473:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/41]⎯
+
+ FAIL  |root| packages/contracts/src/programmeDomain.test.ts > admitBuildComplete > denies an unknown or wrong assignment
+AssertionError: expected 'ProgrammeNotImplementedError' to be 'ProgrammeForbiddenError' // Object.is equality
+
+Expected: "ProgrammeForbiddenError"
+Received: "ProgrammeNotImplementedError"
+
+ ❯ expectTagged packages/contracts/src/programmeDomain.test.ts:53:55
+     51|   }
+     52|   expect(thrown, `expected a denial tagged ${tag}`).toBeDefined();
+     53|   expect((thrown as { readonly _tag?: string })._tag).toBe(tag);
+       |                                                       ^
+     54| };
+     55|
+ ❯ packages/contracts/src/programmeDomain.test.ts:477:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/41]⎯
+
+ FAIL  |root| packages/contracts/src/programmeDomain.test.ts > admitBuildComplete > denies forged principal claims: the port, not the body, names the actor
+AssertionError: expected 'ProgrammeNotImplementedError' to be 'ProgrammeForbiddenError' // Object.is equality
+
+Expected: "ProgrammeForbiddenError"
+Received: "ProgrammeNotImplementedError"
+
+ ❯ expectTagged packages/contracts/src/programmeDomain.test.ts:53:55
+     51|   }
+     52|   expect(thrown, `expected a denial tagged ${tag}`).toBeDefined();
+     53|   expect((thrown as { readonly _tag?: string })._tag).toBe(tag);
+       |                                                       ^
+     54| };
+     55|
+ ❯ packages/contracts/src/programmeDomain.test.ts:496:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/41]⎯
+
+ FAIL  |root| packages/contracts/src/programmeDomain.test.ts > admitBuildComplete > denies a wrong project
+AssertionError: expected 'ProgrammeNotImplementedError' to be 'ProgrammeForbiddenError' // Object.is equality
+
+Expected: "ProgrammeForbiddenError"
+Received: "ProgrammeNotImplementedError"
+
+ ❯ expectTagged packages/contracts/src/programmeDomain.test.ts:53:55
+     51|   }
+     52|   expect(thrown, `expected a denial tagged ${tag}`).toBeDefined();
+     53|   expect((thrown as { readonly _tag?: string })._tag).toBe(tag);
+       |                                                       ^
+     54| };
+     55|
+ ❯ packages/contracts/src/programmeDomain.test.ts:501:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/41]⎯
+
+ FAIL  |root| packages/contracts/src/programmeDomain.test.ts > admitBuildComplete > denies a wrong organisation
+AssertionError: expected 'ProgrammeNotImplementedError' to be 'ProgrammeForbiddenError' // Object.is equality
+
+Expected: "ProgrammeForbiddenError"
+Received: "ProgrammeNotImplementedError"
+
+ ❯ expectTagged packages/contracts/src/programmeDomain.test.ts:53:55
+     51|   }
+     52|   expect(thrown, `expected a denial tagged ${tag}`).toBeDefined();
+     53|   expect((thrown as { readonly _tag?: string })._tag).toBe(tag);
+       |                                                       ^
+     54| };
+     55|
+ ❯ packages/contracts/src/programmeDomain.test.ts:514:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/41]⎯
+
+ FAIL  |root| packages/contracts/src/programmeDomain.test.ts > authority and approval gates > denies when the port cannot resolve the actor: capability_unavailable
+AssertionError: expected 'ProgrammeNotImplementedError' to be 'ProgrammeCapabilityUnavailableError' // Object.is equality
+
+Expected: "ProgrammeCapabilityUnavailableError"
+Received: "ProgrammeNotImplementedError"
+
+ ❯ expectTagged packages/contracts/src/programmeDomain.test.ts:53:55
+     51|   }
+     52|   expect(thrown, `expected a denial tagged ${tag}`).toBeDefined();
+     53|   expect((thrown as { readonly _tag?: string })._tag).toBe(tag);
+       |                                                       ^
+     54| };
+     55|
+ ❯ packages/contracts/src/programmeDomain.test.ts:522:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/41]⎯
+
+ FAIL  |root| packages/contracts/src/programmeDomain.test.ts > authority and approval gates > denies when the approval record is absent or unresolvable
+AssertionError: expected 'ProgrammeNotImplementedError' to be 'ProgrammeCapabilityUnavailableError' // Object.is equality
+
+Expected: "ProgrammeCapabilityUnavailableError"
+Received: "ProgrammeNotImplementedError"
+
+ ❯ expectTagged packages/contracts/src/programmeDomain.test.ts:53:55
+     51|   }
+     52|   expect(thrown, `expected a denial tagged ${tag}`).toBeDefined();
+     53|   expect((thrown as { readonly _tag?: string })._tag).toBe(tag);
+       |                                                       ^
+     54| };
+     55|
+ ❯ packages/contracts/src/programmeDomain.test.ts:528:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/41]⎯
+
+ FAIL  |root| packages/contracts/src/programmeDomain.test.ts > authority and approval gates > denies when the attempt ledger is absent
+AssertionError: expected 'ProgrammeNotImplementedError' to be 'ProgrammeCapabilityUnavailableError' // Object.is equality
+
+Expected: "ProgrammeCapabilityUnavailableError"
+Received: "ProgrammeNotImplementedError"
+
+ ❯ expectTagged packages/contracts/src/programmeDomain.test.ts:53:55
+     51|   }
+     52|   expect(thrown, `expected a denial tagged ${tag}`).toBeDefined();
+     53|   expect((thrown as { readonly _tag?: string })._tag).toBe(tag);
+       |                                                       ^
+     54| };
+     55|
+ ❯ packages/contracts/src/programmeDomain.test.ts:534:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/41]⎯
+
+ FAIL  |root| packages/contracts/src/programmeDomain.test.ts > authority and approval gates > denies an expired approval
+AssertionError: expected 'ProgrammeNotImplementedError' to be 'ProgrammePolicyDeniedError' // Object.is equality
+
+Expected: "ProgrammePolicyDeniedError"
+Received: "ProgrammeNotImplementedError"
+
+ ❯ expectTagged packages/contracts/src/programmeDomain.test.ts:53:55
+     51|   }
+     52|   expect(thrown, `expected a denial tagged ${tag}`).toBeDefined();
+     53|   expect((thrown as { readonly _tag?: string })._tag).toBe(tag);
+       |                                                       ^
+     54| };
+     55|
+ ❯ packages/contracts/src/programmeDomain.test.ts:541:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/41]⎯
+
+ FAIL  |root| packages/contracts/src/programmeDomain.test.ts > authority and approval gates > denies a revoked approval
+AssertionError: expected 'ProgrammeNotImplementedError' to be 'ProgrammePolicyDeniedError' // Object.is equality
+
+Expected: "ProgrammePolicyDeniedError"
+Received: "ProgrammeNotImplementedError"
+
+ ❯ expectTagged packages/contracts/src/programmeDomain.test.ts:53:55
+     51|   }
+     52|   expect(thrown, `expected a denial tagged ${tag}`).toBeDefined();
+     53|   expect((thrown as { readonly _tag?: string })._tag).toBe(tag);
+       |                                                       ^
+     54| };
+     55|
+ ❯ packages/contracts/src/programmeDomain.test.ts:548:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[15/41]⎯
+
+ FAIL  |root| packages/contracts/src/programmeDomain.test.ts > authority and approval gates > denies an approval bound to a different spec hash
+AssertionError: expected 'ProgrammeNotImplementedError' to be 'ProgrammePolicyDeniedError' // Object.is equality
+
+Expected: "ProgrammePolicyDeniedError"
+Received: "ProgrammeNotImplementedError"
+
+ ❯ expectTagged packages/contracts/src/programmeDomain.test.ts:53:55
+     51|   }
+     52|   expect(thrown, `expected a denial tagged ${tag}`).toBeDefined();
+     53|   expect((thrown as { readonly _tag?: string })._tag).toBe(tag);
+       |                                                       ^
+     54| };
+     55|
+ ❯ packages/contracts/src/programmeDomain.test.ts:555:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[16/41]⎯
+
+ FAIL  |root| packages/contracts/src/programmeDomain.test.ts > authority and approval gates > denies when the effect is not in the approval actionScopes
+AssertionError: expected 'ProgrammeNotImplementedError' to be 'ProgrammePolicyDeniedError' // Object.is equality
+
+Expected: "ProgrammePolicyDeniedError"
+Received: "ProgrammeNotImplementedError"
+
+ ❯ expectTagged packages/contracts/src/programmeDomain.test.ts:53:55
+     51|   }
+     52|   expect(thrown, `expected a denial tagged ${tag}`).toBeDefined();
+     53|   expect((thrown as { readonly _tag?: string })._tag).toBe(tag);
+       |                                                       ^
+     54| };
+     55|
+ ❯ packages/contracts/src/programmeDomain.test.ts:562:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[17/41]⎯
+
+ FAIL  |root| packages/contracts/src/programmeDomain.test.ts > authority and approval gates > denies an environment outside the approval scope
+AssertionError: expected 'ProgrammeNotImplementedError' to be 'ProgrammePolicyDeniedError' // Object.is equality
+
+Expected: "ProgrammePolicyDeniedError"
+Received: "ProgrammeNotImplementedError"
+
+ ❯ expectTagged packages/contracts/src/programmeDomain.test.ts:53:55
+     51|   }
+     52|   expect(thrown, `expected a denial tagged ${tag}`).toBeDefined();
+     53|   expect((thrown as { readonly _tag?: string })._tag).toBe(tag);
+       |                                                       ^
+     54| };
+     55|
+ ❯ packages/contracts/src/programmeDomain.test.ts:569:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[18/41]⎯
+
+ FAIL  |root| packages/contracts/src/programmeDomain.test.ts > authority and approval gates > denies a project outside the approval scope
+AssertionError: expected 'ProgrammeNotImplementedError' to be 'ProgrammePolicyDeniedError' // Object.is equality
+
+Expected: "ProgrammePolicyDeniedError"
+Received: "ProgrammeNotImplementedError"
+
+ ❯ expectTagged packages/contracts/src/programmeDomain.test.ts:53:55
+     51|   }
+     52|   expect(thrown, `expected a denial tagged ${tag}`).toBeDefined();
+     53|   expect((thrown as { readonly _tag?: string })._tag).toBe(tag);
+       |                                                       ^
+     54| };
+     55|
+ ❯ packages/contracts/src/programmeDomain.test.ts:576:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[19/41]⎯
+
+ FAIL  |root| packages/contracts/src/programmeDomain.test.ts > authority and approval gates > denies paths the approval excludes
+AssertionError: expected 'ProgrammeNotImplementedError' to be 'ProgrammePolicyDeniedError' // Object.is equality
+
+Expected: "ProgrammePolicyDeniedError"
+Received: "ProgrammeNotImplementedError"
+
+ ❯ expectTagged packages/contracts/src/programmeDomain.test.ts:53:55
+     51|   }
+     52|   expect(thrown, `expected a denial tagged ${tag}`).toBeDefined();
+     53|   expect((thrown as { readonly _tag?: string })._tag).toBe(tag);
+       |                                                       ^
+     54| };
+     55|
+ ❯ packages/contracts/src/programmeDomain.test.ts:583:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[20/41]⎯
+
+ FAIL  |root| packages/contracts/src/programmeDomain.test.ts > authority and approval gates > denies an exceeded attempt budget
+AssertionError: expected 'ProgrammeNotImplementedError' to be 'ProgrammeBudgetExceededError' // Object.is equality
+
+Expected: "ProgrammeBudgetExceededError"
+Received: "ProgrammeNotImplementedError"
+
+ ❯ expectTagged packages/contracts/src/programmeDomain.test.ts:53:55
+     51|   }
+     52|   expect(thrown, `expected a denial tagged ${tag}`).toBeDefined();
+     53|   expect((thrown as { readonly _tag?: string })._tag).toBe(tag);
+       |                                                       ^
+     54| };
+     55|
+ ❯ packages/contracts/src/programmeDomain.test.ts:589:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[21/41]⎯
+
+ FAIL  |root| packages/contracts/src/programmeDomain.test.ts > replay and idempotency > replays the original result for the same scoped key and payload with no second revision
+ProgrammeNotImplementedError: admitBuildComplete not implemented
+ ❯ admitBuildComplete packages/contracts/src/programmeDomain.ts:681:9
+    679|  */
+    680| export const admitBuildComplete = (input: AdmitBuildCompleteInput): { …
+    681|   throw new ProgrammeNotImplementedError({ message: "admitBuildComplet…
+       |         ^
+    682| };
+    683|
+ ❯ packages/contracts/src/programmeDomain.test.ts:596:19
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[22/41]⎯
+
+ FAIL  |root| packages/contracts/src/programmeDomain.test.ts > replay and idempotency > denies the same key with a different payload digest: idempotency_conflict
+ProgrammeNotImplementedError: admitBuildComplete not implemented
+ ❯ admitBuildComplete packages/contracts/src/programmeDomain.ts:681:9
+    679|  */
+    680| export const admitBuildComplete = (input: AdmitBuildCompleteInput): { …
+    681|   throw new ProgrammeNotImplementedError({ message: "admitBuildComplet…
+       |         ^
+    682| };
+    683|
+ ❯ packages/contracts/src/programmeDomain.test.ts:606:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[23/41]⎯
+
+ FAIL  |root| packages/contracts/src/programmeDomain.test.ts > replay and idempotency > denies cross-principal reuse of the same aggregate/operation/key
+ProgrammeNotImplementedError: admitBuildComplete not implemented
+ ❯ admitBuildComplete packages/contracts/src/programmeDomain.ts:681:9
+    679|  */
+    680| export const admitBuildComplete = (input: AdmitBuildCompleteInput): { …
+    681|   throw new ProgrammeNotImplementedError({ message: "admitBuildComplet…
+       |         ^
+    682| };
+    683|
+ ❯ packages/contracts/src/programmeDomain.test.ts:615:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[24/41]⎯
+
+ FAIL  |root| packages/contracts/src/programmeDomain.test.ts > replay and idempotency > denies startReview on a terminal work item even with a fresh key
+AssertionError: expected 'ProgrammeNotImplementedError' to be 'ProgrammeForbiddenError' // Object.is equality
+
+Expected: "ProgrammeForbiddenError"
+Received: "ProgrammeNotImplementedError"
+
+ ❯ expectTagged packages/contracts/src/programmeDomain.test.ts:53:55
+     51|   }
+     52|   expect(thrown, `expected a denial tagged ${tag}`).toBeDefined();
+     53|   expect((thrown as { readonly _tag?: string })._tag).toBe(tag);
+       |                                                       ^
+     54| };
+     55|
+ ❯ packages/contracts/src/programmeDomain.test.ts:624:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[25/41]⎯
+
+ FAIL  |root| packages/contracts/src/programmeDomain.test.ts > startReview > moves a buildComplete work item to reviewQueued with verified authority
+ProgrammeNotImplementedError: admitBuildComplete not implemented
+ ❯ admitBuildComplete packages/contracts/src/programmeDomain.ts:681:9
+    679|  */
+    680| export const admitBuildComplete = (input: AdmitBuildCompleteInput): { …
+    681|   throw new ProgrammeNotImplementedError({ message: "admitBuildComplet…
+       |         ^
+    682| };
+    683|
+ ❯ packages/contracts/src/programmeDomain.test.ts:643:22
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[26/41]⎯
+
+ FAIL  |root| packages/contracts/src/programmeDomain.test.ts > startReview > denies startReview from a non-buildComplete state
+AssertionError: expected 'ProgrammeNotImplementedError' to be 'ProgrammeInvalidRequestError' // Object.is equality
+
+Expected: "ProgrammeInvalidRequestError"
+Received: "ProgrammeNotImplementedError"
+
+ ❯ expectTagged packages/contracts/src/programmeDomain.test.ts:53:55
+     51|   }
+     52|   expect(thrown, `expected a denial tagged ${tag}`).toBeDefined();
+     53|   expect((thrown as { readonly _tag?: string })._tag).toBe(tag);
+       |                                                       ^
+     54| };
+     55|
+ ❯ packages/contracts/src/programmeDomain.test.ts:659:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[27/41]⎯
+
+ FAIL  |root| packages/contracts/src/programmeDomain.test.ts > startReview > denies startReview when the port cannot verify the actor
+ProgrammeNotImplementedError: admitBuildComplete not implemented
+ ❯ admitBuildComplete packages/contracts/src/programmeDomain.ts:681:9
+    679|  */
+    680| export const admitBuildComplete = (input: AdmitBuildCompleteInput): { …
+    681|   throw new ProgrammeNotImplementedError({ message: "admitBuildComplet…
+       |         ^
+    682| };
+    683|
+ ❯ packages/contracts/src/programmeDomain.test.ts:672:22
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[28/41]⎯
+
+ FAIL  |root| packages/contracts/src/programmeDomain.test.ts > recordReview > accepts a separate eligible review and records the disposition with exact data comparison
+ProgrammeNotImplementedError: admitBuildComplete not implemented
+ ❯ admitBuildComplete packages/contracts/src/programmeDomain.ts:681:9
+    679|  */
+    680| export const admitBuildComplete = (input: AdmitBuildCompleteInput): { …
+    681|   throw new ProgrammeNotImplementedError({ message: "admitBuildComplet…
+       |         ^
+    682| };
+    683|
+ ❯ queuedWorkItem packages/contracts/src/programmeDomain.test.ts:366:20
+ ❯ packages/contracts/src/programmeDomain.test.ts:690:22
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[29/41]⎯
+
+ FAIL  |root| packages/contracts/src/programmeDomain.test.ts > recordReview > accepts an auditor on a model name that appears on no fixed list
+ProgrammeNotImplementedError: admitBuildComplete not implemented
+ ❯ admitBuildComplete packages/contracts/src/programmeDomain.ts:681:9
+    679|  */
+    680| export const admitBuildComplete = (input: AdmitBuildCompleteInput): { …
+    681|   throw new ProgrammeNotImplementedError({ message: "admitBuildComplet…
+       |         ^
+    682| };
+    683|
+ ❯ queuedWorkItem packages/contracts/src/programmeDomain.test.ts:366:20
+ ❯ packages/contracts/src/programmeDomain.test.ts:699:22
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[30/41]⎯
+
+ FAIL  |root| packages/contracts/src/programmeDomain.test.ts > recordReview > rejects self-review: the auditor run cannot be the builder run
+ProgrammeNotImplementedError: admitBuildComplete not implemented
+ ❯ admitBuildComplete packages/contracts/src/programmeDomain.ts:681:9
+    679|  */
+    680| export const admitBuildComplete = (input: AdmitBuildCompleteInput): { …
+    681|   throw new ProgrammeNotImplementedError({ message: "admitBuildComplet…
+       |         ^
+    682| };
+    683|
+ ❯ queuedWorkItem packages/contracts/src/programmeDomain.test.ts:366:20
+ ❯ packages/contracts/src/programmeDomain.test.ts:722:22
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[31/41]⎯
+
+ FAIL  |root| packages/contracts/src/programmeDomain.test.ts > recordReview > rejects shared lineage: the auditor identity may not equal any builder-run lineage entry
+ProgrammeNotImplementedError: admitBuildComplete not implemented
+ ❯ admitBuildComplete packages/contracts/src/programmeDomain.ts:681:9
+    679|  */
+    680| export const admitBuildComplete = (input: AdmitBuildCompleteInput): { …
+    681|   throw new ProgrammeNotImplementedError({ message: "admitBuildComplet…
+       |         ^
+    682| };
+    683|
+ ❯ queuedWorkItem packages/contracts/src/programmeDomain.test.ts:366:20
+ ❯ packages/contracts/src/programmeDomain.test.ts:731:22
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[32/41]⎯
+
+ FAIL  |root| packages/contracts/src/programmeDomain.test.ts > recordReview > rejects an auditor with unknown model/context identity
+ProgrammeNotImplementedError: admitBuildComplete not implemented
+ ❯ admitBuildComplete packages/contracts/src/programmeDomain.ts:681:9
+    679|  */
+    680| export const admitBuildComplete = (input: AdmitBuildCompleteInput): { …
+    681|   throw new ProgrammeNotImplementedError({ message: "admitBuildComplet…
+       |         ^
+    682| };
+    683|
+ ❯ queuedWorkItem packages/contracts/src/programmeDomain.test.ts:366:20
+ ❯ packages/contracts/src/programmeDomain.test.ts:743:22
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[33/41]⎯
+
+ FAIL  |root| packages/contracts/src/programmeDomain.test.ts > recordReview > rejects an auditor run bound to the wrong task
+ProgrammeNotImplementedError: admitBuildComplete not implemented
+ ❯ admitBuildComplete packages/contracts/src/programmeDomain.ts:681:9
+    679|  */
+    680| export const admitBuildComplete = (input: AdmitBuildCompleteInput): { …
+    681|   throw new ProgrammeNotImplementedError({ message: "admitBuildComplet…
+       |         ^
+    682| };
+    683|
+ ❯ queuedWorkItem packages/contracts/src/programmeDomain.test.ts:366:20
+ ❯ packages/contracts/src/programmeDomain.test.ts:755:22
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[34/41]⎯
+
+ FAIL  |root| packages/contracts/src/programmeDomain.test.ts > recordReview > rejects a review bound to the wrong task packet
+ProgrammeNotImplementedError: admitBuildComplete not implemented
+ ❯ admitBuildComplete packages/contracts/src/programmeDomain.ts:681:9
+    679|  */
+    680| export const admitBuildComplete = (input: AdmitBuildCompleteInput): { …
+    681|   throw new ProgrammeNotImplementedError({ message: "admitBuildComplet…
+       |         ^
+    682| };
+    683|
+ ❯ queuedWorkItem packages/contracts/src/programmeDomain.test.ts:366:20
+ ❯ packages/contracts/src/programmeDomain.test.ts:767:22
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[35/41]⎯
+
+ FAIL  |root| packages/contracts/src/programmeDomain.test.ts > recordReview > rejects a review whose exactCommit differs from the frozen source
+ProgrammeNotImplementedError: admitBuildComplete not implemented
+ ❯ admitBuildComplete packages/contracts/src/programmeDomain.ts:681:9
+    679|  */
+    680| export const admitBuildComplete = (input: AdmitBuildCompleteInput): { …
+    681|   throw new ProgrammeNotImplementedError({ message: "admitBuildComplet…
+       |         ^
+    682| };
+    683|
+ ❯ queuedWorkItem packages/contracts/src/programmeDomain.test.ts:366:20
+ ❯ packages/contracts/src/programmeDomain.test.ts:776:22
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[36/41]⎯
+
+ FAIL  |root| packages/contracts/src/programmeDomain.test.ts > recordReview > rejects evidence references that do not resolve
+ProgrammeNotImplementedError: admitBuildComplete not implemented
+ ❯ admitBuildComplete packages/contracts/src/programmeDomain.ts:681:9
+    679|  */
+    680| export const admitBuildComplete = (input: AdmitBuildCompleteInput): { …
+    681|   throw new ProgrammeNotImplementedError({ message: "admitBuildComplet…
+       |         ^
+    682| };
+    683|
+ ❯ queuedWorkItem packages/contracts/src/programmeDomain.test.ts:366:20
+ ❯ packages/contracts/src/programmeDomain.test.ts:785:22
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[37/41]⎯
+
+ FAIL  |root| packages/contracts/src/programmeDomain.test.ts > recordReview > rejects evidence produced outside the builder lineage
+ProgrammeNotImplementedError: admitBuildComplete not implemented
+ ❯ admitBuildComplete packages/contracts/src/programmeDomain.ts:681:9
+    679|  */
+    680| export const admitBuildComplete = (input: AdmitBuildCompleteInput): { …
+    681|   throw new ProgrammeNotImplementedError({ message: "admitBuildComplet…
+       |         ^
+    682| };
+    683|
+ ❯ queuedWorkItem packages/contracts/src/programmeDomain.test.ts:366:20
+ ❯ packages/contracts/src/programmeDomain.test.ts:794:22
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[38/41]⎯
+
+ FAIL  |root| packages/contracts/src/programmeDomain.test.ts > recordReview > rejects a review whose evidence does not satisfy the required coverage
+ProgrammeNotImplementedError: admitBuildComplete not implemented
+ ❯ admitBuildComplete packages/contracts/src/programmeDomain.ts:681:9
+    679|  */
+    680| export const admitBuildComplete = (input: AdmitBuildCompleteInput): { …
+    681|   throw new ProgrammeNotImplementedError({ message: "admitBuildComplet…
+       |         ^
+    682| };
+    683|
+ ❯ queuedWorkItem packages/contracts/src/programmeDomain.test.ts:366:20
+ ❯ packages/contracts/src/programmeDomain.test.ts:807:22
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[39/41]⎯
+
+ FAIL  |root| packages/contracts/src/programmeDomain.test.ts > recordReview > rejects when the authoritative source moved after the build was frozen: source_stale
+ProgrammeNotImplementedError: admitBuildComplete not implemented
+ ❯ admitBuildComplete packages/contracts/src/programmeDomain.ts:681:9
+    679|  */
+    680| export const admitBuildComplete = (input: AdmitBuildCompleteInput): { …
+    681|   throw new ProgrammeNotImplementedError({ message: "admitBuildComplet…
+       |         ^
+    682| };
+    683|
+ ❯ queuedWorkItem packages/contracts/src/programmeDomain.test.ts:366:20
+ ❯ packages/contracts/src/programmeDomain.test.ts:816:22
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[40/41]⎯
+
+ FAIL  |root| packages/contracts/src/programmeDomain.test.ts > recordReview > denies recording a review outside reviewQueued|reviewing
+AssertionError: expected 'ProgrammeNotImplementedError' to be 'ProgrammeInvalidRequestError' // Object.is equality
+
+Expected: "ProgrammeInvalidRequestError"
+Received: "ProgrammeNotImplementedError"
+
+ ❯ expectTagged packages/contracts/src/programmeDomain.test.ts:53:55
+     51|   }
+     52|   expect(thrown, `expected a denial tagged ${tag}`).toBeDefined();
+     53|   expect((thrown as { readonly _tag?: string })._tag).toBe(tag);
+       |                                                       ^
+     54| };
+     55|
+ ❯ packages/contracts/src/programmeDomain.test.ts:823:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[41/41]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  41 failed | 12 passed (53)
+   Start at  17:47:13
+   Duration  9.06s (transform 82%, import 10%, setup 7%)
+

@@ -1,0 +1,636 @@
+{
+  "schemaVersion": 1,
+  "lastReviewed": "2026-10-27",
+  "reviewRefs": {
+    "adoptionQueue": "ADOPTION-QUEUE-2026-10-27.md",
+    "sourcesPacket": "ALL-SYNCED-SOURCES-REVIEW-AND-ZCODE-PACKET.md",
+    "semanticCoverage": "ALL-SYNCED-SOURCES-SEMANTIC-COVERAGE.json",
+    "missingPathPreservation": "ALL-SYNCED-SOURCES-MISSING-PATH-PRESERVATION.md",
+    "currentInventory": "ALL-SYNCED-SOURCES-CURRENT-INVENTORY.json",
+    "syncChecklist": "REPOSITORY-SYNC-CHECKLIST-2026-10-27.md",
+    "documentsRoot": "research/2026-10-27/ONE-DAY-RELEASE/ in the INVRT-CODE knowledge home (2026-10-27 review wave)"
+  },
+  "summary": {
+    "sourcesTotal": 41,
+    "admittedRecords": 795,
+    "unchangedBodies": 694,
+    "changedBodies": 78,
+    "missingPaths": 23,
+    "localPilotDifferences": 176,
+    "changedBodiesBySource": {
+      "claude-seo": 25,
+      "coldoutboundskills": 13,
+      "geo-seo-claude": 1,
+      "knowledge-work-plugins": 9,
+      "last30days-skill": 1,
+      "marketingskills": 27,
+      "scroll-craft": 1,
+      "taste-skill": 1
+    },
+    "semanticCoverage": {
+      "currentBodiesReviewed": 78,
+      "currentLines": 21570,
+      "fullLiteralUnifiedDiffs": 77,
+      "structuralOldDeletionDiff": ["last30days"]
+    }
+  },
+  "sources": [
+    {
+      "id": "Gully678/INVRT-Harness",
+      "owner": "Gully678",
+      "repo": "INVRT-Harness",
+      "forkOf": "pingdotgg/t3code",
+      "role": "INVRT Code harness product source (fork of t3code); adoption wave 2 consumes the reviewed pin exactly",
+      "pin": {
+        "kind": "sha",
+        "sha": "70eccd48e47398cc66d422d47de9c2af8e1c30e5",
+        "source": "ADOPTION-QUEUE-2026-10-27.md"
+      },
+      "adoptionStatus": "pending",
+      "notes": "Upstream advanced one further commit after review; adopt the reviewed pin exactly, do not chase moving main.",
+      "lastReviewed": "2026-10-27",
+      "reviewRef": "ADOPTION-QUEUE-2026-10-27.md; REPOSITORY-SYNC-CHECKLIST-2026-10-27.md; ALL-SYNCED-SOURCES-CURRENT-INVENTORY.json",
+      "gitCrossCheck": {
+        "reachable": ["70eccd48e47398cc66d422d47de9c2af8e1c30e5"],
+        "ancestors": [
+          {
+            "ancestor": "70eccd48e47398cc66d422d47de9c2af8e1c30e5",
+            "of": "790ba13d0c839d3cd1b4c45f6d3c252b9286dc99"
+          }
+        ],
+        "commitSubjectsBind": [
+          {
+            "sha": "5b0f7fb84ee3cfc11d6449c4c8690988a4d389e6",
+            "contains": "790ba13d0c"
+          }
+        ],
+        "evidenceFiles": [
+          {
+            "path": "oneday-evidence/ADOPTION-REVIEW.json",
+            "contains": [
+              "5b0f7fb84ee3cfc11d6449c4c8690988a4d389e6",
+              "790ba13d0c",
+              "84b49e6151bae11d10adf97fac18b647b1c94ad6"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "Gully678/rea",
+      "owner": "Gully678",
+      "repo": "rea",
+      "forkOf": "morluto/rea",
+      "role": "REA evidence runtime (B26/B27 foundation); isolated OWNED stdio integration; no auto HTTP endpoint selection",
+      "pin": {
+        "kind": "sha",
+        "sha": "98422997c035bf314084b7d786628616e70bc95f",
+        "source": "ADOPTION-QUEUE-2026-10-27.md",
+        "version": "6.8.0"
+      },
+      "adoptionStatus": "pending",
+      "notes": "Pin is git-reachable in this checkout but is NOT an ancestor of the integration head: REA is a separate repository. Node floors 22.23.4/24.22.1/26.12.1 per REA-U07; sync must never invoke REA setup/update (REA-U05).",
+      "lastReviewed": "2026-10-27",
+      "reviewRef": "ADOPTION-QUEUE-2026-10-27.md; ALL-SYNCED-SOURCES-CURRENT-INVENTORY.json",
+      "gitCrossCheck": {
+        "reachable": ["-output=/tmp/evil"]
+      }
+    },
+    {
+      "id": "INVRT-AI/monti-forge",
+      "owner": "INVRT-AI",
+      "repo": "monti-forge",
+      "firstParty": true,
+      "role": "MONTI forge: INVRT first-party skills/agents/laws source, consumed as local vendored copies",
+      "pin": {
+        "kind": "local",
+        "note": "Consumed as the local vendored/working copy; the review records six historical revisions and no single consumed sha. The monti-forge primary is dirty/foreign and is never pulled, reset or switched."
+      },
+      "adoptionStatus": "adopted",
+      "packsRecords": 102,
+      "missingPaths": 11,
+      "notes": "11 recorded INVRT-owned media/quality paths absent at current source head (incl. invrt-concise-code, invrt-technical-prose, invrt-ui-quality): preserve bodies until a reviewed relocation qualifies.",
+      "lastReviewed": "2026-10-27",
+      "reviewRef": "REPOSITORY-SYNC-CHECKLIST-2026-10-27.md; ALL-SYNCED-SOURCES-REVIEW-AND-ZCODE-PACKET.md; ALL-SYNCED-SOURCES-MISSING-PATH-PRESERVATION.md; ALL-SYNCED-SOURCES-CURRENT-INVENTORY.json"
+    },
+    {
+      "id": "INVRT-AI/invrt-media-factory",
+      "owner": "INVRT-AI",
+      "repo": "invrt-media-factory",
+      "firstParty": true,
+      "role": "Craft/Media capability integration; INVRT first-party product source",
+      "pin": null,
+      "adoptionStatus": "pending",
+      "notes": "138 raw skill bodies are another product's private source context, not automatic FORGE imports (packet action 7).",
+      "lastReviewed": "2026-10-27",
+      "reviewRef": "REPOSITORY-SYNC-CHECKLIST-2026-10-27.md; ALL-SYNCED-SOURCES-REVIEW-AND-ZCODE-PACKET.md"
+    },
+    {
+      "id": "Gully678/kammandor-skills",
+      "owner": "Gully678",
+      "repo": "kammandor-skills",
+      "role": "First-party skill source library; FORGE consumes local vendored copies (marketplace 6.0.0)",
+      "pin": {
+        "kind": "sha",
+        "sha": "79549e60816050b276206742377f8dcfbdc81795",
+        "source": "ALL-SYNCED-SOURCES-REVIEW-AND-ZCODE-PACKET.md"
+      },
+      "adoptionStatus": "adopted",
+      "packsRecords": 304,
+      "notes": "304 direct-admitted PACKS records, 856 files intact (285 exact + 19 verified name-line projections); 9 absent PFO private names NOT auto-imported; 14 Superpowers bodies need harness qualification.",
+      "lastReviewed": "2026-10-27",
+      "reviewRef": "ALL-SYNCED-SOURCES-REVIEW-AND-ZCODE-PACKET.md; ALL-SYNCED-SOURCES-CURRENT-INVENTORY.json"
+    },
+    {
+      "id": "Gully678/INVRT_Production_Guardrails",
+      "owner": "Gully678",
+      "repo": "INVRT_Production_Guardrails",
+      "role": "First-party production guardrail skill library (1 plugin, 3 core skills)",
+      "pin": {
+        "kind": "sha",
+        "sha": "93dc0db741a42604ade4261e7299e36f2681452d",
+        "source": "ALL-SYNCED-SOURCES-REVIEW-AND-ZCODE-PACKET.md"
+      },
+      "adoptionStatus": "adopted",
+      "packsRecords": 3,
+      "notes": "All 10 source files match remote/local FORGE/installed/pilot copies; no drift in checked copies.",
+      "lastReviewed": "2026-10-27",
+      "reviewRef": "ALL-SYNCED-SOURCES-REVIEW-AND-ZCODE-PACKET.md; ALL-SYNCED-SOURCES-CURRENT-INVENTORY.json"
+    },
+    {
+      "id": "Gully678/grill-with-ui",
+      "owner": "Gully678",
+      "repo": "grill-with-ui",
+      "forkOf": "jasonku09/grill-with-ui",
+      "role": "Required owned Grill/Blueprint UI source adaptation (re-adapt at exact reviewed pin)",
+      "pin": {
+        "kind": "sha",
+        "sha": "fc0de407ff3ca5c981304afba0ecf059ed5ce6cd",
+        "source": "ALL-SYNCED-SOURCES-REVIEW-AND-ZCODE-PACKET.md"
+      },
+      "adoptionStatus": "pending",
+      "notes": "Port Host/origin/body/CSP/token protections; keep INVRT ownership/symlink/writer/export/recovery contracts; no default LAN exposure or token-log sharing (packet action 4).",
+      "lastReviewed": "2026-10-27",
+      "reviewRef": "ALL-SYNCED-SOURCES-REVIEW-AND-ZCODE-PACKET.md; ALL-SYNCED-SOURCES-CURRENT-INVENTORY.json"
+    },
+    {
+      "id": "Gully678/fusion-harness",
+      "owner": "Gully678",
+      "repo": "fusion-harness",
+      "forkOf": "disler/fusion-harness",
+      "role": "Required independent-model contribution/synthesis patterns (selected adaptation, not a competing controller)",
+      "pin": {
+        "kind": "sha",
+        "sha": "01a348202482cad0e7d3c34eada180f711aaddd7",
+        "source": "REPOSITORY-SYNC-CHECKLIST-2026-10-27.md; ALL-SYNCED-SOURCES-CURRENT-INVENTORY.json"
+      },
+      "adoptionStatus": "pending",
+      "notes": "Recorded head matches current source head; unchanged in this review wave.",
+      "lastReviewed": "2026-10-27",
+      "reviewRef": "REPOSITORY-SYNC-CHECKLIST-2026-10-27.md; ALL-SYNCED-SOURCES-CURRENT-INVENTORY.json"
+    },
+    {
+      "id": "Gully678/claude-seo",
+      "owner": "Gully678",
+      "repo": "claude-seo",
+      "forkOf": "AgriciDaniel/claude-seo",
+      "role": "FORGE skill library source",
+      "pin": {
+        "kind": "sha",
+        "sha": "6be93f45064ffbadced572b5d5c95f55fd263af0",
+        "source": "ALL-SYNCED-SOURCES-SEMANTIC-COVERAGE.json; ALL-SYNCED-SOURCES-CURRENT-INVENTORY.json"
+      },
+      "adoptionStatus": "pending",
+      "packsRecords": 25,
+      "changedBodies": 25,
+      "notes": "seo-agentic hub route and conditional seo-matomo/auth helper need exact closure qualification with honest unavailable states.",
+      "lastReviewed": "2026-10-27",
+      "reviewRef": "ALL-SYNCED-SOURCES-REVIEW-AND-ZCODE-PACKET.md; ALL-SYNCED-SOURCES-SEMANTIC-COVERAGE.json"
+    },
+    {
+      "id": "Gully678/coldoutboundskills",
+      "owner": "Gully678",
+      "repo": "coldoutboundskills",
+      "forkOf": "growthenginenowoslawski/coldoutboundskills",
+      "role": "FORGE skill library source",
+      "pin": {
+        "kind": "sha",
+        "sha": "25c5d85fbb5dd3efec97b0ca457cbbc286547476",
+        "source": "ALL-SYNCED-SOURCES-SEMANTIC-COVERAGE.json; ALL-SYNCED-SOURCES-CURRENT-INVENTORY.json"
+      },
+      "adoptionStatus": "pending",
+      "packsRecords": 50,
+      "changedBodies": 13,
+      "notes": "Moved helper/cross-skill routes; one canonical decision contract for reply floors, placement verdicts and bounce-share; never infer cancellation, domain-purchase or seed-send authority from loaded bodies.",
+      "lastReviewed": "2026-10-27",
+      "reviewRef": "ALL-SYNCED-SOURCES-REVIEW-AND-ZCODE-PACKET.md; ALL-SYNCED-SOURCES-SEMANTIC-COVERAGE.json"
+    },
+    {
+      "id": "Gully678/geo-seo-claude",
+      "owner": "Gully678",
+      "repo": "geo-seo-claude",
+      "forkOf": "zubair-trabzada/geo-seo-claude",
+      "role": "FORGE skill library source",
+      "pin": {
+        "kind": "sha",
+        "sha": "989cae01e8ebbc42a9ec798eb9e7cb423f5ec89c",
+        "source": "ALL-SYNCED-SOURCES-SEMANTIC-COVERAGE.json; ALL-SYNCED-SOURCES-CURRENT-INVENTORY.json"
+      },
+      "adoptionStatus": "pending",
+      "packsRecords": 15,
+      "changedBodies": 1,
+      "notes": "Crawler/citability policy conflict with other SEO sources must be reconciled against primary documentation with attribution.",
+      "lastReviewed": "2026-10-27",
+      "reviewRef": "ALL-SYNCED-SOURCES-REVIEW-AND-ZCODE-PACKET.md; ALL-SYNCED-SOURCES-SEMANTIC-COVERAGE.json"
+    },
+    {
+      "id": "Gully678/knowledge-work-plugins",
+      "owner": "Gully678",
+      "repo": "knowledge-work-plugins",
+      "forkOf": "anthropics/knowledge-work-plugins",
+      "role": "FORGE skill library source",
+      "pin": {
+        "kind": "sha",
+        "sha": "c75fda00ff0e41c8ee331ae312c8a07f1967653b",
+        "source": "ALL-SYNCED-SOURCES-SEMANTIC-COVERAGE.json; ALL-SYNCED-SOURCES-CURRENT-INVENTORY.json"
+      },
+      "adoptionStatus": "pending",
+      "packsRecords": 104,
+      "changedBodies": 9,
+      "notes": "Connector actions/scheduling/untrusted-context constraints go into the real INVRT/tool grant boundaries, not prompt-only.",
+      "lastReviewed": "2026-10-27",
+      "reviewRef": "ALL-SYNCED-SOURCES-REVIEW-AND-ZCODE-PACKET.md; ALL-SYNCED-SOURCES-SEMANTIC-COVERAGE.json"
+    },
+    {
+      "id": "Gully678/last30days-skill",
+      "owner": "Gully678",
+      "repo": "last30days-skill",
+      "forkOf": "mvanhorn/last30days-skill",
+      "role": "FORGE skill library source",
+      "pin": {
+        "kind": "sha",
+        "sha": "930a71391ada9dbb8f865c2bd5dc9282dc185484",
+        "source": "ALL-SYNCED-SOURCES-SEMANTIC-COVERAGE.json; ALL-SYNCED-SOURCES-CURRENT-INVENTORY.json"
+      },
+      "adoptionStatus": "pending",
+      "packsRecords": 1,
+      "changedBodies": 1,
+      "notes": "Adopt the whole moved runtime/discovery/setup/synthesis closure; distinct-key routing tests prevent cross-provider credential borrowing; retired monolith received structural deletion review.",
+      "lastReviewed": "2026-10-27",
+      "reviewRef": "ALL-SYNCED-SOURCES-REVIEW-AND-ZCODE-PACKET.md; ALL-SYNCED-SOURCES-SEMANTIC-COVERAGE.json"
+    },
+    {
+      "id": "Gully678/marketingskills",
+      "owner": "Gully678",
+      "repo": "marketingskills",
+      "forkOf": "coreyhaines31/marketingskills",
+      "role": "FORGE skill library source",
+      "pin": {
+        "kind": "sha",
+        "sha": "17772c7a80b7b8c7a47af30f648374cd8bd8adc5",
+        "source": "ALL-SYNCED-SOURCES-SEMANTIC-COVERAGE.json; ALL-SYNCED-SOURCES-CURRENT-INVENTORY.json"
+      },
+      "adoptionStatus": "pending",
+      "packsRecords": 31,
+      "changedBodies": 27,
+      "lastReviewed": "2026-10-27",
+      "reviewRef": "ALL-SYNCED-SOURCES-REVIEW-AND-ZCODE-PACKET.md; ALL-SYNCED-SOURCES-SEMANTIC-COVERAGE.json"
+    },
+    {
+      "id": "Gully678/scroll-craft",
+      "owner": "Gully678",
+      "repo": "scroll-craft",
+      "forkOf": "nateherkai/scroll-craft",
+      "role": "FORGE skill library source",
+      "pin": {
+        "kind": "sha",
+        "sha": "75d81f74e83692add18cd7a8a8e078b8a887a579",
+        "source": "ALL-SYNCED-SOURCES-SEMANTIC-COVERAGE.json; ALL-SYNCED-SOURCES-CURRENT-INVENTORY.json"
+      },
+      "adoptionStatus": "pending",
+      "packsRecords": 1,
+      "changedBodies": 1,
+      "notes": "LAN screenshot mode exposes served-root files: keep loopback default; authorised LAN tests need an owned minimal fixture root with bind/path proof and captured-process cleanup.",
+      "lastReviewed": "2026-10-27",
+      "reviewRef": "ALL-SYNCED-SOURCES-REVIEW-AND-ZCODE-PACKET.md; ALL-SYNCED-SOURCES-SEMANTIC-COVERAGE.json"
+    },
+    {
+      "id": "Gully678/taste-skill",
+      "owner": "Gully678",
+      "repo": "taste-skill",
+      "forkOf": "Leonxlnx/taste-skill",
+      "role": "FORGE skill library source",
+      "pin": {
+        "kind": "sha",
+        "sha": "12af471f627f866411b4bd785b19646d3672784c",
+        "source": "ALL-SYNCED-SOURCES-SEMANTIC-COVERAGE.json; ALL-SYNCED-SOURCES-CURRENT-INVENTORY.json"
+      },
+      "adoptionStatus": "pending",
+      "packsRecords": 13,
+      "changedBodies": 1,
+      "missingPaths": 12,
+      "notes": "12 recorded specialist components absent at current source head: preserve until exact replacement/adaptation qualifies domain coverage; adopt the actual Node/browser/scripts/assets/data closure.",
+      "lastReviewed": "2026-10-27",
+      "reviewRef": "ALL-SYNCED-SOURCES-REVIEW-AND-ZCODE-PACKET.md; ALL-SYNCED-SOURCES-SEMANTIC-COVERAGE.json; ALL-SYNCED-SOURCES-MISSING-PATH-PRESERVATION.md"
+    },
+    {
+      "id": "Gully678/pdfcraft",
+      "owner": "Gully678",
+      "repo": "pdfcraft",
+      "forkOf": "storytold/pdfcraft",
+      "role": "Craft/Media capability integration",
+      "pin": null,
+      "adoptionStatus": "pending",
+      "notes": "Desktop manifests declare Rust 1.95 plus external Git dependencies (e.g. storytold/craft-libs): include transitive consumed revisions in the source graph.",
+      "lastReviewed": "2026-10-27",
+      "reviewRef": "REPOSITORY-SYNC-CHECKLIST-2026-10-27.md; ALL-SYNCED-SOURCES-REVIEW-AND-ZCODE-PACKET.md; ALL-SYNCED-SOURCES-CURRENT-INVENTORY.json"
+    },
+    {
+      "id": "Gully678/artcraft-services",
+      "owner": "Gully678",
+      "repo": "artcraft-services",
+      "forkOf": "storytold/artcraft-services",
+      "role": "Craft/Media capability integration",
+      "pin": null,
+      "adoptionStatus": "pending",
+      "notes": "Authenticated HTTP/async-worker/MySQL/object-store service with declared fair-source/WIP licence: keep the unresolved rights inventory and approved service boundary (packet action 7).",
+      "lastReviewed": "2026-10-27",
+      "reviewRef": "REPOSITORY-SYNC-CHECKLIST-2026-10-27.md; ALL-SYNCED-SOURCES-REVIEW-AND-ZCODE-PACKET.md; ALL-SYNCED-SOURCES-CURRENT-INVENTORY.json"
+    },
+    {
+      "id": "Gully678/photocraft",
+      "owner": "Gully678",
+      "repo": "photocraft",
+      "forkOf": "storytold/photocraft",
+      "role": "Craft/Media capability integration",
+      "pin": null,
+      "adoptionStatus": "pending",
+      "notes": "Desktop manifests declare Rust 1.95 plus external Git dependencies (e.g. storytold/craft-libs): include transitive consumed revisions in the source graph.",
+      "lastReviewed": "2026-10-27",
+      "reviewRef": "REPOSITORY-SYNC-CHECKLIST-2026-10-27.md; ALL-SYNCED-SOURCES-REVIEW-AND-ZCODE-PACKET.md; ALL-SYNCED-SOURCES-CURRENT-INVENTORY.json"
+    },
+    {
+      "id": "Gully678/wordcraft",
+      "owner": "Gully678",
+      "repo": "wordcraft",
+      "forkOf": "storytold/wordcraft",
+      "role": "Craft/Media capability integration",
+      "pin": null,
+      "adoptionStatus": "pending",
+      "notes": "Keeps the D3 inclusion/unavailable decisions (checklist). Desktop manifests declare Rust 1.95 plus external Git dependencies (e.g. storytold/craft-libs): include transitive consumed revisions in the source graph.",
+      "lastReviewed": "2026-10-27",
+      "reviewRef": "REPOSITORY-SYNC-CHECKLIST-2026-10-27.md; ALL-SYNCED-SOURCES-REVIEW-AND-ZCODE-PACKET.md; ALL-SYNCED-SOURCES-CURRENT-INVENTORY.json"
+    },
+    {
+      "id": "Gully678/filmcraft",
+      "owner": "Gully678",
+      "repo": "filmcraft",
+      "forkOf": "storytold/filmcraft",
+      "role": "Craft/Media capability integration",
+      "pin": null,
+      "adoptionStatus": "pending",
+      "notes": "Desktop manifests declare Rust 1.95 plus external Git dependencies (e.g. storytold/craft-libs): include transitive consumed revisions in the source graph.",
+      "lastReviewed": "2026-10-27",
+      "reviewRef": "REPOSITORY-SYNC-CHECKLIST-2026-10-27.md; ALL-SYNCED-SOURCES-REVIEW-AND-ZCODE-PACKET.md; ALL-SYNCED-SOURCES-CURRENT-INVENTORY.json"
+    },
+    {
+      "id": "Gully678/effectcraft",
+      "owner": "Gully678",
+      "repo": "effectcraft",
+      "forkOf": "storytold/effectcraft",
+      "role": "Craft/Media capability integration",
+      "pin": null,
+      "adoptionStatus": "pending",
+      "notes": "Desktop manifests declare Rust 1.95 plus external Git dependencies (e.g. storytold/craft-libs): include transitive consumed revisions in the source graph.",
+      "lastReviewed": "2026-10-27",
+      "reviewRef": "REPOSITORY-SYNC-CHECKLIST-2026-10-27.md; ALL-SYNCED-SOURCES-REVIEW-AND-ZCODE-PACKET.md; ALL-SYNCED-SOURCES-CURRENT-INVENTORY.json"
+    },
+    {
+      "id": "Gully678/cadcraft",
+      "owner": "Gully678",
+      "repo": "cadcraft",
+      "forkOf": "storytold/cadcraft",
+      "role": "Craft/Media capability integration",
+      "pin": null,
+      "adoptionStatus": "pending",
+      "notes": "Desktop manifests declare Rust 1.95 plus external Git dependencies (e.g. storytold/craft-libs): include transitive consumed revisions in the source graph.",
+      "lastReviewed": "2026-10-27",
+      "reviewRef": "REPOSITORY-SYNC-CHECKLIST-2026-10-27.md; ALL-SYNCED-SOURCES-REVIEW-AND-ZCODE-PACKET.md; ALL-SYNCED-SOURCES-CURRENT-INVENTORY.json"
+    },
+    {
+      "id": "Gully678/vectorcraft",
+      "owner": "Gully678",
+      "repo": "vectorcraft",
+      "forkOf": "storytold/vectorcraft",
+      "role": "Craft/Media capability integration",
+      "pin": null,
+      "adoptionStatus": "pending",
+      "notes": "Desktop manifests declare Rust 1.95 plus external Git dependencies (e.g. storytold/craft-libs): include transitive consumed revisions in the source graph.",
+      "lastReviewed": "2026-10-27",
+      "reviewRef": "REPOSITORY-SYNC-CHECKLIST-2026-10-27.md; ALL-SYNCED-SOURCES-REVIEW-AND-ZCODE-PACKET.md; ALL-SYNCED-SOURCES-CURRENT-INVENTORY.json"
+    },
+    {
+      "id": "Gully678/gridcraft",
+      "owner": "Gully678",
+      "repo": "gridcraft",
+      "forkOf": "storytold/gridcraft",
+      "role": "Craft/Media capability integration",
+      "pin": null,
+      "adoptionStatus": "pending",
+      "notes": "Keeps the D3 inclusion/unavailable decisions (checklist). Desktop manifests declare Rust 1.95 plus external Git dependencies (e.g. storytold/craft-libs): include transitive consumed revisions in the source graph.",
+      "lastReviewed": "2026-10-27",
+      "reviewRef": "REPOSITORY-SYNC-CHECKLIST-2026-10-27.md; ALL-SYNCED-SOURCES-REVIEW-AND-ZCODE-PACKET.md; ALL-SYNCED-SOURCES-CURRENT-INVENTORY.json"
+    },
+    {
+      "id": "Gully678/artcraft",
+      "owner": "Gully678",
+      "repo": "artcraft",
+      "forkOf": "storytold/artcraft",
+      "role": "Craft/Media capability integration",
+      "pin": null,
+      "adoptionStatus": "pending",
+      "notes": "Desktop manifests declare Rust 1.95 plus external Git dependencies (e.g. storytold/craft-libs): include transitive consumed revisions in the source graph.",
+      "lastReviewed": "2026-10-27",
+      "reviewRef": "REPOSITORY-SYNC-CHECKLIST-2026-10-27.md; ALL-SYNCED-SOURCES-REVIEW-AND-ZCODE-PACKET.md; ALL-SYNCED-SOURCES-CURRENT-INVENTORY.json"
+    },
+    {
+      "id": "Gully678/agent-style",
+      "owner": "Gully678",
+      "repo": "agent-style",
+      "forkOf": "yzhao062/agent-style",
+      "role": "Selected skill/quality/workflow methods, preserving INVRT orchestration",
+      "pin": null,
+      "adoptionStatus": "pending",
+      "notes": "6 copies but 2 canonical skill surfaces (packet); prose discipline adaptation is already applied in INVRT law 7.",
+      "lastReviewed": "2026-10-27",
+      "reviewRef": "REPOSITORY-SYNC-CHECKLIST-2026-10-27.md; ALL-SYNCED-SOURCES-REVIEW-AND-ZCODE-PACKET.md; ALL-SYNCED-SOURCES-CURRENT-INVENTORY.json"
+    },
+    {
+      "id": "Gully678/anti-slop",
+      "owner": "Gully678",
+      "repo": "anti-slop",
+      "forkOf": "dmmulroy/anti-slop",
+      "role": "Selected skill/quality/workflow methods, preserving INVRT orchestration",
+      "pin": null,
+      "adoptionStatus": "pending",
+      "lastReviewed": "2026-10-27",
+      "reviewRef": "REPOSITORY-SYNC-CHECKLIST-2026-10-27.md; ALL-SYNCED-SOURCES-REVIEW-AND-ZCODE-PACKET.md; ALL-SYNCED-SOURCES-CURRENT-INVENTORY.json"
+    },
+    {
+      "id": "Gully678/anti-slop2",
+      "owner": "Gully678",
+      "repo": "anti-slop2",
+      "forkOf": "miqdadbadjuber/anti-slop",
+      "role": "Selected skill/quality/workflow methods, preserving INVRT orchestration",
+      "pin": null,
+      "adoptionStatus": "pending",
+      "notes": "Now includes a contrast MCP launcher as well as 6 skills (packet).",
+      "lastReviewed": "2026-10-27",
+      "reviewRef": "REPOSITORY-SYNC-CHECKLIST-2026-10-27.md; ALL-SYNCED-SOURCES-REVIEW-AND-ZCODE-PACKET.md; ALL-SYNCED-SOURCES-CURRENT-INVENTORY.json"
+    },
+    {
+      "id": "Gully678/mpskills",
+      "owner": "Gully678",
+      "repo": "mpskills",
+      "forkOf": "mattpocock/skills",
+      "role": "Selected skill/quality/workflow methods, preserving INVRT orchestration",
+      "pin": null,
+      "adoptionStatus": "pending",
+      "notes": "38 SKILL files but 27 explicit plugin exports (packet).",
+      "lastReviewed": "2026-10-27",
+      "reviewRef": "REPOSITORY-SYNC-CHECKLIST-2026-10-27.md; ALL-SYNCED-SOURCES-REVIEW-AND-ZCODE-PACKET.md; ALL-SYNCED-SOURCES-CURRENT-INVENTORY.json"
+    },
+    {
+      "id": "Gully678/pstack",
+      "owner": "Gully678",
+      "repo": "pstack",
+      "forkOf": "backnotprop/pstack",
+      "role": "Selected skill/quality/workflow methods, preserving INVRT orchestration",
+      "pin": null,
+      "adoptionStatus": "pending",
+      "notes": "61 raw vs 58 main skills plus 3 separate automation bodies (packet).",
+      "lastReviewed": "2026-10-27",
+      "reviewRef": "REPOSITORY-SYNC-CHECKLIST-2026-10-27.md; ALL-SYNCED-SOURCES-REVIEW-AND-ZCODE-PACKET.md; ALL-SYNCED-SOURCES-CURRENT-INVENTORY.json"
+    },
+    {
+      "id": "Gully678/osmani-agent-skills",
+      "owner": "Gully678",
+      "repo": "osmani-agent-skills",
+      "forkOf": "addyosmani/agent-skills",
+      "role": "Selected skill/quality/workflow methods, preserving INVRT orchestration",
+      "pin": null,
+      "adoptionStatus": "pending",
+      "lastReviewed": "2026-10-27",
+      "reviewRef": "REPOSITORY-SYNC-CHECKLIST-2026-10-27.md; ALL-SYNCED-SOURCES-REVIEW-AND-ZCODE-PACKET.md; ALL-SYNCED-SOURCES-CURRENT-INVENTORY.json"
+    },
+    {
+      "id": "Gully678/gstack",
+      "owner": "Gully678",
+      "repo": "gstack",
+      "forkOf": "garrytan/gstack",
+      "role": "Selected skill/quality/workflow methods, preserving INVRT orchestration",
+      "pin": null,
+      "adoptionStatus": "pending",
+      "notes": "Full delta inventory is 1383 changed paths (856 modified + 527 added); semantic review covers selected methods, not all 1383 files or 174 commits.",
+      "lastReviewed": "2026-10-27",
+      "reviewRef": "REPOSITORY-SYNC-CHECKLIST-2026-10-27.md; ALL-SYNCED-SOURCES-REVIEW-AND-ZCODE-PACKET.md; ALL-SYNCED-SOURCES-CURRENT-INVENTORY.json"
+    },
+    {
+      "id": "Gully678/gsd-core",
+      "owner": "Gully678",
+      "repo": "gsd-core",
+      "forkOf": "open-gsd/gsd-core",
+      "role": "FORGE skill library source (method adaptations, not a competing controller)",
+      "pin": null,
+      "adoptionStatus": "pending",
+      "packsRecords": 4,
+      "notes": "Do not import GSD hooks wholesale merely to obtain one skill (packet action 3).",
+      "lastReviewed": "2026-10-27",
+      "reviewRef": "REPOSITORY-SYNC-CHECKLIST-2026-10-27.md; ALL-SYNCED-SOURCES-CURRENT-INVENTORY.json"
+    },
+    {
+      "id": "Gully678/ralph",
+      "owner": "Gully678",
+      "repo": "ralph",
+      "forkOf": "snarktank/ralph",
+      "role": "FORGE skill library source",
+      "pin": null,
+      "adoptionStatus": "pending",
+      "packsRecords": 2,
+      "lastReviewed": "2026-10-27",
+      "reviewRef": "REPOSITORY-SYNC-CHECKLIST-2026-10-27.md; ALL-SYNCED-SOURCES-CURRENT-INVENTORY.json"
+    },
+    {
+      "id": "Gully678/claude-email",
+      "owner": "Gully678",
+      "repo": "claude-email",
+      "forkOf": "AgriciDaniel/claude-email",
+      "role": "FORGE skill library source",
+      "pin": null,
+      "adoptionStatus": "pending",
+      "packsRecords": 6,
+      "lastReviewed": "2026-10-27",
+      "reviewRef": "REPOSITORY-SYNC-CHECKLIST-2026-10-27.md; ALL-SYNCED-SOURCES-CURRENT-INVENTORY.json"
+    },
+    {
+      "id": "Gully678/aaron-marketing-skills",
+      "owner": "Gully678",
+      "repo": "aaron-marketing-skills",
+      "forkOf": "aaron-he-zhu/aaron-marketing-skills",
+      "role": "FORGE skill library source",
+      "pin": null,
+      "adoptionStatus": "pending",
+      "packsRecords": 120,
+      "lastReviewed": "2026-10-27",
+      "reviewRef": "REPOSITORY-SYNC-CHECKLIST-2026-10-27.md; ALL-SYNCED-SOURCES-CURRENT-INVENTORY.json"
+    },
+    {
+      "id": "Gully678/ai-sales-team-claude",
+      "owner": "Gully678",
+      "repo": "ai-sales-team-claude",
+      "forkOf": "zubair-trabzada/ai-sales-team-claude",
+      "role": "FORGE skill library source",
+      "pin": null,
+      "adoptionStatus": "pending",
+      "packsRecords": 13,
+      "lastReviewed": "2026-10-27",
+      "reviewRef": "REPOSITORY-SYNC-CHECKLIST-2026-10-27.md; ALL-SYNCED-SOURCES-CURRENT-INVENTORY.json"
+    },
+    {
+      "id": "Gully678/dataforseo-brain",
+      "owner": "Gully678",
+      "repo": "dataforseo-brain",
+      "forkOf": "AgriciDaniel/dataforseo-brain",
+      "role": "FORGE skill library source",
+      "pin": null,
+      "adoptionStatus": "pending",
+      "packsRecords": 1,
+      "lastReviewed": "2026-10-27",
+      "reviewRef": "REPOSITORY-SYNC-CHECKLIST-2026-10-27.md; ALL-SYNCED-SOURCES-CURRENT-INVENTORY.json"
+    },
+    {
+      "id": "Gully678/graphify",
+      "owner": "Gully678",
+      "repo": "graphify",
+      "forkOf": "Graphify-Labs/graphify",
+      "role": "FORGE tool provenance: knowledge graph CLI/MCP (source/provenance record, not install authority)",
+      "pin": null,
+      "adoptionStatus": "pending",
+      "notes": "CLI and MCP surfaces are distinct connections; semantic/provider extraction can transmit content and query logging has state; never enable as an implicit sync effect (packet action 6).",
+      "lastReviewed": "2026-10-27",
+      "reviewRef": "REPOSITORY-SYNC-CHECKLIST-2026-10-27.md; ALL-SYNCED-SOURCES-REVIEW-AND-ZCODE-PACKET.md; ALL-SYNCED-SOURCES-CURRENT-INVENTORY.json"
+    },
+    {
+      "id": "Gully678/SkillSpector",
+      "owner": "Gully678",
+      "repo": "SkillSpector",
+      "forkOf": "NVIDIA/SkillSpector",
+      "role": "FORGE tool provenance: skill scanner (source/provenance record, not install authority)",
+      "pin": null,
+      "adoptionStatus": "pending",
+      "notes": "Default LLM analysis sends eligible files to its provider and OSV checks query externally; a scanner PASS is not a sandbox or enterprise certificate (packet action 6).",
+      "lastReviewed": "2026-10-27",
+      "reviewRef": "REPOSITORY-SYNC-CHECKLIST-2026-10-27.md; ALL-SYNCED-SOURCES-REVIEW-AND-ZCODE-PACKET.md; ALL-SYNCED-SOURCES-CURRENT-INVENTORY.json"
+    }
+  ]
+}
