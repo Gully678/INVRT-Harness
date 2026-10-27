@@ -1,0 +1,98 @@
+{
+  "verdict": "PASS",
+  "tips": [
+    "worktree: /Users/mac/Repos/.worktrees/invrt-claude-adoption-sync-20261027",
+    "branch: codex/claude-adoption-sync-20261027",
+    "merge commit: 5b0f7fb84ee3cfc11d6449c4c8690988a4d389e6 (merges upstream pingdotgg/t3code 790ba13d0c into local 6eb44b38)",
+    "fix commit: 84b49e6151bae11d10adf97fac18b647b1c94ad6 (7 t3-code -> invrt-code literal swaps in apps/mobile/src/features/showcase/showcaseCaptureModel.test.ts)",
+    "evidence logs rerun by reviewer: /tmp/audit-mobile-typecheck.log, /tmp/audit-contract-test.log, /tmp/audit-web-tsc.log"
+  ],
+  "findings": [
+    {
+      "id": "F1",
+      "area": "merge-completeness",
+      "severity": "pass",
+      "path": "worktree root",
+      "evidence": "git log 70eccd48..790ba13d0c lists 31 commits; 14 verified: 9 files byte-identical to upstream (git diff 790ba13d0c 5b0f7fb84e -- <file> empty) and 5 more verified by semantic anchors (updateDelegatedCompletionOnlyRunId in Orchestrator.ts; Close Window handler DesktopApplicationMenu.ts:205; ClaudeAdapterV2.ts:7260-7262 nativeMessageCursor; WelcomeWizard.tsx waitForProject:61,1243; zod in cli-external-packages.ts:28; docs/operations/release.md TEMPORARY sentence)",
+      "commitsChecked": [
+        "56695ae3ec",
+        "a24b109bc3",
+        "c175e5737e",
+        "1ebbc205f6",
+        "d033768ec7",
+        "63bc022f64",
+        "7c3b3b3605",
+        "a86c05f977",
+        "e5f2e5dbbc",
+        "bc8d02ffd5",
+        "b333c175ba",
+        "6bbb2d8508",
+        "2202787df0",
+        "f81c4cd79f"
+      ],
+      "detail": "All sampled upstream intents present in merged tree; the only merged-vs-upstream differences in sampled files are INVRT branding lines."
+    },
+    {
+      "id": "F2",
+      "area": "conflict-resolution",
+      "severity": "pass",
+      "path": "packages/client-runtime/src/providerClients.ts, apps/web/package.json, apps/mobile/package.json, apps/web/src/components/settings/providerDriverMeta.ts, docs/operations/release.md, pnpm-lock.yaml",
+      "evidence": "zcodeClient imported (line 17) and registered before acpRegistryClient in makeProviderClientRegistry array; apps/web retains @t3tools/provider-zcode workspace:* while dropping seven other provider deps; providerStatus.test.ts imports @t3tools/provider-zcode/settings and /server which are declared exports in packages/provider-zcode/package.json; strict grep over apps+packages for imports of deleted apps/mobile/src/lib/providerClients.ts returns zero hits; providerDriverMeta.ts is export { providerClients } from @t3tools/client-runtime/provider-clients and that export exists",
+      "detail": "All six conflicted paths judged correct against the intent: adopt upstream logic, preserve INVRT branding/contracts."
+    },
+    {
+      "id": "F3",
+      "area": "brand-integrity",
+      "severity": "pass",
+      "path": "apps, packages",
+      "evidence": "git grep -nE 'T3 Code|T3Code' over *.ts|*.tsx|*.json at 5b0f7fb84e vs 6eb44b38: 9 hits at both; comm shows 0 new hits, 0 removed. All 9 are legacy-migration compat names (DesktopLegacyLocalStorage.ts, DesktopUserData.ts and tests) plus one providerStatus.test.ts comment asserting absence of 'T3 Code'.",
+      "detail": "No new user-visible upstream product-name string introduced by the merge."
+    },
+    {
+      "id": "F4",
+      "area": "lockfile-integrity",
+      "severity": "pass",
+      "path": "pnpm-lock.yaml",
+      "evidence": "git diff 790ba13d0c 5b0f7fb84e -- pnpm-lock.yaml: 0 @pnpm/exe hunks; 3 @t3tools/provider-zcode importer entries land inside apps/server (~line 856), apps/web (~1046), packages/client-runtime (~1432) ranges; 0 in apps/mobile range; packages/provider-zcode section added; 3 local-derived patch hashes updated (fff-node, app-builder-lib, dbus-next) matching branded patches/",
+      "detail": "Coherent for CI-style frozen installs. Known trade-off stands: any local pnpm install re-adds @pnpm/exe churn (observed during this review's gate reruns; restored with git restore pnpm-lock.yaml); documented in ONE-DAY-RUN-STATE-2026-10-27.md."
+    },
+    {
+      "id": "F5",
+      "area": "fix-commit",
+      "severity": "pass",
+      "path": "apps/mobile/src/features/showcase/showcaseCaptureModel.test.ts, packages/shared/src/themePalettes.ts",
+      "evidence": "themePalettes.ts line 3 MOBILE_DEFAULT_THEME_ID = 'invrt-code'; fixed test file has 0 't3-code' and 5 'invrt-code' literals (7 literals across 5 changed lines); mobile typecheck exit 0",
+      "detail": "Fix commit 84b49e6151 aligns upstream a24b109's hard-coded pre-rename theme id with the INVRT rename; claim verified by execution."
+    },
+    {
+      "id": "F6",
+      "area": "worktree-state",
+      "severity": "pass",
+      "path": "worktree root",
+      "evidence": "git status --porcelain empty after git restore pnpm-lock.yaml; git log --oneline -3 = 84b49e6151, 5b0f7fb84e, 790ba13d0c; reviewer committed nothing and pushed nothing",
+      "detail": "Tree left exactly as found plus the two new evidence files under oneday-evidence/."
+    }
+  ],
+  "gatesRerun": {
+    "mobileTypecheck": {
+      "command": "pnpm --filter @t3tools/mobile typecheck",
+      "exit": 0,
+      "log": "/tmp/audit-mobile-typecheck.log"
+    },
+    "contractsModelSelectionTest": {
+      "command": "pnpm exec vp test run packages/contracts/src/modelSelection.test.ts",
+      "exit": 0,
+      "output": "Test Files 1 passed (1); Tests 4 passed (4)",
+      "log": "/tmp/audit-contract-test.log"
+    },
+    "webTsc": {
+      "command": "pnpm --filter @t3tools/web exec tsc --noEmit",
+      "exit": 0,
+      "output": "zero output (clean)",
+      "log": "/tmp/audit-web-tsc.log"
+    },
+    "pathPrefix": "/Users/mac/Repos/invrt-code-local-pilot/.pilot/toolchain/node-v26.12.1-darwin-x64/bin (node v26.12.1, pnpm 12.14.0)",
+    "lockfileRestoredAfterReruns": true
+  },
+  "label": "SAME-HARNESS INTERNAL AUDIT"
+}
