@@ -97,5 +97,25 @@
     "WordCraft/GridCraft D3 inclusion (pre-existing, unchanged)",
     "signed release identity (com.invrt.code applied for unsigned local dev only)"
   ],
-  "honest_limits": "This is a one-day partial delivery: server, desktop and web surfaces are built, integrated, verified and packaged; iOS is built with simulator-level proof; Android and Windows host journeys are blocked on missing owned resources; the full 42-requirement/75-card release scope remains visible in INVRT-CODE-75-CARD-STATUS.md with most integration cards NOT STARTED; B39 combined release acceptance cannot pass and is not claimed."
+  "honest_limits": "This is a one-day partial delivery: server, desktop and web surfaces are built, integrated, verified and packaged; iOS is built with simulator-level proof; Android and Windows host journeys are blocked on missing owned resources; the full 42-requirement/75-card release scope remains visible in INVRT-CODE-75-CARD-STATUS.md with most integration cards NOT STARTED; B39 combined release acceptance cannot pass and is not claimed.",
+  "takeover_note": "Original fields retain the earlier delivered0.1.2 evidence. Current correction candidate below is self-tested and unaccepted; owner independent audit follows the full programme.",
+  "current_takeover_candidate": {
+    "status": "PRIVATE CANDIDATE, SELF-TESTED; NOT ENTERPRISE ACCEPTED",
+    "sourceCommit": "1a1ab10235d62839b83a9780dc78c5d7c00818cf",
+    "file": "/Users/mac/My Drive/Claude/Projects/INVRT-CODE/research/2026-10-27/ONE-DAY-RELEASE/CODEX-TAKEOVER-CANDIDATE/INVRT-CODE-SERVER.tar.gz",
+    "bytes": 65009201,
+    "sha256": "ff6a3ef51b8b711f66e5293d00f3d9de7588b3d027c81bb51d4712029adbd4ff",
+    "dependencyPreimageSha256": "2d143c815c07f17933c99f96d83df75d6e077be14da6c0768a800c01e2dbbe7d",
+    "dependencyReuse": "Exact previous audited archive dependencies; source lockfile unchanged; newly built dist/current README replace old files",
+    "tests": "205/205 selected tests across20files; server/web build2/2; source and cleanroom each2runs passed root200/descriptor200/auth401/restart/gracefulstop",
+    "ownerIndependentAudit": "Mark after full programme per latest explicit instruction",
+    "sourceRuntime": "2fresh/restart runs PASS: INVRTroot200,descriptor200,all4auth/forged-header requests401,stableenvironmentId,exit130,portsfree",
+    "egress": "ExternalHTTPS observed under current defaults; loopbackLISTEN is not a zero-egress policy. No hostname/payload inference from CDNIP alone.",
+    "cleanroom": "PASS, same environmentId across fresh/restart; own generated state/extraction removed",
+    "sourceTrees": {
+      "apps": "7052acdaed484235704baa7ea732ce0e4be8f461",
+      "packages": "9c140a4e12cd229cd79f2c2eca58669772c97607",
+      "scripts": "51db167c42b449d65c3d898d6025100ba10ae0ad"
+    }
+  }
 }

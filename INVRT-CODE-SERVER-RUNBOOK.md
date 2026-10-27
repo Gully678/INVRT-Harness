@@ -162,10 +162,13 @@ To roll a deploy back:
 
 `dist-package/INVRT-CODE-SERVER.tar.gz` extracts `dist/`, `node_modules/` and
 `README.md` at the archive root (extract into an empty directory; the repo-tree paths
-in sections 2-4 are `apps/server/dist/` and do not exist inside the archive). Shipped
-archive, bound to its exact bytes: 66,477,760 bytes,
-sha256 `2d143c815c07f17933c99f96d83df75d6e077be14da6c0768a800c01e2dbbe7d`
-(repackage required after any server change; packaging is a separate controlled step).
+in sections 2-4 are `apps/server/dist/` and do not exist inside the archive). Current correction archive is in the private review pack
+`CODEX-TAKEOVER-CANDIDATE/INVRT-CODE-SERVER.tar.gz`:65,009,201 bytes,
+sha256 `ff6a3ef51b8b711f66e5293d00f3d9de7588b3d027c81bb51d4712029adbd4ff`,
+built from source1a1ab10235d62839b83a9780dc78c5d7c00818cf and verified in a clean-room restart test.
+Its external MANIFEST.json binds exact source trees and limitations; it is not a released installer.
+The earlier delivered66,477,760-byte archive (sha256 `2d143c815c07f17933c99f96d83df75d6e077be14da6c0768a800c01e2dbbe7d`)
+is retained untouched. Repackage and reverify after every relevant source change.
 
 - `dist/`: the server bundle including `dist/client` web assets.
 - `node_modules/`: the runtime external dependencies the bundle requires at run time
