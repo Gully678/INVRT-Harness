@@ -46,3 +46,6 @@ node_modules/
 
 # pnpm content-addressable store; never belongs in the repo.
 .pnpm-store/
+
+# server runtime state holds key material; never commit (audit finding F2, server lane)
+userdata/
