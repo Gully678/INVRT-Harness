@@ -108,6 +108,7 @@ Machine-printed results (toolchain PATH per the lane brief, no whole-repo suite)
 (d) com.invrt.code (electron-builder DESKTOP_APP_ID) is applied for unsigned local development only; a signed release derives teamId.appId.webauthn keychain entitlements, so it needs Mark's team identity decision first.
 (e) Icon variant pipeline: which INVRT DS icon goes into which app variant (dev/nightly/prod, web favicon set, mobile platform icon sets) is an owner decision; nothing was invented or swapped in this lane.
 (f) Prose backlog outside the three surfaces plus the in-surface launcher permission descriptions: the remaining user-visible "T3 Code" text listed under Remaining sweeps and gaps (server MCP/OAuth/CLI auth names, marketing app, devcontainer, infra/relay, native/browser-secret, provider packages, and electron-launcher.mjs:271-272).
+(g) "T3 Connect" feature name: rename or keep. 32 source files across apps/web/src and apps/mobile/src still display "T3 Connect" (exact counts in the exceptions list above). The name is protocol-bound (t3-connect authorization literal, route paths, tunnel edge port 7844) and shared with the upstream project, so renaming it is an owner call; this lane changed no "T3 Connect" string.
 
 ## Commit
 
@@ -128,7 +129,7 @@ Implementing agent: ZCode harness, model builtin:zai-coding-plan/GLM-5.3-Flash. 
 | "t3.code" (regex, covers t3.codes domains) | 160 / 73                       | 158 / 73                                        |
 | "t3code" (case-insensitive)                | 2628 / 532                     | 2459 / 475 (all in the exception classes below) |
 
-Rewritten surfaces include: UI strings and prose across web/desktop/mobile/server, marketing app (tweets testimonials, 95.astro, asset dir renamed to invrt-code-concepts with files), devcontainer volume names, infra/relay (workspace package name invrt-code-relay, alchemy stage InvrtCodeRelay, tunnel prefix, docs), native dbus namespace com.invrt.KdeCapture + X-InvrtCode-Capture-Helper marker, provider client names (invrt-code, invrt-code-acp-cli, invrt-thread-cli), MCP server/tool names mcp__invrt-code__*, CLI auth/env help text, systemd unit invrt-code.service, README/docs, email and permission descriptions (electron-launcher.mjs:271-272 now INVRT Code), error messages, legal/marketing pages, update-manifest artifact names (INVRT-Code-*), and the desktop identity set: CFBundleIdentifier com.invrt.code(.dev.*), appUserModelId, Linux metainfo file com.invrt.code.metainfo.xml (git mv), DMG backgrounds.
+Rewritten surfaces include: UI strings and prose across web/desktop/mobile/server, marketing app (tweets testimonials, 95.astro, asset dir renamed to invrt-code-concepts with files), devcontainer volume names, infra/relay (workspace package name invrt-code-relay, alchemy stage InvrtCodeRelay, tunnel prefix, docs), native dbus namespace com.invrt.KdeCapture + X-InvrtCode-Capture-Helper marker, provider client names (invrt-code, invrt-code-acp-cli, invrt-thread-cli), MCP server/tool names mcp__invrt-code__*, CLI auth/env help text, systemd unit invrt-code.service, README/docs, email and permission descriptions (electron-launcher.mjs:271-272 now INVRT Code), error messages, legal/marketing pages, update-manifest artifact names (INVRT-Code-*), and the desktop identity set: CFBundleIdentifier com.invrt.code(.dev.*), appUserModelId, Linux metainfo file com.invrt.code.metainfo.xml (git mv), DMG backgrounds (the sweep rewrote the captions only; the embedded mark glyph itself was corrected to the INVRT mark by the sweep-audit fix pass below).
 
 Deliberate exceptions in the current tree (with approximate occurrence counts):
 
@@ -137,6 +138,7 @@ Deliberate exceptions in the current tree (with approximate occurrence counts):
 - Mobile bundle ids com.t3tools.t3code(.dev/.preview) in apps/mobile/app.config.ts and the Play/App Store URLs that point at those listings (Clerk universal links, keychain, EAS binding): 8 bundle-id lines plus 4 store URLs.
 - Functional upstream URLs: t3.codes / app.t3.codes / clerk.t3.codes domains (158), github.com/t3tools/t3code and pingdotgg/t3code repository references (about 500, mostly sample-data fixtures), App/Play store slugs, brew cask t3-code, winget T3Tools.T3Code (the 2 remaining "T3Code" hits), AUR package names t3code-bin/t3code-nightly-bin (26).
 - Internal non-user-visible identifiers kept for behavioural integrity: URL schemes t3code/t3code-dev/t3code-preview (shared with the mobile exception), data-dir and profile migration names (t3code-dev, t3code-v2, "T3 Code (Alpha)", "T3 Code (Dev)", .t3code/vcs.json, .t3code-wsl-* markers), temp-dir prefixes (t3code-git-manager-_, t3code-codex-_-home, t3code-workspace-_, t3code-chromium-_), oxlint-plugin-t3code package and t3code/* rule namespace, OTel service names t3code-server / t3code_desktop and sample transcript fixtures (replay-user/t3code paths, originator strings).
+- User-visible feature name "T3 Connect" retained in apps/web/src and apps/mobile/src (a distinct protocol-bound feature name, not a "T3 Code" mention): `git grep -c "T3 Connect"` prints 32 files and 94 matching lines, 96 occurrences (`git grep -o | wc -l`) at this tip, across display copy (onboarding wizard, saved and cloud environment rows, T3 Connect account and sign-in pages, settings search), tests and component identifiers. Protocol-bound: the "t3-connect" authorization literal is part of the connection protocol (packages/client-runtime/src/connection/catalog.ts:26, resolver.ts:148), the tunnel edge binds port 7844 (apps/server/src/cloud/ConnectReachability.ts:27) and t3-connect route paths carry the t3.codes universal links. Owner decision pending (g below).
 
 ### B. Logo wiring (INVRT Design System, accent #405BD8, tokens/invrt-tokens.css)
 
@@ -162,3 +164,17 @@ No sha256 digest blocks are recorded in this evidence file, so none were recompu
 ## Commit
 
 Recorded after commit (see the lane report for the exact sha). Only the files listed in each pass are staged by explicit path; nothing is pushed.
+
+## Sweep-audit fixes (F1 + F2), 27 October 2026
+
+Fix agent: ZCode harness, model builtin:zai-coding-plan/GLM-5.3-Flash. Applies the two findings in oneday-evidence/BRAND-SWEEP-AUDIT.md (that audit file stays uncommitted; the auditor owns it). Skills loaded: production-guardrails, production-audit, ai-native-agent, invrt-concise-code, invrt-ui-quality.
+
+### F1: DMG backgrounds now carry the INVRT mark
+
+- apps/desktop/resources/dmg/dmg-background-latest.svg and dmg-background-nightly.svg: the embedded T3 wordmark glyph (path data identical to the deleted T3Wordmark.tsx) replaced with the InvrtMark path from the INVRT Design System assets/invrt-mark.svg, the same path data as apps/web/src/components/InvrtMark.tsx (viewBox 0 0 823.94 685.18, fill-rule and clip-rule evenodd). Caption "Drag INVRT Code into Applications.", both fills (#303034 latest, #edf0ff nightly) and every other element unchanged. Both stale comments citing T3Wordmark.tsx now cite InvrtMark.tsx and the DS asset.
+- Geometry: the nested svg keeps x="32" y="23" and height="18" (the old top-left anchor and height); width set to 21.65 (18 x 823.94 / 685.18) so the viewport aspect matches the mark aspect and the proportionally scaled mark fills the viewport exactly, independent of the renderer's preserveAspectRatio handling and without distortion. Root canvas unchanged (width 1280 height 864, viewBox 0 0 640 432), so the rasteriser in scripts/build-desktop-artifact.ts stageDesktopDmgBackground (sips at 640x432 and 1280x864) consumes the files unchanged.
+- No test asserts the glyph path data; the build rasteriser contract tests and the branding/identity suites stay green (outputs below).
+
+### F2: "T3 Connect" declared as an exception with a pending owner decision
+
+- `git grep -c "T3 Connect"` over apps/web/src and apps/mobile/src prints 32 files and 94 matching lines; `git grep -o "T3 Connect" | wc -l` prints 96 occurrences. Recorded in the deliberate-exceptions list above with the protocol binding, and queued to the owner as decision (g): rename or keep. No UI string changed for F2: the feature name is protocol-bound and shared with upstream.
