@@ -1,0 +1,124 @@
+{
+  "task": "CROSS-HARNESS FIX act, Builder 2: platform and evidence-record corrections",
+  "date": "2026-10-27",
+  "harness": "ZCode",
+  "model": "builtin:zai-coding-plan/GLM-5.3-Flash",
+  "worktree": "/Users/mac/Repos/.worktrees/invrt-oneday-fix-platform-20261027",
+  "branch": "invrt/oneday-fix-platform-20261027",
+  "base": "8a61a81827961c0c6e118e7237dd2e88ddaaf407",
+  "skills": [
+    "production-guardrails",
+    "production-audit",
+    "ai-native-agent",
+    "invrt-concise-code",
+    "invrt-ui-quality",
+    "design-system",
+    "invrt-technical-prose"
+  ],
+  "entries": {
+    "ZA-07": {
+      "status": "FIXED",
+      "files": [
+        "packages/provider-zcode/src/server/status.ts",
+        "apps/web/src/components/settings/providerStatus.test.ts"
+      ],
+      "change": "Both disabled-provider messages now read 'ZCode is disabled in INVRT Code settings.'; presentation-level test drives buildInitialZcodeProviderSnapshot through getProviderSummary",
+      "tests": "apps/web providerStatus.test.ts 8/8; mutation probe on the old string fails the new assertion and passes after restore"
+    },
+    "P2": {
+      "status": "FIXED",
+      "files": [
+        "apps/mobile/assets/android-icon-foreground.png",
+        "apps/mobile/assets/android-icon-mark.png",
+        "apps/mobile/assets/android-notification-icon.png",
+        "apps/mobile/assets/android-splash-icon-dev.png",
+        "apps/mobile/assets/android-splash-icon-nightly.png",
+        "apps/mobile/assets/android-splash-icon-prod.png"
+      ],
+      "source": "INVRT Design System assets/invrt-mark.svg, white fill; DS backgrounds #405BD8 (dev, contrast 5.67), #0F172A (nightly, 17.85), #000000 (prod, 21.0)",
+      "new_sha256": {
+        "android-icon-foreground.png": "86c1c5dbcbe6b12056d4af881efb77dc8578a07bc9bd69e339ac1e2d2e38bf21",
+        "android-icon-mark.png": "86c1c5dbcbe6b12056d4af881efb77dc8578a07bc9bd69e339ac1e2d2e38bf21",
+        "android-notification-icon.png": "322819bf75e4c2449614ac7e771ec3b2d3bffa69a2019ec41a0da4fea5e734ef",
+        "android-splash-icon-dev.png": "a4c99ff189684a05506053292ccfef5fe2ff65a5cd92b230c8b89ae17aa7308f",
+        "android-splash-icon-nightly.png": "66ca84f3fc21b5b120802f6461233650207259d6210c1d9ebf9392e8c429b289",
+        "android-splash-icon-prod.png": "7cab6cb0dbfe4dda98df496e03907f1adda6e3ccec3be2758e9bc1c7d05058e4"
+      },
+      "consumer_verification": "expo prebuild --platform android --no-install (JS-only, exit 0) generated mipmap ic_launcher_foreground/monochrome webp, drawable notification_icon.png, splashscreen_logo.png (light+night) and shortcut_icon_foreground.png from the new files; outputs visually verified then deleted. No native Android build (SDK/JDK/adb absent).",
+      "limits": "scripts/export-android-icons.ts still sources unregenerated upstream .icon assets; the .icon/ictool gap stays with the acknowledged iOS item"
+    },
+    "P3": {
+      "status": "FIXED",
+      "files": [
+        "apps/mobile/package.json",
+        "apps/mobile/app.config.ts",
+        "apps/mobile/plugins/terminalNativeExclusion.cjs",
+        "apps/mobile/plugins/withIosTerminalNativeExclusion.cjs",
+        "apps/mobile/plugins/withIosTerminalNativeExclusion.test.ts"
+      ],
+      "mechanism": "package.json expo.autolinking.ios.exclude removed (it hit every iOS target); new Podfile mod replaces the main target's bare use_expo_modules! with use_expo_modules!(exclude: terminal_native_excludes) where the list comes from T3CODE_IOS_EXCLUDE_TERMINAL_NATIVE read at pod-install time",
+      "research": "empirical on expo-modules-autolinking 58.0.13: app.config expo.autolinking is ignored by resolution (tested both directions); package.json autolinking is the only honoured source and supports a static list only; use_expo_modules!(exclude:) forwards ['--exclude', ...] (autolinking_manager.rb:213-226)",
+      "tests": "plugins/withIosTerminalNativeExclusion.test.ts 6/6",
+      "verification_chain": "default resolve -p ios lists @t3tools/mobile-terminal-native (arm64 keeps it); the same CLI with --exclude omits it (what the Podfile passes); ruby eval of the generated conditional prints env=1 -> [package], unset -> []; prebuild -p ios --no-install produced the patched Podfile with use_expo_modules_widgets! untouched",
+      "limits": "no pod install, xcodebuild, signing or physical device; pod-install-time and generated-autolinking-for-arm64 checks need a capable host; Expo fingerprint changes by design"
+    },
+    "P4": {
+      "status": "FIXED",
+      "files": ["INVRT-CODE-SERVER-RUNBOOK.md", "dist-package/README.md"],
+      "change": "runbook lines 54/57 quote the actual INVRT Code log text (serverRuntimeStartup.ts:350, cli/config.ts:344); section 9 states the archive extracts dist/, node_modules/ and README.md at the archive root and binds the shipped tarball: 66477760 bytes, sha256 2d143c815c07f17933c99f96d83df75d6e077be14da6c0768a800c01e2dbbe7d; dist-package/README.md line 3 now says INVRT Code and describes the archive-root layout; repackage requirement noted (tarball not rebuilt here)",
+      "tarball_checked": "/Users/mac/Repos/invrt-code-local-pilot/.pilot/oneday-release-2026-10-27/INVRT-CODE-SERVER.tar.gz"
+    },
+    "EG-01": {
+      "status": "CORRECTED (additive)",
+      "new_file": "oneday-evidence/EG01-EGRESS-RETRACTION.md",
+      "registry_corrections": [
+        "INVRT-CODE-PLATFORM-EVIDENCE.json server_headless.integrated_run (zero egress -> corrected statement + pointer)",
+        "INVRT-CODE-RELEASE-MANIFEST.json tests_and_audits.server (zero egress -> retracted + pointer)"
+      ],
+      "caller_attribution": [
+        {
+          "destination": "185.199.108-111.133:443 (raw.githubusercontent.com)",
+          "caller": "apps/server/src/provider/ModelManifest.ts:226 (URL lines 24-25), forked at startup by refreshInBackground (line 255)",
+          "toggle": "settings enableProviderUpdateChecks (contracts/src/settings.ts:1122, default true; guard ModelManifest.ts:223); gap: fresh state without a settings file still fetches",
+          "related_not_startup": "apps/server/src/usage/UsageService.ts:259 litellm rates fetch on the usage-read path (line 715); no toggle exists (gap recorded)"
+        },
+        {
+          "destination": "ingest.t3.codes (Cloudflare edges 104.16.7.34, 104.16.10.34, 104.21.3.218, 172.67.153.155; DNS verified)",
+          "caller": "apps/server/src/telemetry/AnalyticsService.ts:68 (PostHog host default; key default lines 62-64)",
+          "toggle": "T3CODE_TELEMETRY_ENABLED (AnalyticsService.ts:73, default true)"
+        }
+      ],
+      "reproduction": {
+        "A_fresh_defaults": ["185.199.108.133:443 (~3s)", "172.67.153.155:443 (~13s)"],
+        "B_same_state_restart": ["185.199.109.133:443 (~4s)", "104.21.3.218:443 (~14s)"],
+        "C_fresh_telemetry_off": ["185.199.110.133:443 only"],
+        "E_fresh_update_checks_off": ["172.67.153.155:443 only"],
+        "child_processes": "no child opened any socket in any capture",
+        "package_tarball": "not re-run here (controlled packaging step); Codex package-mode lsof PID 22830 shows the same two destinations"
+      }
+    }
+  },
+  "tests": {
+    "branding_trio": "3 files, 29/29 passed",
+    "packaging": "1 file, 43/43 passed",
+    "mobile_typecheck": "exit 0",
+    "web_typecheck": "exit 0 (pre-existing TS suggestions in unrelated files)",
+    "provider_zcode": "6 files, 46/46 passed",
+    "web_providerStatus": "1 file, 8/8 passed (+ mutation probe)",
+    "mobile_plugin_predicates": "1 file, 6/6 passed"
+  },
+  "resources": {
+    "installed": "worktree node_modules via pnpm install --frozen-lockfile (exit 0, no lockfile churn)",
+    "removed": [
+      "apps/mobile/android (prebuild output)",
+      "apps/mobile/ios (prebuild output)",
+      "apps/server/dist (EG-01 reproduction bundle)",
+      "gen-android-ds-icons.mjs (temporary generator)",
+      "/tmp/eg01-* captures, basedirs, harness and logs",
+      "/tmp prebuild and typecheck logs"
+    ],
+    "retained": ["worktree node_modules (gitignored build state for the next auditor)"]
+  },
+  "blocked": [],
+  "notes": "Nothing under /Users/mac/My Drive modified; sibling fix-adapter worktree untouched; nothing pushed."
+}

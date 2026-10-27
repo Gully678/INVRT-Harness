@@ -1,8 +1,9 @@
 # INVRT Code Server (deployable package)
 
-Self-contained headless build of the T3 Code server (`t3`, version 0.1.2) bundled from the
-one-day INVRT Code programme. The archive contains the compiled server plus the built web
-client under `dist/client`, so nothing else is needed at run time.
+Self-contained headless build of the INVRT Code server (`t3`, version 0.1.2) bundled from
+the one-day INVRT Code programme. The archive extracts `dist/`, `node_modules/` and this
+README at the archive root; the compiled server plus the built web client live under
+`dist/client`, so nothing else is needed at run time.
 
 ## Contents
 

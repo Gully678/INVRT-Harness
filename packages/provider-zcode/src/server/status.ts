@@ -194,7 +194,7 @@ export const buildInitialZcodeProviderSnapshot = Effect.fn(
         version: null,
         status: "warning",
         auth: { status: "unknown" },
-        message: "ZCode is disabled in T3 Code settings.",
+        message: "ZCode is disabled in INVRT Code settings.",
       },
     });
   }
@@ -235,7 +235,7 @@ export const checkZcodeProviderStatus = Effect.fn("ZcodeStatus.checkZcodeProvide
           version: null,
           status: "warning",
           auth: { status: "unknown" },
-          message: "ZCode is disabled in T3 Code settings.",
+          message: "ZCode is disabled in INVRT Code settings.",
         },
       });
     }
