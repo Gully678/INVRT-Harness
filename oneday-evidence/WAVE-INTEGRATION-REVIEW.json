@@ -1,0 +1,173 @@
+{
+  "verdict": "PASS",
+  "commit": "6feeffab9de8d471b54b0d0c5cdbf2fc9cdaec62",
+  "label": "SAME-HARNESS INTERNAL AUDIT",
+  "reviewerHarness": "ZCode (GLM 5.3 Flash), fresh context; engineering review only, NOT independent external certification; cross-harness release acceptance remains owed",
+  "worktree": "/Users/mac/Repos/.worktrees/invrt-claude-wave-integration-20261027",
+  "branch": "codex/claude-wave-integration-20261027",
+  "treeCleanAfterReview": true,
+  "reviewerCommits": 0,
+  "unionTable": {
+    "codex/claude-adoption-sync-20261027": {
+      "tip": "d6191bcd5655b770f2e84d61238022e46aa6c858",
+      "ownBase": "84b49e6151bae11d10adf97fac18b647b1c94ad6",
+      "filesChanged": 2,
+      "productFilesVerifiedIdentical": 0,
+      "evidenceFilesExpected": 2,
+      "evidenceFilesPresentIdentical": 2,
+      "result": "OK"
+    },
+    "codex/claude-server-archive-20261027": {
+      "tip": "c7c9de118af436745e9ae8fd07fe88f74e716c50",
+      "ownBase": "d6191bcd5655b770f2e84d61238022e46aa6c858",
+      "filesChanged": 5,
+      "productFilesVerifiedIdentical": 3,
+      "evidenceFilesExpected": 2,
+      "evidenceFilesPresentIdentical": 2,
+      "result": "OK"
+    },
+    "codex/claude-domain-core-b01-20261027": {
+      "tip": "ea153d9d17e90874aab4277ec452fc559c220e09",
+      "ownBase": "84b49e6151bae11d10adf97fac18b647b1c94ad6",
+      "filesChanged": 7,
+      "productFilesVerifiedIdentical": 3,
+      "overlapFileNote": "packages/contracts/src/index.ts holds the union: HEAD vs ea153d9d shows exactly B01.2's added export line; both programme exports at HEAD lines 71-72",
+      "evidenceFilesExpected": 4,
+      "evidenceFilesPresentIdentical": 4,
+      "result": "OK"
+    },
+    "codex/claude-b01-2-identity-20261027": {
+      "tip": "656aefd4f4a04b50a7efe01e08a40ebbab653a0e",
+      "ownBase": "50cbcd868405c2f8db6db4ac0f9b347bccce074e",
+      "filesChanged": 5,
+      "productFilesVerifiedIdentical": 3,
+      "overlapFileNote": "packages/contracts/src/index.ts at HEAD is byte-identical to B01.2's version, which already contains both branches' exports",
+      "evidenceFilesExpected": 2,
+      "evidenceFilesPresentIdentical": 2,
+      "result": "OK"
+    },
+    "codex/claude-source-sync-registry-20261027": {
+      "tip": "fe868c6a26b6154648b9fc6839ad1ea597b22af0",
+      "ownBase": "84b49e6151bae11d10adf97fac18b647b1c94ad6",
+      "filesChanged": 13,
+      "productFilesVerifiedIdentical": 7,
+      "evidenceFilesExpected": 6,
+      "evidenceFilesPresentIdentical": 6,
+      "sharedEvidenceNote": "ADOPTION-REVIEW.json/.md shared with adoption branch; both present and identical",
+      "result": "OK"
+    }
+  },
+  "diffstatReconciliation": {
+    "mergeChainVsBase": "22 files, +6547, -0 (8ade1577 vs c7c9de11) matches builder claim",
+    "headVsBase": "23 files, +6565, -1; the single deletion is inside the deliberate INVRT-CODE-PLATFORM-EVIDENCE.json rebind (evidence commit 6feeffab: 1 file, +18/-1)"
+  },
+  "topology": {
+    "graphOrderVerified": ["c7c9de11", "b736c472", "729999cb", "8ade1577", "6feeffab"],
+    "mergeParents": {
+      "b736c472": [
+        "c7c9de118af436745e9ae8fd07fe88f74e716c50",
+        "ea153d9d17e90874aab4277ec452fc559c220e09"
+      ],
+      "729999cb": [
+        "b736c472bd9f42b53f9082e2baa3bbc122fd0b84",
+        "656aefd4f4a04b50a7efe01e08a40ebbab653a0e"
+      ],
+      "8ade1577": [
+        "729999cbd4059c02fe2155a32b5c6c7313ec97d4",
+        "fe868c6a26b6154648b9fc6839ad1ea597b22af0"
+      ]
+    },
+    "isAncestorOK": ["c7c9de11", "ea153d9d", "656aefd4", "fe868c6a", "551c3cfc", "d6191bcd"]
+  },
+  "evidenceBinding": {
+    "parses": true,
+    "current_server_archive_candidate": {
+      "fileKeyCarriesAbsolutePath": true,
+      "path": "/Users/mac/Repos/invrt-code-local-pilot/.pilot/oneday-release-2026-10-27/server-archive-candidate/INVRT-CODE-SERVER.tar.gz",
+      "bytes": 94870610,
+      "sha256": "562e8052cd4d53046c5241e1a70d8f79be1d523c0c7ddcf3e03f4e7b67dbaae8",
+      "sourceTip": "d6191bcd5655b770f2e84d61238022e46aa6c858",
+      "onDiskHashMatchesNow": true,
+      "onDiskBytesMatchesNow": true
+    },
+    "current_takeover_candidate": {
+      "retained": true,
+      "supersededBy": "current_server_archive_candidate",
+      "supersededAt": "2026-10-27",
+      "retentionNotePresent": true,
+      "deleted": false
+    }
+  },
+  "spotChecks": {
+    "coverageJsonSha256": "4234dc930599bb7327137e9a727027cb34dc2d27914100332c71c354a12dc3e7",
+    "programmeDomainTsVsEa153d9d": "empty diff",
+    "programmeIdentityTsVs656aefd4": "empty diff",
+    "registryJsonVsFe868c6a": "empty diff",
+    "serverRunbookPresent": true,
+    "releaseManifestPresent": true
+  },
+  "gatesRerun": {
+    "pathPrefix": "/Users/mac/Repos/invrt-code-local-pilot/.pilot/toolchain/node-v26.12.1-darwin-x64/bin",
+    "contractsTypecheck": { "command": "pnpm exec tsc --noEmit (packages/contracts)", "exit": 0 },
+    "b01_2Suite": {
+      "command": "pnpm exec vp test run packages/contracts/src/programmeIdentity.test.ts",
+      "exit": 0,
+      "testsPassed": 26,
+      "expected": 26
+    },
+    "registryCheck": {
+      "command": "node scripts/source-sync/check-source-registry.ts",
+      "exit": 0,
+      "entries": 41,
+      "gitCrossChecks": 2,
+      "findings": 0
+    },
+    "lockfileRestored": true,
+    "treeCleanAfterGates": true,
+    "lockfileCommitsOnBranch": 0,
+    "notRerun": [
+      "tier-1 285",
+      "B01.1 suite 60",
+      "registry slice 15",
+      "two builds",
+      "five further typechecks"
+    ]
+  },
+  "honestyScan": {
+    "certificationClaimsInIntegrationCommits": false,
+    "auditLabels": "All evidence same-harness (ZCode GLM 5.3 Flash); cross-harness release acceptance owed on every row",
+    "supersededEntryRetainedNotDeleted": true,
+    "candidateStatusHonest": "PRIVATE CANDIDATE, SELF-TESTED ...; NOT ENTERPRISE ACCEPTED"
+  },
+  "findings": [
+    {
+      "severity": "informational",
+      "finding": "The +6547/-0 claim describes the merge chain (8ade1577 vs c7c9de11), not HEAD; HEAD vs base is +6565/-1 because the evidence bind rewrites INVRT-CODE-PLATFORM-EVIDENCE.json. Builder message states the 22-file scope, so no misstatement.",
+      "evidence": "git diff --shortstat c7c9de11 8ade1577 = 22 files 6547 insertions; git show --shortstat 6feeffab = 1 file 18 insertions 1 deletion"
+    },
+    {
+      "severity": "informational",
+      "finding": "current_server_archive_candidate stores the artifact path under key 'file' (absolute path present), not 'path'; consumers must read 'file'.",
+      "evidence": "python3 json inspection printed file=.../INVRT-CODE-SERVER.tar.gz, path key absent"
+    },
+    {
+      "severity": "note",
+      "finding": "Bound 94.8 MB archive lives outside the repo in the pilot toolchain directory; hash verified now and must be re-verified at release acceptance.",
+      "evidence": "shasum -a 256 printed 562e8052... and stat printed 94870610 bytes on 2026-10-27"
+    },
+    {
+      "severity": "note",
+      "finding": "Gates rerun is a sample per the duty; unrerun suites rest on builder-printed evidence and bound per-branch audits; cross-harness acceptance remains owed.",
+      "evidence": "duty scope; audit_labels line"
+    }
+  ],
+  "blockingFindings": 0,
+  "skillsLoaded": [
+    "production-audit",
+    "production-guardrails",
+    "ai-native-agent",
+    "invrt-concise-code",
+    "verification-before-completion",
+    "code-review"
+  ]
+}
