@@ -175,7 +175,7 @@ function WorkspaceRootContent() {
           />
         ) : (
           <AndroidScreenHeader
-            title="T3 Code"
+            title="INVRT Code"
             titleContent={renderHeaderTitle()}
             actions={[
               ...(state.selectedTab === "threads" || state.selectedTab === "pullRequests"

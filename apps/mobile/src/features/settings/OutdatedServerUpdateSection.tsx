@@ -84,7 +84,7 @@ export function OutdatedServerUpdateSection({
   }
 
   return (
-    <SettingsSection title="T3 Code">
+    <SettingsSection title="INVRT Code">
       <View className="gap-1 p-4">
         <Text className="text-base text-foreground">
           {release ? `Version ${release.fromVersion}` : "Update required"}
