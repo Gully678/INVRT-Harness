@@ -1,12 +1,12 @@
 {
   "id": "/",
-  "name": "T3 Code",
-  "short_name": "T3 Code",
+  "name": "INVRT Code",
+  "short_name": "INVRT Code",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#161616",
-  "theme_color": "#161616",
+  "theme_color": "#405BD8",
   "icons": [
     {
       "src": "/favicon-32x32.png",
@@ -17,6 +17,12 @@
       "src": "/apple-touch-icon.png",
       "sizes": "180x180",
       "type": "image/png"
+    },
+    {
+      "src": "/favicon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
     }
   ]
 }

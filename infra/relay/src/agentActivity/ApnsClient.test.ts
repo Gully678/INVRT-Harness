@@ -29,7 +29,7 @@ const layerTest = ApnsClient.layer.pipe(
 describe("ApnsClient", () => {
   const now = DateTime.makeUnsafe(0);
   const state: RelayAgentActivityAggregateState = {
-    title: "T3 Code",
+    title: "INVRT Code",
     subtitle: "Agent work in progress",
     activeCount: 1,
     updatedAt: DateTime.formatIso(now),
@@ -205,7 +205,7 @@ describe("ApnsClient", () => {
       teamId: "team-jwt-cache",
       keyId: "key-jwt-cache",
       privateKey: Redacted.make(privateKey),
-      bundleId: "com.t3tools.test",
+      bundleId: "com.invrt.test",
       environment: "sandbox",
     } satisfies ApnsCredentials;
     const authorizations: Array<string> = [];

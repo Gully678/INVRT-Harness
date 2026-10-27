@@ -14,9 +14,9 @@ const defaultInput = {
   platform: "darwin",
   processArch: "arm64",
   appVersion: "0.0.22",
-  appPath: "/Applications/T3 Code.app/Contents/Resources/app.asar",
+  appPath: "/Applications/INVRT Code.app/Contents/Resources/app.asar",
   isPackaged: false,
-  resourcesPath: "/Applications/T3 Code.app/Contents/Resources",
+  resourcesPath: "/Applications/INVRT Code.app/Contents/Resources",
   runningUnderArm64Translation: false,
 } satisfies DesktopEnvironment.MakeDesktopEnvironmentInput;
 
@@ -158,4 +158,26 @@ describe("DesktopEnvironment", () => {
       assert.include(result.message, "absolute path");
     }),
   );
+});
+
+describe("resolveDesktopAppBranding", () => {
+  it("reports the INVRT Code base name with the Dev stage label in development", () => {
+    const branding = DesktopEnvironment.resolveDesktopAppBranding({
+      isDevelopment: true,
+      appVersion: "0.0.22",
+    });
+    assert.equal(branding.baseName, "INVRT Code");
+    assert.equal(branding.stageLabel, "Dev");
+    assert.equal(branding.displayName, "INVRT Code (Dev)");
+  });
+
+  it("reports the Beta stage label for packaged builds", () => {
+    const branding = DesktopEnvironment.resolveDesktopAppBranding({
+      isDevelopment: false,
+      appVersion: "0.0.22",
+    });
+    assert.equal(branding.baseName, "INVRT Code");
+    assert.equal(branding.stageLabel, "Beta");
+    assert.equal(branding.displayName, "INVRT Code (Beta)");
+  });
 });

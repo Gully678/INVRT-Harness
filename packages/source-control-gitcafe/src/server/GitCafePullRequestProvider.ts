@@ -1065,7 +1065,7 @@ export const make = Effect.gen(function* () {
           return;
         }
         default:
-          return yield* failure(input.action, `GitCafe cannot ${input.action} from T3 Code.`);
+          return yield* failure(input.action, `GitCafe cannot ${input.action} from INVRT Code.`);
       }
     }),
     updateChangeRequest: Effect.fn("GitCafePullRequestProvider.updateChangeRequest")(

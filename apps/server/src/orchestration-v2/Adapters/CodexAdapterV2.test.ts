@@ -566,7 +566,7 @@ function codexReplayPreamble(input: {
         id: 1,
         method: "initialize",
         params: {
-          clientInfo: { name: "T3 Code", title: "T3 Code", version: packageJson.version },
+          clientInfo: { name: "INVRT Code", title: "INVRT Code", version: packageJson.version },
           capabilities: {
             experimentalApi: true,
             optOutNotificationMethods: ["turn/diff/updated"],
@@ -583,7 +583,7 @@ function codexReplayPreamble(input: {
       frame: {
         id: 1,
         result: {
-          userAgent: "T3 Code/0.156.1",
+          userAgent: "INVRT Code/0.156.1",
           codexHome: "/tmp/codex-home",
           platformFamily: "unix",
           platformOs: "macos",
@@ -1181,7 +1181,7 @@ describe("CodexAdapterV2 post-settle continuation", () => {
           config: {
             "tools.update_plan.enabled": true,
             mcp_optional_startup_grace_ms: 10_000,
-            "mcp_servers.t3-code": {
+            "mcp_servers.invrt-code": {
               url: "http://127.0.0.1:43123/mcp",
               tool_timeout_sec: 3_900,
               http_headers: { Authorization: "Bearer secret-codex-token" },
@@ -1197,7 +1197,7 @@ describe("CodexAdapterV2 post-settle continuation", () => {
     ),
   );
 
-  // regression: #15839 launch-arg MCP servers survive the thread's t3-code server
+  // regression: #15839 launch-arg MCP servers survive the thread's invrt-code server
   it.effect("replays historical and dotted MCP config while enforcing other thread config", () =>
     Effect.gen(function* () {
       const recordedServer = {
@@ -1206,15 +1206,15 @@ describe("CodexAdapterV2 post-settle continuation", () => {
       };
       const currentConfig = {
         "tools.update_plan.enabled": true,
-        "mcp_servers.t3-code": {
+        "mcp_servers.invrt-code": {
           url: "http://127.0.0.1:42000/mcp",
           http_headers: { Authorization: "Bearer current-token" },
         },
         "mcp_servers.extra.command": "cat",
       };
       for (const recordedMcp of [
-        { mcp_servers: { "t3-code": recordedServer } },
-        { "mcp_servers.t3-code": recordedServer, "mcp_servers.extra.command": "echo" },
+        { mcp_servers: { "invrt-code": recordedServer } },
+        { "mcp_servers.invrt-code": recordedServer, "mcp_servers.extra.command": "echo" },
       ]) {
         const entries = codexReplayPreamble({
           nativeThreadId: "replayed-mcp-thread",
@@ -4560,7 +4560,7 @@ describe("CodexAdapterV2 post-settle continuation", () => {
             item: {
               type: "mcpToolCall",
               id: COMPLETED_WAIT_ITEM,
-              server: "t3-code",
+              server: "invrt-code",
               tool: "t3_thread_wait",
               status: "inProgress",
               arguments: { threadId: "thread:completed-wait", timeoutMs: 30000 },
@@ -4580,7 +4580,7 @@ describe("CodexAdapterV2 post-settle continuation", () => {
             item: {
               type: "mcpToolCall",
               id: COMPLETED_WAIT_ITEM,
-              server: "t3-code",
+              server: "invrt-code",
               tool: "t3_thread_wait",
               status: "completed",
               arguments: { threadId: "thread:completed-wait", timeoutMs: 30000 },
@@ -4601,7 +4601,7 @@ describe("CodexAdapterV2 post-settle continuation", () => {
             item: {
               type: "mcpToolCall",
               id: ORPHAN_WAIT_ITEM,
-              server: "t3-code",
+              server: "invrt-code",
               tool: "t3_thread_wait",
               status: "inProgress",
               arguments: {

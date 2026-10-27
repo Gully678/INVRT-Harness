@@ -805,7 +805,7 @@ it.layer(
         checkedAt: "2026-10-03T00:02:00.000Z",
         status: "ready",
         version: "1.0.0",
-        message: "Pi is available, but T3 Code could not refresh its models and commands.",
+        message: "Pi is available, but INVRT Code could not refresh its models and commands.",
       } satisfies ServerProvider;
 
       it("retains Pi inventories during incomplete probes without restoring removed custom models", () => {
@@ -1046,7 +1046,7 @@ it.layer(
         }).pipe(
           Effect.provide(
             ServerConfig.layerTest(process.cwd(), {
-              prefix: "t3-codex-retired-model-cache-",
+              prefix: "invrt-codex-retired-model-cache-",
             }).pipe(Layer.provideMerge(NodeServices.layer)),
           ),
         ),
