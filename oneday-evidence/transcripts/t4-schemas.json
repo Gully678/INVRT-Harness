@@ -1,0 +1,96 @@
+{
+  "stderr": "",
+  "lines": [
+    {
+      "t": 1793065717024,
+      "sent": {
+        "id": 1,
+        "method": "session/create",
+        "params": {}
+      }
+    },
+    {
+      "t": 1793065718410,
+      "msg": {
+        "error": {
+          "code": -32602,
+          "data": {
+            "name": "ZodError",
+            "message": "[\n  {\n    \"expected\": \"object\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      \"workspace\"\n    ],\n    \"message\": \"Invalid input: expected object, received undefined\"\n  }\n]"
+          },
+          "message": "Invalid params — workspace: Invalid input: expected object, received undefined"
+        },
+        "id": 1
+      }
+    },
+    {
+      "t": 1793065718411,
+      "sent": {
+        "id": 2,
+        "method": "session/send",
+        "params": {}
+      }
+    },
+    {
+      "t": 1793065718413,
+      "msg": {
+        "error": {
+          "code": -32602,
+          "data": {
+            "name": "ZodError",
+            "message": "[\n  {\n    \"expected\": \"string\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      \"sessionId\"\n    ],\n    \"message\": \"Invalid input: expected string, received undefined\"\n  },\n  {\n    \"expected\": \"string\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      \"content\"\n    ],\n    \"message\": \"Invalid input: expected string, received undefined\"\n  }\n]"
+          },
+          "message": "Invalid params — sessionId: Invalid input: expected string, received undefined; content: Invalid input: expected string, received undefined"
+        },
+        "id": 2
+      }
+    },
+    {
+      "t": 1793065718413,
+      "sent": {
+        "id": 3,
+        "method": "session/events",
+        "params": {}
+      }
+    },
+    {
+      "t": 1793065718414,
+      "msg": {
+        "error": {
+          "code": -32602,
+          "data": {
+            "name": "ZodError",
+            "message": "[\n  {\n    \"expected\": \"string\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      \"sessionId\"\n    ],\n    \"message\": \"Invalid input: expected string, received undefined\"\n  }\n]"
+          },
+          "message": "Invalid params — sessionId: Invalid input: expected string, received undefined"
+        },
+        "id": 3
+      }
+    },
+    {
+      "t": 1793065718415,
+      "sent": {
+        "id": 4,
+        "method": "session/usage",
+        "params": {}
+      }
+    },
+    {
+      "t": 1793065718416,
+      "msg": {
+        "error": {
+          "code": -32602,
+          "data": {
+            "name": "ZodError",
+            "message": "[\n  {\n    \"expected\": \"string\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      \"sessionId\"\n    ],\n    \"message\": \"Invalid input: expected string, received undefined\"\n  }\n]"
+          },
+          "message": "Invalid params — sessionId: Invalid input: expected string, received undefined"
+        },
+        "id": 4
+      }
+    },
+    {
+      "exit": null
+    }
+  ]
+}

@@ -1,0 +1,871 @@
+{
+  "stderr": "",
+  "lines": [
+    {
+      "t": 1793065586494,
+      "sent": {
+        "id": 1,
+        "method": "usage/stats",
+        "params": {
+          "range": "all"
+        }
+      }
+    },
+    {
+      "t": 1793065623375,
+      "msg": {
+        "id": 1,
+        "result": {
+          "range": "all",
+          "generatedAt": 1793065588724,
+          "timeZone": "UTC",
+          "source": "agent-db",
+          "summary": {
+            "totalTokens": 37794271227,
+            "inputTokens": 37708756099,
+            "outputTokens": 85515128,
+            "reasoningTokens": 0,
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 37028150720,
+            "cacheHitRate": 0.9819509989347528,
+            "totalSessions": 1833,
+            "totalTurns": 3206,
+            "toolCallCount": 147901,
+            "toolErrorRate": 0.015760542525067443,
+            "modelErrorRate": 0.001198025653722665,
+            "avgTimeToFirstTokenMs": 7872.531489850083,
+            "avgTurnDurationMs": 1318451.6272511042,
+            "activeDays": 20,
+            "currentStreakDays": 5,
+            "longestSessionMs": 217340125,
+            "longestStreakDays": 15,
+            "peakDayTokens": 7657929134,
+            "favoriteModel": {
+              "modelId": "GLM-5.3-Flash",
+              "totalTokens": 37767981071,
+              "share": 0.999260746090334
+            }
+          },
+          "heatmap": {
+            "startDate": "2026-09-27",
+            "endDate": "2026-10-27",
+            "maxTokens": 7657929134,
+            "weeks": [
+              {
+                "weekIndex": 0,
+                "days": [
+                  {
+                    "date": "2026-09-27",
+                    "level": 1,
+                    "totalTokens": 996426182,
+                    "turnCount": 141,
+                    "toolCallCount": 6967
+                  },
+                  {
+                    "date": "2026-09-28",
+                    "level": 1,
+                    "totalTokens": 922168035,
+                    "turnCount": 142,
+                    "toolCallCount": 5912
+                  },
+                  {
+                    "date": "2026-09-29",
+                    "level": 2,
+                    "totalTokens": 2051884556,
+                    "turnCount": 176,
+                    "toolCallCount": 10173
+                  },
+                  {
+                    "date": "2026-09-30",
+                    "level": 1,
+                    "totalTokens": 906182831,
+                    "turnCount": 64,
+                    "toolCallCount": 3893
+                  },
+                  {
+                    "date": "2026-10-01",
+                    "level": 1,
+                    "totalTokens": 521013578,
+                    "turnCount": 39,
+                    "toolCallCount": 2304
+                  },
+                  {
+                    "date": "2026-10-02",
+                    "level": 1,
+                    "totalTokens": 1378898296,
+                    "turnCount": 194,
+                    "toolCallCount": 9069
+                  },
+                  {
+                    "date": "2026-10-03",
+                    "level": 1,
+                    "totalTokens": 1836932117,
+                    "turnCount": 290,
+                    "toolCallCount": 10126
+                  }
+                ]
+              },
+              {
+                "weekIndex": 1,
+                "days": [
+                  {
+                    "date": "2026-10-04",
+                    "level": 1,
+                    "totalTokens": 1497844258,
+                    "turnCount": 176,
+                    "toolCallCount": 10286
+                  },
+                  {
+                    "date": "2026-10-05",
+                    "level": 1,
+                    "totalTokens": 1048323544,
+                    "turnCount": 233,
+                    "toolCallCount": 7927
+                  },
+                  {
+                    "date": "2026-10-06",
+                    "level": 1,
+                    "totalTokens": 851566451,
+                    "turnCount": 177,
+                    "toolCallCount": 6767
+                  },
+                  {
+                    "date": "2026-10-07",
+                    "level": 1,
+                    "totalTokens": 747843491,
+                    "turnCount": 107,
+                    "toolCallCount": 5700
+                  },
+                  {
+                    "date": "2026-10-08",
+                    "level": 1,
+                    "totalTokens": 1304662215,
+                    "turnCount": 172,
+                    "toolCallCount": 10281
+                  },
+                  {
+                    "date": "2026-10-09",
+                    "level": 1,
+                    "totalTokens": 588295092,
+                    "turnCount": 152,
+                    "toolCallCount": 5798
+                  },
+                  {
+                    "date": "2026-10-10",
+                    "level": 1,
+                    "totalTokens": 1192846560,
+                    "turnCount": 180,
+                    "toolCallCount": 8691
+                  }
+                ]
+              },
+              {
+                "weekIndex": 2,
+                "days": [
+                  {
+                    "date": "2026-10-11",
+                    "level": 1,
+                    "totalTokens": 400678482,
+                    "turnCount": 39,
+                    "toolCallCount": 1707
+                  },
+                  {
+                    "date": "2026-10-12",
+                    "level": 0,
+                    "totalTokens": 0,
+                    "turnCount": 0,
+                    "toolCallCount": 0
+                  },
+                  {
+                    "date": "2026-10-13",
+                    "level": 0,
+                    "totalTokens": 0,
+                    "turnCount": 0,
+                    "toolCallCount": 0
+                  },
+                  {
+                    "date": "2026-10-14",
+                    "level": 0,
+                    "totalTokens": 0,
+                    "turnCount": 0,
+                    "toolCallCount": 0
+                  },
+                  {
+                    "date": "2026-10-15",
+                    "level": 0,
+                    "totalTokens": 0,
+                    "turnCount": 0,
+                    "toolCallCount": 0
+                  },
+                  {
+                    "date": "2026-10-16",
+                    "level": 0,
+                    "totalTokens": 0,
+                    "turnCount": 0,
+                    "toolCallCount": 0
+                  },
+                  {
+                    "date": "2026-10-17",
+                    "level": 0,
+                    "totalTokens": 0,
+                    "turnCount": 0,
+                    "toolCallCount": 0
+                  }
+                ]
+              },
+              {
+                "weekIndex": 3,
+                "days": [
+                  {
+                    "date": "2026-10-18",
+                    "level": 0,
+                    "totalTokens": 0,
+                    "turnCount": 0,
+                    "toolCallCount": 0
+                  },
+                  {
+                    "date": "2026-10-19",
+                    "level": 0,
+                    "totalTokens": 0,
+                    "turnCount": 0,
+                    "toolCallCount": 0
+                  },
+                  {
+                    "date": "2026-10-20",
+                    "level": 0,
+                    "totalTokens": 0,
+                    "turnCount": 0,
+                    "toolCallCount": 0
+                  },
+                  {
+                    "date": "2026-10-21",
+                    "level": 0,
+                    "totalTokens": 0,
+                    "turnCount": 0,
+                    "toolCallCount": 0
+                  },
+                  {
+                    "date": "2026-10-22",
+                    "level": 0,
+                    "totalTokens": 0,
+                    "turnCount": 0,
+                    "toolCallCount": 0
+                  },
+                  {
+                    "date": "2026-10-23",
+                    "level": 1,
+                    "totalTokens": 923614012,
+                    "turnCount": 69,
+                    "toolCallCount": 2592
+                  },
+                  {
+                    "date": "2026-10-24",
+                    "level": 4,
+                    "totalTokens": 7657929134,
+                    "turnCount": 241,
+                    "toolCallCount": 15466
+                  }
+                ]
+              },
+              {
+                "weekIndex": 4,
+                "days": [
+                  {
+                    "date": "2026-10-25",
+                    "level": 4,
+                    "totalTokens": 7615670659,
+                    "turnCount": 341,
+                    "toolCallCount": 13110
+                  },
+                  {
+                    "date": "2026-10-26",
+                    "level": 3,
+                    "totalTokens": 5064399400,
+                    "turnCount": 261,
+                    "toolCallCount": 10267
+                  },
+                  {
+                    "date": "2026-10-27",
+                    "level": 1,
+                    "totalTokens": 289804196,
+                    "turnCount": 12,
+                    "toolCallCount": 865
+                  },
+                  null,
+                  null,
+                  null,
+                  null
+                ]
+              }
+            ]
+          },
+          "dailyModelUsage": [
+            {
+              "date": "2026-09-27",
+              "models": [
+                {
+                  "modelId": "GLM-5.3-Flash",
+                  "totalTokens": 996426182
+                },
+                {
+                  "modelId": "different-from-builder",
+                  "totalTokens": 0
+                }
+              ]
+            },
+            {
+              "date": "2026-09-28",
+              "models": [
+                {
+                  "modelId": "GLM-5.3-Flash",
+                  "totalTokens": 922168035
+                }
+              ]
+            },
+            {
+              "date": "2026-09-29",
+              "models": [
+                {
+                  "modelId": "GLM-5.3-Flash",
+                  "totalTokens": 2051884556
+                },
+                {
+                  "modelId": "different-from-builder",
+                  "totalTokens": 0
+                }
+              ]
+            },
+            {
+              "date": "2026-09-30",
+              "models": [
+                {
+                  "modelId": "GLM-5.3-Flash",
+                  "totalTokens": 906182831
+                }
+              ]
+            },
+            {
+              "date": "2026-10-01",
+              "models": [
+                {
+                  "modelId": "GLM-5.3-Flash",
+                  "totalTokens": 521013578
+                }
+              ]
+            },
+            {
+              "date": "2026-10-02",
+              "models": [
+                {
+                  "modelId": "GLM-5.3-Flash",
+                  "totalTokens": 1378898296
+                },
+                {
+                  "modelId": "different-from-builder",
+                  "totalTokens": 0
+                }
+              ]
+            },
+            {
+              "date": "2026-10-03",
+              "models": [
+                {
+                  "modelId": "GLM-5.3-Flash",
+                  "totalTokens": 1836932117
+                }
+              ]
+            },
+            {
+              "date": "2026-10-04",
+              "models": [
+                {
+                  "modelId": "GLM-5.3",
+                  "totalTokens": 16449292
+                },
+                {
+                  "modelId": "GLM-5.3-Flash",
+                  "totalTokens": 1481394966
+                }
+              ]
+            },
+            {
+              "date": "2026-10-05",
+              "models": [
+                {
+                  "modelId": "GLM-5.3",
+                  "totalTokens": 11491491
+                },
+                {
+                  "modelId": "GLM-5.3-Flash",
+                  "totalTokens": 1036832053
+                }
+              ]
+            },
+            {
+              "date": "2026-10-06",
+              "models": [
+                {
+                  "modelId": "GLM-5.3-Flash",
+                  "totalTokens": 851566451
+                },
+                {
+                  "modelId": "different-from-builder",
+                  "totalTokens": 0
+                }
+              ]
+            },
+            {
+              "date": "2026-10-07",
+              "models": [
+                {
+                  "modelId": "GLM-5.3-Flash",
+                  "totalTokens": 747843491
+                },
+                {
+                  "modelId": "different-from-builder",
+                  "totalTokens": 0
+                }
+              ]
+            },
+            {
+              "date": "2026-10-08",
+              "models": [
+                {
+                  "modelId": "GLM-5.3-Flash",
+                  "totalTokens": 1304662215
+                }
+              ]
+            },
+            {
+              "date": "2026-10-09",
+              "models": [
+                {
+                  "modelId": "GLM-5.3-Flash",
+                  "totalTokens": 588295092
+                }
+              ]
+            },
+            {
+              "date": "2026-10-10",
+              "models": [
+                {
+                  "modelId": "GLM-5.3-Flash",
+                  "totalTokens": 1192846560
+                }
+              ]
+            },
+            {
+              "date": "2026-10-11",
+              "models": [
+                {
+                  "modelId": "GLM-5.3-Flash",
+                  "totalTokens": 400678482
+                }
+              ]
+            },
+            {
+              "date": "2026-10-12",
+              "models": []
+            },
+            {
+              "date": "2026-10-13",
+              "models": []
+            },
+            {
+              "date": "2026-10-14",
+              "models": []
+            },
+            {
+              "date": "2026-10-15",
+              "models": []
+            },
+            {
+              "date": "2026-10-16",
+              "models": []
+            },
+            {
+              "date": "2026-10-17",
+              "models": []
+            },
+            {
+              "date": "2026-10-18",
+              "models": []
+            },
+            {
+              "date": "2026-10-19",
+              "models": []
+            },
+            {
+              "date": "2026-10-20",
+              "models": []
+            },
+            {
+              "date": "2026-10-21",
+              "models": []
+            },
+            {
+              "date": "2026-10-22",
+              "models": []
+            },
+            {
+              "date": "2026-10-23",
+              "models": [
+                {
+                  "modelId": "GLM-5.3-Flash",
+                  "totalTokens": 923614012
+                }
+              ]
+            },
+            {
+              "date": "2026-10-24",
+              "models": [
+                {
+                  "modelId": "GLM-5.3-Flash",
+                  "totalTokens": 7657929134
+                }
+              ]
+            },
+            {
+              "date": "2026-10-25",
+              "models": [
+                {
+                  "modelId": "GLM-5.3-Flash",
+                  "totalTokens": 7615670659
+                }
+              ]
+            },
+            {
+              "date": "2026-10-26",
+              "models": [
+                {
+                  "modelId": "GLM-5.3-Flash",
+                  "totalTokens": 5064399400
+                }
+              ]
+            },
+            {
+              "date": "2026-10-27",
+              "models": [
+                {
+                  "modelId": "GLM-5.3-Flash",
+                  "totalTokens": 289804196
+                }
+              ]
+            }
+          ],
+          "models": [
+            {
+              "modelId": "GLM-5.3-Flash",
+              "totalTokens": 37767981071,
+              "inputTokens": 37682596190,
+              "outputTokens": 85384881,
+              "requestCount": 125078,
+              "share": 0.999260746090334
+            },
+            {
+              "modelId": "GLM-5.3",
+              "totalTokens": 27940783,
+              "inputTokens": 27809340,
+              "outputTokens": 131443,
+              "requestCount": 127,
+              "share": 0.0007392539096659971
+            },
+            {
+              "modelId": "different-from-builder",
+              "totalTokens": 0,
+              "inputTokens": 0,
+              "outputTokens": 0,
+              "requestCount": 5,
+              "share": 0
+            }
+          ],
+          "tools": [
+            {
+              "toolName": "Bash",
+              "callCount": 93025,
+              "errorCount": 73,
+              "errorRate": 0.0007847352862133835,
+              "avgDurationMs": 11647.005482632954
+            },
+            {
+              "toolName": "Read",
+              "callCount": 22158,
+              "errorCount": 117,
+              "errorRate": 0.005280259951259139,
+              "avgDurationMs": 107.357555515436
+            },
+            {
+              "toolName": "Edit",
+              "callCount": 14495,
+              "errorCount": 936,
+              "errorRate": 0.06457399103139014,
+              "avgDurationMs": 137.53245946878235
+            },
+            {
+              "toolName": "TodoWrite",
+              "callCount": 7781,
+              "errorCount": 1,
+              "errorRate": 0.00012851818532322323,
+              "avgDurationMs": 9.575889988433364
+            },
+            {
+              "toolName": "Write",
+              "callCount": 4030,
+              "errorCount": 43,
+              "errorRate": 0.010669975186104219,
+              "avgDurationMs": 510.43548387096774
+            },
+            {
+              "toolName": "Agent",
+              "callCount": 1787,
+              "errorCount": 71,
+              "errorRate": 0.039731393396754335,
+              "avgDurationMs": 696477.0336322869
+            },
+            {
+              "toolName": "TaskOutput",
+              "callCount": 1311,
+              "errorCount": 27,
+              "errorRate": 0.020594965675057208,
+              "avgDurationMs": 311888.9694656489
+            },
+            {
+              "toolName": "Skill",
+              "callCount": 1216,
+              "errorCount": 1047,
+              "errorRate": 0.8610197368421053,
+              "avgDurationMs": 3853.1085526315787
+            },
+            {
+              "toolName": "mcp__computer-use__get_app_state",
+              "callCount": 337,
+              "errorCount": 0,
+              "errorRate": 0,
+              "avgDurationMs": 1098.7240356083087
+            },
+            {
+              "toolName": "mcp__computer-use__left_click",
+              "callCount": 261,
+              "errorCount": 0,
+              "errorRate": 0,
+              "avgDurationMs": 144.23371647509578
+            },
+            {
+              "toolName": "mcp__computer-use__wait",
+              "callCount": 243,
+              "errorCount": 1,
+              "errorRate": 0.00411522633744856,
+              "avgDurationMs": 11353.555555555555
+            },
+            {
+              "toolName": "mcp__computer-use__key",
+              "callCount": 231,
+              "errorCount": 0,
+              "errorRate": 0,
+              "avgDurationMs": 1466.1688311688313
+            },
+            {
+              "toolName": "mcp__computer-use__screenshot",
+              "callCount": 184,
+              "errorCount": 0,
+              "errorRate": 0,
+              "avgDurationMs": 4322.913043478261
+            },
+            {
+              "toolName": "SendMessage",
+              "callCount": 146,
+              "errorCount": 0,
+              "errorRate": 0,
+              "avgDurationMs": 1273.972602739726
+            },
+            {
+              "toolName": "WebFetch",
+              "callCount": 92,
+              "errorCount": 5,
+              "errorRate": 0.05434782608695652,
+              "avgDurationMs": 16168.619565217392
+            },
+            {
+              "toolName": "TaskStop",
+              "callCount": 86,
+              "errorCount": 6,
+              "errorRate": 0.06976744186046512,
+              "avgDurationMs": 61.174418604651166
+            },
+            {
+              "toolName": "mcp__computer-use__zoom",
+              "callCount": 75,
+              "errorCount": 0,
+              "errorRate": 0,
+              "avgDurationMs": 44.44
+            },
+            {
+              "toolName": "mcp__node_repl__js",
+              "callCount": 60,
+              "errorCount": 1,
+              "errorRate": 0.016666666666666666,
+              "avgDurationMs": 5900.233333333334
+            },
+            {
+              "toolName": "mcp__computer-use__type",
+              "callCount": 60,
+              "errorCount": 0,
+              "errorRate": 0,
+              "avgDurationMs": 1141.75
+            },
+            {
+              "toolName": "mcp__computer-use__write_clipboard",
+              "callCount": 55,
+              "errorCount": 0,
+              "errorRate": 0,
+              "avgDurationMs": 82.16363636363636
+            },
+            {
+              "toolName": "RespondToCoordinator",
+              "callCount": 48,
+              "errorCount": 0,
+              "errorRate": 0,
+              "avgDurationMs": 6.625
+            },
+            {
+              "toolName": "mcp__computer-use__set_value",
+              "callCount": 47,
+              "errorCount": 0,
+              "errorRate": 0,
+              "avgDurationMs": 50.148936170212764
+            },
+            {
+              "toolName": "mcp__computer-use__scroll",
+              "callCount": 47,
+              "errorCount": 0,
+              "errorRate": 0,
+              "avgDurationMs": 222.08510638297872
+            },
+            {
+              "toolName": "mcp__computer-use__open_application",
+              "callCount": 43,
+              "errorCount": 0,
+              "errorRate": 0,
+              "avgDurationMs": 565.9069767441861
+            },
+            {
+              "toolName": "AskUserQuestion",
+              "callCount": 16,
+              "errorCount": 1,
+              "errorRate": 0.0625,
+              "avgDurationMs": 14.625
+            },
+            {
+              "toolName": "WebSearch",
+              "callCount": 14,
+              "errorCount": 2,
+              "errorRate": 0.14285714285714285,
+              "avgDurationMs": 30502.64285714286
+            },
+            {
+              "toolName": "mcp__supabase__execute_sql",
+              "callCount": 9,
+              "errorCount": 0,
+              "errorRate": 0,
+              "avgDurationMs": 2187.8888888888887
+            },
+            {
+              "toolName": "mcp__computer-use__read_clipboard",
+              "callCount": 6,
+              "errorCount": 0,
+              "errorRate": 0,
+              "avgDurationMs": 62.166666666666664
+            },
+            {
+              "toolName": "mcp__computer-use__list_apps",
+              "callCount": 6,
+              "errorCount": 0,
+              "errorRate": 0,
+              "avgDurationMs": 555
+            },
+            {
+              "toolName": "mcp__render__list_services",
+              "callCount": 5,
+              "errorCount": 0,
+              "errorRate": 0,
+              "avgDurationMs": 919
+            },
+            {
+              "toolName": "mcp__computer-use__list_windows",
+              "callCount": 5,
+              "errorCount": 0,
+              "errorRate": 0,
+              "avgDurationMs": 122.2
+            },
+            {
+              "toolName": "mcp__render__get_service",
+              "callCount": 3,
+              "errorCount": 0,
+              "errorRate": 0,
+              "avgDurationMs": 453.3333333333333
+            },
+            {
+              "toolName": "mcp__computer-use__right_click",
+              "callCount": 3,
+              "errorCount": 0,
+              "errorRate": 0,
+              "avgDurationMs": 234.33333333333334
+            },
+            {
+              "toolName": "mcp__computer-use__request_access",
+              "callCount": 3,
+              "errorCount": 0,
+              "errorRate": 0,
+              "avgDurationMs": 84.33333333333333
+            },
+            {
+              "toolName": "mcp__computer-use__mouse_move",
+              "callCount": 3,
+              "errorCount": 0,
+              "errorRate": 0,
+              "avgDurationMs": 166.66666666666666
+            },
+            {
+              "toolName": "CronUpdate",
+              "callCount": 3,
+              "errorCount": 0,
+              "errorRate": 0,
+              "avgDurationMs": 764.3333333333334
+            },
+            {
+              "toolName": "CronList",
+              "callCount": 3,
+              "errorCount": 0,
+              "errorRate": 0,
+              "avgDurationMs": 145.33333333333334
+            },
+            {
+              "toolName": "mcp__render__list_workspaces",
+              "callCount": 2,
+              "errorCount": 0,
+              "errorRate": 0,
+              "avgDurationMs": 365.5
+            },
+            {
+              "toolName": "mcp__supabase__list_projects",
+              "callCount": 1,
+              "errorCount": 0,
+              "errorRate": 0,
+              "avgDurationMs": 378
+            },
+            {
+              "toolName": "CronCreate",
+              "callCount": 1,
+              "errorCount": 0,
+              "errorRate": 0,
+              "avgDurationMs": 734
+            }
+          ]
+        }
+      }
+    },
+    {
+      "exit": null
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "stderr": "",
+  "lines": [
+    {
+      "t": 1793066154492,
+      "sent": {
+        "id": 1,
+        "method": "workspace/upsertModelProvider",
+        "params": {}
+      }
+    },
+    {
+      "t": 1793066157476,
+      "msg": {
+        "error": {
+          "code": -32602,
+          "data": {
+            "name": "ZodError",
+            "message": "[\n  {\n    \"expected\": \"object\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      \"workspace\"\n    ],\n    \"message\": \"Invalid input: expected object, received undefined\"\n  },\n  {\n    \"expected\": \"object\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      \"provider\"\n    ],\n    \"message\": \"Invalid input: expected object, received undefined\"\n  }\n]"
+          },
+          "message": "Invalid params — workspace: Invalid input: expected object, received undefined; provider: Invalid input: expected object, received undefined"
+        },
+        "id": 1
+      }
+    },
+    {
+      "t": 1793066157478,
+      "sent": {
+        "id": 2,
+        "method": "workspace/setDefaultModel",
+        "params": {}
+      }
+    },
+    {
+      "t": 1793066157479,
+      "msg": {
+        "error": {
+          "code": -32602,
+          "data": {
+            "name": "ZodError",
+            "message": "[\n  {\n    \"expected\": \"object\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      \"workspace\"\n    ],\n    \"message\": \"Invalid input: expected object, received undefined\"\n  },\n  {\n    \"expected\": \"object\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      \"model\"\n    ],\n    \"message\": \"Invalid input: expected object, received undefined\"\n  }\n]"
+          },
+          "message": "Invalid params — workspace: Invalid input: expected object, received undefined; model: Invalid input: expected object, received undefined"
+        },
+        "id": 2
+      }
+    },
+    {
+      "exit": null
+    }
+  ]
+}
