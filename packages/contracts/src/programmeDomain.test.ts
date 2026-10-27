@@ -35,7 +35,7 @@ import {
   recordReview,
   startReview,
 } from "./programmeDomain.ts";
-import { ProjectId, RunId } from "./baseSchemas.ts";
+import { EnvironmentId, ProjectId, RunId } from "./baseSchemas.ts";
 
 // Wire helper: decodes JSON-shaped fixtures the same way production transports do.
 const decodeWire = <S extends Schema.Top>(schema: S) =>
@@ -304,6 +304,7 @@ const PROJECT2_B = decodeWire(ProjectId)(OTHER_PROJECT);
 const PROJ_B = decodeWire(ProjectId)(PROJ);
 const TASK2_B = decodeWire(TaskId)("task-2");
 const AUDITOR_RUN_B = decodeWire(RunId)(AUDITOR_RUN);
+const ENV2_B = decodeWire(EnvironmentId)("env-2");
 const APPROVAL_B = decodeWire(ApprovalId)(APPROVAL);
 const EV_BUILD_B = decodeWire(EvidenceId)(EV_BUILD);
 const EV_TEST_B = decodeWire(EvidenceId)(EV_TEST);
@@ -502,19 +503,48 @@ describe("admitBuildComplete", () => {
   });
 
   it("denies an unknown or wrong assignment", () => {
+    // The authoritative run record, not the body, carries the assignment: a resolved wrong
+    // task or wrong role denies, and a runId the port cannot resolve denies outright.
+    const wrongTask = basePort();
     expectTagged(
       () =>
         admitBuildComplete(
-          admitInput({ requestingRun: { ...BUILDER_RUN_DECODED, taskId: TASK2_B } }),
+          admitInput({
+            port: {
+              ...wrongTask,
+              resolveRunRecord: ({ runId }: { runId: string }) =>
+                runId === BUILDER_RUN
+                  ? { run: { ...BUILDER_RUN_DECODED, taskId: TASK2_B }, revision: 1 }
+                  : null,
+            },
+          }),
+        ),
+      "ProgrammeForbiddenError",
+    );
+    const wrongRole = basePort();
+    expectTagged(
+      () =>
+        admitBuildComplete(
+          admitInput({
+            port: {
+              ...wrongRole,
+              resolveRunRecord: ({ runId }: { runId: string }) =>
+                runId === BUILDER_RUN
+                  ? { run: { ...BUILDER_RUN_DECODED, role: "auditor" as const }, revision: 1 }
+                  : null,
+            },
+          }),
         ),
       "ProgrammeForbiddenError",
     );
     expectTagged(
       () =>
         admitBuildComplete(
-          admitInput({ requestingRun: { ...BUILDER_RUN_DECODED, role: "auditor" } }),
+          admitInput({
+            requestingRun: { ...BUILDER_RUN_DECODED, runId: decodeWire(RunId)("run-unknown") },
+          }),
         ),
-      "ProgrammeForbiddenError",
+      "ProgrammeCapabilityUnavailableError",
     );
   });
 
@@ -529,6 +559,39 @@ describe("admitBuildComplete", () => {
       }),
     };
     expectTagged(() => admitBuildComplete(admitInput({ port })), "ProgrammeForbiddenError");
+  });
+
+  it("denies a forged run role: the port, not the body, names the run record", () => {
+    // The authoritative record for the body's runId is an auditor run owned by the principal.
+    const ownedAuditorRun = { ...AUDITOR_RUN_DECODED, ownerMemberId: member(BUILDER) };
+    const forged = basePort();
+    const port = {
+      ...forged,
+      resolveRunRecord: ({ runId }: { runId: string }) =>
+        runId === AUDITOR_RUN ? { run: ownedAuditorRun, revision: 1 } : null,
+    };
+    // Body forges role builder with a matching owner, task and in-scope environment.
+    const body = {
+      ...AUDITOR_RUN_DECODED,
+      ownerMemberId: member(BUILDER),
+      role: "builder" as const,
+    };
+    expectTagged(
+      () => admitBuildComplete(admitInput({ port, requestingRun: body })),
+      "ProgrammeForbiddenError",
+    );
+  });
+
+  it("denies body run fields that disagree with the resolved record: approval environment", () => {
+    // Resolved record carries env-2 (outside approval scope); the body claims the in-scope env.
+    const outOfScopeEnv = { ...BUILDER_RUN_DECODED, executionEnvironmentId: ENV2_B };
+    const forged = basePort();
+    const port = {
+      ...forged,
+      resolveRunRecord: ({ runId }: { runId: string }) =>
+        runId === BUILDER_RUN ? { run: outOfScopeEnv, revision: 1 } : null,
+    };
+    expectTagged(() => admitBuildComplete(admitInput({ port })), "ProgrammePolicyDeniedError");
   });
 
   it("denies a wrong project", () => {
@@ -628,6 +691,44 @@ describe("authority and approval gates", () => {
     const forged = basePort();
     const port = { ...forged, resolveApproval: () => ({ approval: excluded, revision: 2 }) };
     expectTagged(() => admitBuildComplete(admitInput({ port })), "ProgrammePolicyDeniedError");
+  });
+
+  it("admits when the approval target covers the work item", () => {
+    const covered = approvalVariant({ targetIds: [WI] });
+    const forged = basePort();
+    const port = { ...forged, resolveApproval: () => ({ approval: covered, revision: 2 }) };
+    const result = admitBuildComplete(admitInput({ port }));
+    expect(result.workItem.state).toBe("buildComplete");
+  });
+
+  it("denies a target outside the approval scope", () => {
+    const narrowed = approvalVariant({ targetIds: ["workitem-99"] });
+    const forged = basePort();
+    const port = { ...forged, resolveApproval: () => ({ approval: narrowed, revision: 2 }) };
+    expectTagged(() => admitBuildComplete(admitInput({ port })), "ProgrammePolicyDeniedError");
+  });
+
+  it("resolves port lookups with the aggregate organisation: cross-org records cannot satisfy a mutation", () => {
+    const orgScoped = basePort();
+    const seenRunOrgs: Array<string | undefined> = [];
+    const port = {
+      ...orgScoped,
+      resolveRunRecord: (input: { runId: string; orgId?: string }) => {
+        seenRunOrgs.push(input.orgId);
+        return input.orgId === ORG
+          ? orgScoped.resolveRunRecord({
+              runId: decodeWire(RunId)(input.runId),
+              orgId: decodeWire(OrgId)(input.orgId),
+            })
+          : null;
+      },
+    };
+    const admitted = admitBuildComplete(admitInput({ port }));
+    const reviewed = recordReview(reviewInput(queuedWorkItem(), { port }));
+    expect(admitted.workItem.state).toBe("buildComplete");
+    expect(reviewed.workItem.state).toBe("accepted");
+    expect(seenRunOrgs.length).toBeGreaterThan(0);
+    expect(seenRunOrgs.every((orgId) => orgId === ORG)).toBe(true);
   });
 
   it("denies an exceeded attempt budget", () => {
@@ -784,6 +885,29 @@ describe("recordReview", () => {
     expect(result.workItem.state).toBe("accepted");
   });
 
+  it("rejects a review with disposition rejected: no acceptance and no mutation", () => {
+    const workItem = queuedWorkItem();
+    const rejected = { ...reviewWire, disposition: "rejected" };
+    expectTagged(
+      () => recordReview(reviewInput(workItem, { review: decodeWire(ProgrammeReview)(rejected) })),
+      "ProgrammeInvalidRequestError",
+    );
+    expect(workItem.state).toBe("reviewQueued");
+    expect(workItem.revision).toBe(7);
+  });
+
+  it("rejects a review with disposition incomplete: evidence_missing path without mutation", () => {
+    const workItem = queuedWorkItem();
+    const incomplete = { ...reviewWire, disposition: "incomplete" };
+    expectTagged(
+      () =>
+        recordReview(reviewInput(workItem, { review: decodeWire(ProgrammeReview)(incomplete) })),
+      "ProgrammeEvidenceMissingError",
+    );
+    expect(workItem.state).toBe("reviewQueued");
+    expect(workItem.revision).toBe(7);
+  });
+
   it("rejects self-review: the auditor run cannot be the builder run", () => {
     const workItem = queuedWorkItem();
     const selfReview = { ...reviewWire, auditorRunId: BUILDER_RUN, disposition: "accepted" };
@@ -915,18 +1039,46 @@ describe("recordReview", () => {
 });
 
 describe("typed errors", () => {
-  it("exposes the exercised PRD error subset as distinct tags", () => {
-    const tags = [
-      ProgrammeCapabilityUnavailableError,
-      ProgrammeRevisionConflictError,
-      ProgrammeIdempotencyConflictError,
-      ProgrammeForbiddenError,
-      ProgrammeInvalidRequestError,
-      ProgrammeEvidenceMissingError,
-      ProgrammeSourceStaleError,
-      ProgrammeBudgetExceededError,
-      ProgrammePolicyDeniedError,
-    ].map((errorClass) => new errorClass({ message: "probe" })._tag);
-    expect(new Set(tags).size).toBe(9);
+  it("exposes each exercised PRD error with its exact tag and preserves its payload fields", () => {
+    expect(new ProgrammeCapabilityUnavailableError({ message: "probe" })._tag).toBe(
+      "ProgrammeCapabilityUnavailableError",
+    );
+    expect(new ProgrammeRevisionConflictError({ message: "probe" })._tag).toBe(
+      "ProgrammeRevisionConflictError",
+    );
+    expect(new ProgrammeIdempotencyConflictError({ message: "probe" })._tag).toBe(
+      "ProgrammeIdempotencyConflictError",
+    );
+    expect(new ProgrammeForbiddenError({ message: "probe" })._tag).toBe("ProgrammeForbiddenError");
+    expect(new ProgrammeInvalidRequestError({ message: "probe" })._tag).toBe(
+      "ProgrammeInvalidRequestError",
+    );
+    expect(new ProgrammePolicyDeniedError({ message: "probe" })._tag).toBe(
+      "ProgrammePolicyDeniedError",
+    );
+    const stale = new ProgrammeSourceStaleError({
+      message: "probe",
+      frozenCommit: COMMIT_A,
+      currentCommit: COMMIT_B,
+    });
+    expect(stale._tag).toBe("ProgrammeSourceStaleError");
+    expect(stale.frozenCommit).toBe(COMMIT_A);
+    expect(stale.currentCommit).toBe(COMMIT_B);
+    const missing = new ProgrammeEvidenceMissingError({
+      message: "probe",
+      suggestedDisposition: "incomplete",
+      missingCoverage: ["build"],
+    });
+    expect(missing._tag).toBe("ProgrammeEvidenceMissingError");
+    expect(missing.suggestedDisposition).toBe("incomplete");
+    expect(missing.missingCoverage).toEqual(["build"]);
+    const budget = new ProgrammeBudgetExceededError({
+      message: "probe",
+      attempts: 3,
+      maxAttempts: 3,
+    });
+    expect(budget._tag).toBe("ProgrammeBudgetExceededError");
+    expect(budget.attempts).toBe(3);
+    expect(budget.maxAttempts).toBe(3);
   });
 });

@@ -481,12 +481,20 @@ export interface ProgrammeAuthorityPort {
     readonly approvalId: ApprovalId;
     readonly orgId: OrgId;
   }): ProgrammeResolvedApproval | null;
-  resolveRunRecord(input: { readonly runId: RunId }): ProgrammeResolvedRun | null;
+  /** Org-scoped so a record from another organisation can never satisfy a mutation. */
+  resolveRunRecord(input: {
+    readonly runId: RunId;
+    readonly orgId: OrgId;
+  }): ProgrammeResolvedRun | null;
   resolveEvidenceRecord(input: {
     readonly evidenceId: EvidenceId;
+    readonly orgId: OrgId;
   }): ProgrammeResolvedEvidence | null;
   /** Current authoritative head of the project source, used to detect stale freezes. */
-  resolveSourceRecord(input: { readonly projectId: ProjectId }): ProgrammeResolvedSource | null;
+  resolveSourceRecord(input: {
+    readonly projectId: ProjectId;
+    readonly orgId: OrgId;
+  }): ProgrammeResolvedSource | null;
   /** Authoritative attempt ledger for the task; the trusted store owns budget accounting. */
   resolveAttemptCount(input: { readonly taskId: TaskId; readonly orgId: OrgId }): number | null;
 }
@@ -588,7 +596,8 @@ const pathIsExcluded = (path: string, exclusions: ReadonlyArray<string>) =>
 
 /**
  * Validates that the resolved approval is current, unrevoked and covers the effect scoped to
- * the project, environment and task paths. Denies with policy_denied on every scope failure.
+ * the project, environment, target and task paths. Denies with policy_denied on every scope
+ * failure.
  */
 export const requireApprovalCovering = (input: {
   readonly port: ProgrammeAuthorityPort;
@@ -597,6 +606,7 @@ export const requireApprovalCovering = (input: {
   readonly projectId: ProjectId;
   readonly environmentId: EnvironmentId;
   readonly effect: ApprovalEffect;
+  readonly targetId: string;
   readonly specHash: Sha256Digest;
   readonly paths: ReadonlyArray<string>;
   readonly now: IsoDateTime;
@@ -627,6 +637,8 @@ export const requireApprovalCovering = (input: {
     return deny("environment outside approval scope");
   const excluded = input.paths.find((path) => pathIsExcluded(path, approval.exclusions));
   if (excluded !== undefined) return deny(`path excluded by approval: ${excluded}`);
+  if (!approval.targetIds.includes(input.targetId))
+    return deny(`target ${input.targetId} outside approval scope`);
   return resolved;
 };
 
@@ -749,9 +761,9 @@ const stampAt = (now: IsoDateTime) => DateTime.makeUnsafe(now);
 
 /**
  * Builder admits build complete: freezes the exact source commit and build evidence refs.
- * Only valid from `running` or `fixing`, by the exact assigned writer/run, with a current
- * approval covering `editSource` scoped to the task project/environment. The tested milestone
- * stays separate. Denied without mutation otherwise.
+ * Only valid from `running` or `fixing`, by the exact assigned writer run resolved through
+ * the authority port (the body copy only names the run), with a current approval covering
+ * `editSource` scoped to project, environment and target. Denied without mutation otherwise.
  */
 export const admitBuildComplete = (
   input: AdmitBuildCompleteInput,
@@ -786,7 +798,18 @@ export const admitBuildComplete = (
   if (actor.orgId !== input.programme.orgId) {
     throw new ProgrammeForbiddenError({ message: "Actor organisation differs from the programme" });
   }
-  const run = input.requestingRun;
+  // Authority: the run record comes from the port; the body copy only identifies the run.
+  const resolvedRun = input.port.resolveRunRecord({
+    runId: input.requestingRun.runId,
+    orgId: input.programme.orgId,
+  });
+  if (resolvedRun === null) {
+    throw new ProgrammeCapabilityUnavailableError({
+      message: "Requesting run record is absent or unresolvable",
+      detail: input.requestingRun.runId,
+    });
+  }
+  const run = resolvedRun.run;
   if (
     run.role !== "builder" ||
     run.taskId !== input.taskPacket.taskId ||
@@ -809,6 +832,7 @@ export const admitBuildComplete = (
     projectId: input.workItem.projectId,
     environmentId: run.executionEnvironmentId,
     effect: "editSource",
+    targetId: input.workItem.workItemId,
     specHash: input.taskPacket.specHash,
     paths: input.taskPacket.allowedPaths,
     now: input.now,
@@ -966,7 +990,10 @@ export const recordReview = (
     });
   }
 
-  const resolvedAuditor = input.port.resolveRunRecord({ runId: input.review.auditorRunId });
+  const resolvedAuditor = input.port.resolveRunRecord({
+    runId: input.review.auditorRunId,
+    orgId: input.workItem.orgId,
+  });
   if (resolvedAuditor === null) {
     throw new ProgrammeCapabilityUnavailableError({
       message: "Auditor run record is absent or unresolvable",
@@ -981,7 +1008,10 @@ export const recordReview = (
     });
   }
 
-  const resolvedBuilder = input.port.resolveRunRecord({ runId: input.review.builderRunId });
+  const resolvedBuilder = input.port.resolveRunRecord({
+    runId: input.review.builderRunId,
+    orgId: input.workItem.orgId,
+  });
   if (resolvedBuilder === null) {
     throw new ProgrammeCapabilityUnavailableError({
       message: "Builder run record is absent or unresolvable",
@@ -1053,7 +1083,10 @@ export const recordReview = (
       detail: input.review.exactCommit,
     });
   }
-  const source = input.port.resolveSourceRecord({ projectId: input.workItem.projectId });
+  const source = input.port.resolveSourceRecord({
+    projectId: input.workItem.projectId,
+    orgId: input.workItem.orgId,
+  });
   if (source === null) {
     throw new ProgrammeCapabilityUnavailableError({
       message: "Authoritative source record is absent or unresolvable",
@@ -1070,7 +1103,10 @@ export const recordReview = (
 
   const covered = new Set<string>();
   for (const evidenceId of input.review.evidenceRefs) {
-    const resolvedEvidence = input.port.resolveEvidenceRecord({ evidenceId });
+    const resolvedEvidence = input.port.resolveEvidenceRecord({
+      evidenceId,
+      orgId: input.workItem.orgId,
+    });
     if (resolvedEvidence === null) {
       throw new ProgrammeEvidenceMissingError({
         message: "Referenced evidence record is absent or unresolvable",
@@ -1104,6 +1140,21 @@ export const recordReview = (
       message: "Evidence coverage does not satisfy the evidence plan",
       suggestedDisposition: "incomplete",
       missingCoverage,
+    });
+  }
+
+  // Only a review the auditor marked accepted (with every gate above passed) accepts the work
+  // item; rejected and incomplete dispositions record their outcome without mutating state.
+  if (input.review.disposition === "incomplete") {
+    throw new ProgrammeEvidenceMissingError({
+      message: "Review disposition incomplete does not accept the work item",
+      suggestedDisposition: "incomplete",
+    });
+  }
+  if (input.review.disposition === "rejected") {
+    throw new ProgrammeInvalidRequestError({
+      message: "Review disposition rejected does not accept the work item",
+      detail: input.review.reviewId,
     });
   }
 
