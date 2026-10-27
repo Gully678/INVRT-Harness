@@ -25,6 +25,26 @@ const fixture = Effect.gen(function* () {
   const app = path.join(home, "client.app");
   yield* fs.makeDirectory(app);
   yield* fs.writeFileString(path.join(app, "binary"), "native client");
+  const mobile = yield* path.fromFileUrl(new URL("../apps/mobile/", import.meta.url));
+  const projectName = NodeChildProcess.execFileSync(
+    process.execPath,
+    [
+      "--eval",
+      "const {getConfig}=require('expo/config'); const {IOSConfig}=require('expo/config-plugins'); console.log(IOSConfig.XcodeUtils.sanitizedName(getConfig(process.cwd(), {skipSDKVersionRequirement:true}).exp.name));",
+    ],
+    {
+      cwd: mobile,
+      encoding: "utf8",
+      env: { PATH: process.env.PATH, APP_VARIANT: "development", T3CODE_IOS_PERSONAL_TEAM: "0" },
+    },
+  )
+    .trim()
+    .split("\n")
+    .at(-1);
+  assert(projectName);
+  const iosSource = path.join(home, "ios", projectName);
+  yield* fs.makeDirectory(iosSource, { recursive: true });
+  yield* fs.writeFileString(path.join(iosSource, "AppDelegate.swift"), "// fixture");
   const calls: ChildProcess.StandardCommand[] = [];
   let installed = false;
   let architecture = "x86_64";
@@ -34,7 +54,16 @@ const fixture = Effect.gen(function* () {
     assert(ChildProcess.isStandardCommand(child));
     calls.push(child);
     let stdout = "";
-    if (child.args.includes("--eval")) stdout = `T3_NATIVE_FINGERPRINT=${"a".repeat(40)}`;
+    if (child.args.includes("--eval") && child.args[1]?.includes("getProjectName")) {
+      stdout = NodeChildProcess.execFileSync(
+        process.execPath,
+        [
+          "--eval",
+          `const {IOSConfig}=require('expo/config-plugins'); console.log(IOSConfig.XcodeUtils.getProjectName(${JSON.stringify(home)}));`,
+        ],
+        { cwd: mobile, encoding: "utf8", env: { PATH: process.env.PATH } },
+      );
+    } else if (child.args.includes("--eval")) stdout = `T3_NATIVE_FINGERPRINT=${"a".repeat(40)}`;
     else if (child.args.includes("list") && child.args.includes("devices")) {
       stdout = JSON.stringify({
         devices: { runtime: [{ udid: device, name: "Test simulator", state }] },
@@ -71,6 +100,7 @@ const fixture = Effect.gen(function* () {
     );
   return {
     calls,
+    projectName,
     run,
     fs,
     home,
@@ -112,7 +142,14 @@ it.layer(NodeServices.layer)("iOS native-client destination", (it) => {
         }
         const build = native.find((call) => call.args[0] === "xcodebuild")!;
         assert(build.args.includes(`ARCHS=${architecture}`));
-        assert(build.args.some((arg) => arg.endsWith("ios/InvrtCodeDev.xcworkspace")));
+        assert.strictEqual(
+          build.args[build.args.indexOf("-workspace") + 1]?.split("/").at(-1),
+          `${test.projectName}.xcworkspace`,
+        );
+        const schemeIndex = build.args.indexOf("-scheme");
+        assert.strictEqual(build.args[schemeIndex + 1], test.projectName);
+        const copy = test.calls.find((call) => call.command === "ditto")!;
+        assert(copy.args[0]?.endsWith(`Debug-iphonesimulator/${test.projectName}.app`));
         assert(
           test.calls.some(
             (call) =>

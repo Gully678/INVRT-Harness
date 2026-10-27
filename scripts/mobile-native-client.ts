@@ -415,6 +415,7 @@ export const prebuildAndroid = Effect.fn("nativeClient.prebuildAndroid")(functio
   );
 });
 
+// Stable cache aliases are independent of the generated Xcode project name.
 const artifactNames = { ios: "InvrtCodeDev.app", android: "app-debug.apk" } as const;
 // R2 requires equal-sized parts and Workers cap request bodies at 100 MB.
 const partSize = 64 * 1024 * 1024;
@@ -724,6 +725,14 @@ const build = Effect.fn("nativeClient.build")(function* (
     if (onEas) {
       yield* buildIosOnEas(staging);
     } else if (platform === "ios") {
+      const projectName = yield* command(yield* HostProcess.ExecutablePath, [
+        "--eval",
+        "const {IOSConfig}=require('expo/config-plugins'); console.log(IOSConfig.XcodeUtils.getProjectName(process.cwd()));",
+      ]);
+      if (!/^[A-Za-z0-9_]+$/.test(projectName))
+        return yield* new NativeClientError({
+          message: "Expo returned an invalid iOS project name.",
+        });
       const output = yield* fs.makeTempDirectoryScoped({ prefix: "t3-native-client-" });
       yield* command("pod", ["install"], true, path.join(mobile, "ios"));
       // Cache by destination architecture; GhosttyKit has no Intel simulator slice.
@@ -732,9 +741,9 @@ const build = Effect.fn("nativeClient.build")(function* (
         [
           "xcodebuild",
           "-workspace",
-          path.join(mobile, "ios/InvrtCodeDev.xcworkspace"),
+          path.join(mobile, `ios/${projectName}.xcworkspace`),
           "-scheme",
-          "InvrtCodeDev",
+          projectName,
           "-configuration",
           "Debug",
           "-destination",
@@ -748,7 +757,7 @@ const build = Effect.fn("nativeClient.build")(function* (
         true,
       );
       yield* command("ditto", [
-        path.join(output, "Build/Products/Debug-iphonesimulator", artifactNames.ios),
+        path.join(output, "Build/Products/Debug-iphonesimulator", `${projectName}.app`),
         path.join(staging, artifactNames.ios),
       ]);
     } else {
