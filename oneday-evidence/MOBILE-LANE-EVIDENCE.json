@@ -1,0 +1,144 @@
+{
+  "lane": "mobile",
+  "programme": "ONE-DAY INVRT CODE",
+  "date": "2026-10-27",
+  "builder": {
+    "role": "Builder D (mobile lane)",
+    "harness": "ZCode",
+    "model": "builtin:zai-coding-plan/GLM-5.3-Flash",
+    "skillsLoaded": [
+      "production-guardrails",
+      "production-audit",
+      "ai-native-agent",
+      "invrt-concise-code",
+      "react-native-expert",
+      "invrt-ui-quality"
+    ]
+  },
+  "worktree": "/Users/mac/Repos/.worktrees/invrt-oneday-mobile-20261027",
+  "branch": "invrt/oneday-mobile-20261027",
+  "baseCommit": "6ef29078c74d4cb82f0875d7f161ccdc24b4253c",
+  "host": {
+    "arch": "x86_64",
+    "os": "macOS 26.7",
+    "xcode": "26.6 (17F113)",
+    "iosSimulatorSdk": "iPhoneSimulator26.5",
+    "cocoapods": "1.17.0"
+  },
+  "simulator": {
+    "model": "iPhone 17 Pro",
+    "udid": "6E80DC3B-E855-4FC0-83CE-098FF073ACBD",
+    "runtime": "iOS 26.5 (26.5 - 23F77)",
+    "booted": true,
+    "shutdownAtClose": true
+  },
+  "app": {
+    "variant": "development",
+    "appName": "T3 Code Dev",
+    "bundleId": "com.t3tools.t3code.dev",
+    "scheme": "t3code-dev",
+    "xcodeScheme": "T3CodeDev",
+    "version": "2.1.0",
+    "binaryArchs": ["x86_64", "arm64"],
+    "artifactPath": "/tmp/oneday-mobile-dd/Build/Products/Debug-iphonesimulator/T3CodeDev.app"
+  },
+  "build": {
+    "attempts": 4,
+    "finalCommand": "xcodebuild -workspace T3CodeDev.xcworkspace -scheme T3CodeDev -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath /tmp/oneday-mobile-dd build",
+    "finalResult": "BUILD SUCCEEDED",
+    "exitCode": 0,
+    "blocker1": {
+      "error": "T3TerminalView.swift:3:8 error: unable to resolve module dependency: 'GhosttyKit'",
+      "rootCause": "GhosttyKit.xcframework ios-arm64-simulator slice is arm64 only; no x86_64 simulator slice in repository",
+      "fix": "expo.autolinking.ios.exclude '@t3tools/mobile-terminal-native' in apps/mobile/package.json; JS fallback FallbackTerminalSurface covers absence by design",
+      "fixCommitted": true
+    },
+    "blocker2": {
+      "error": "actool exception: attempt to insert nil object from objects[0] in CompileAssetCatalogVariant thinned",
+      "rootCause": "Xcode 26.6 actool crashes when Images.xcassets and app-icon.icon are compiled together",
+      "fix": "local (gitignored) appiconset from assets/dev/blueprint-ios-1024.png replacing the .icon file reference in the generated project",
+      "fixCommitted": false
+    }
+  },
+  "installLaunch": {
+    "install": "xcrun simctl install exit 0",
+    "launchOutput": "com.t3tools.t3code.dev: 7316",
+    "processVerified": "launchctl list showed UIKitApplication:com.t3tools.t3code.dev pid 7316"
+  },
+  "screenshots": [
+    {
+      "path": "oneday-evidence/ios-sim-launch.png",
+      "sha256": "47abc95c7f19dcc5d4a40a9660d500f64ee547f6eba8ac37478e9adc98b95ba4",
+      "shows": "expo dev launcher: T3 Code Dev Development Build, searching for dev servers"
+    },
+    {
+      "path": "oneday-evidence/ios-sim-devlink-dialog.png",
+      "sha256": "b60ba43965fea620e6c658c99ebf97f7d38c467787e3441766e2e2ebfce36962",
+      "shows": "iOS confirmation 'Open in T3 Code Dev?' proving scheme registration and deep link delivery"
+    },
+    {
+      "path": "oneday-evidence/ios-sim-safari-server.png",
+      "sha256": "e86f68f9d79daf7a144f58528794250c9ae9829f3b565c23649da9f25ec80f6b",
+      "shows": "Safari on simulator rendering T3 CODE (BETA) pairing page from 127.0.0.1:14037, auth-gated, no secrets displayed"
+    }
+  ],
+  "serverPairing": {
+    "serverBinary": "/Users/mac/Repos/.worktrees/invrt-oneday-server-20261027/apps/server/dist/bin.mjs",
+    "invocation": "--base-dir .mobile-test-server-state --host 127.0.0.1 --port 14037 --no-browser",
+    "pid": 20793,
+    "hostCurl": "HTTP 200 app HTML shell on http://127.0.0.1:14037/",
+    "stateDir": "created inside own worktree, deleted after evidence",
+    "secretHandling": "one-time pairing token from server log never copied into any file or screenshot"
+  },
+  "proven": [
+    "native iOS dev-client build from this repo on Intel host",
+    "install and launch on iPhone 17 Pro simulator with dev launcher UI rendered",
+    "simulator to headless server reachability over host loopback with auth-gated pairing page in Safari",
+    "t3code-dev custom scheme registered and deep link reaching OS confirmation"
+  ],
+  "notDone": [
+    {
+      "item": "Metro JS bundle load on device",
+      "missing": "one tap on the iOS 'Open in T3 Code Dev?' confirmation; no tap automation available (no cliclick, AppleScript lacks accessibility permission, simctl has no tap API)"
+    },
+    {
+      "item": "in-app native pairing with local server",
+      "missing": "the tap above plus a genuine one-time pairing token owned by Mark"
+    },
+    {
+      "item": "authenticated sign-in",
+      "missing": "Clerk credentials absent (no .env in worktree; publishable key null in this build; nothing copied or invented)"
+    },
+    {
+      "item": "real device build and install",
+      "missing": "Apple developer identity and registered device; out of scope, no signing identities created"
+    },
+    {
+      "item": "push notifications and full deep-link journey",
+      "missing": "depends on Metro bundle load plus credentials"
+    },
+    {
+      "item": "signed release build",
+      "missing": "distribution certificate and provisioning profile; not attempted"
+    },
+    {
+      "item": "Android",
+      "missing": "BLOCKED: no Android SDK, no JDK, no adb anywhere on this machine; installing them requires owner authorisation"
+    }
+  ],
+  "cleanup": {
+    "serverStoppedByPid": 20793,
+    "metroStoppedByPid": 7608,
+    "port14037ListenersAfter": 0,
+    "port8081ListenersAfter": 0,
+    "stateDirDeleted": true,
+    "simulatorShutdown": true,
+    "lockfileChurnRestored": true,
+    "remainingTemp": "/tmp/oneday-mobile-* logs and /tmp/oneday-mobile-dd DerivedData safe to delete after review"
+  },
+  "graphLookups": [
+    "graph.json mobile symbol query: apps_mobile_src_native_* and features_layout iOS route/observer symbols found",
+    "build path confirmed from app.config.ts, package.json and scripts/mobile-native-client.ts because graph indexes TS symbols only"
+  ],
+  "auditStatus": "BUILT+SIMULATOR evidence recorded; audit owed per programme rules; never claimed as cross-harness acceptance"
+}
