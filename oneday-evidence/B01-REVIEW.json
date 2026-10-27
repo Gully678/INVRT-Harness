@@ -1,0 +1,120 @@
+{
+  "verdict": "CHANGES REQUIRED",
+  "commit": "6ff1de76da690743ab5f652fd7c002d935f8c39b",
+  "findings": [
+    {
+      "id": "F-1",
+      "severity": "high",
+      "title": "admitBuildComplete trusts the body-supplied requestingRun instead of resolving it through the authority port",
+      "path": "packages/contracts/src/programmeDomain.ts",
+      "lines": "639, 789-814 (contrast recordReview port-resolved runs at 969 and 984)",
+      "trigger": "Future B02/B05 caller wires a client-supplied run body into admitBuildComplete; run role/taskId/ownerMemberId/executionEnvironmentId decide eligibility and approval-scope environment but are never checked against port.resolveRunRecord",
+      "consequence": "An auditor-owned principal can forge role=builder on a run they own with an in-scope environment and admit build complete; breaks the brief rule that the port resolves authoritative run records for every mutation and the no-request-body-trust rule",
+      "verification": "Full source read; only port calls in admitBuildComplete are actor/approval/attempt-count; forged-run-body case untested (test at programmeDomain.test.ts L521 covers actor resolution only)"
+    },
+    {
+      "id": "F-2",
+      "severity": "medium",
+      "title": "recordReview ignores review.disposition (and declared lineageCheck/coverage) while deriving acceptance from the gates",
+      "path": "packages/contracts/src/programmeDomain.ts",
+      "lines": "1110-1117, 944-945",
+      "trigger": "A review with disposition rejected/incomplete (or lineageCheck failed) that passes all fact gates",
+      "consequence": "Work item transitions to accepted while the returned/persisted review says rejected or incomplete; contradicts PRD 02 L148 disposition rule; gates still gate so no authority bypass",
+      "verification": "No disposition comparison exists in recordReview; no test exercises a mismatched disposition"
+    },
+    {
+      "id": "F-3",
+      "severity": "medium",
+      "title": "Approval.targetIds is never enforced",
+      "path": "packages/contracts/src/programmeDomain.ts",
+      "lines": "requireApprovalCovering 593-631; targetIds field at 143",
+      "trigger": "Approval scoped to target workitem-A used to admit workitem-B in the same project/environment/spec",
+      "consequence": "Brief deny list 'excluded path/target/effect/environment' only 3/4 implemented; approval scope wider than the human approved",
+      "verification": "Full read of requireApprovalCovering; no targetIds check anywhere; test matrix bullet 4 has no target denial test"
+    },
+    {
+      "id": "F-4",
+      "severity": "low",
+      "title": "Port run/evidence/source lookups carry no orgId; tenant scoping implicit",
+      "path": "packages/contracts/src/programmeDomain.ts",
+      "lines": "ProgrammeAuthorityPort 484-491",
+      "trigger": "A trusted-store implementation keying those records without an org dimension",
+      "consequence": "Contract does not force org isolation on those lookups; today only indirect via projectId/taskId equality checks",
+      "verification": "Interface read; no failing behaviour in this slice; recommend orgId parameters when B02 lands the store"
+    },
+    {
+      "id": "F-5",
+      "severity": "low",
+      "title": "Narrow-graph location offset and edge-count recomputation",
+      "path": "/tmp/b01-claude/graph/graph.json + packages/contracts/src/programmeDomain.ts",
+      "lines": "node admitBuildComplete source_location L739 vs actual export L756",
+      "trigger": "None (accuracy note)",
+      "consequence": "Graph AST location stale by ~17 lines; symbol/file/community verified; recounted 3031 nodes exact, 4452 links + hyperedges key, 159 communities exact vs claimed 4456 edges",
+      "verification": "python recount over graph.json keys; sed/grep of source"
+    },
+    {
+      "id": "F-6",
+      "severity": "low",
+      "title": "Typed-errors test asserts only tag distinctness",
+      "path": "packages/contracts/src/programmeDomain.test.ts",
+      "lines": "917-932",
+      "trigger": "None",
+      "consequence": "One tautology-adjacent assertion in an otherwise behavioural suite; harmless",
+      "verification": "Read; all other denial paths carry typed-tag plus state/revision assertions"
+    }
+  ],
+  "gatesRerun": {
+    "testCommand": "pnpm exec vp test run packages/contracts/src/programmeDomain.test.ts",
+    "testSelectionPrinted": "packages/contracts/src/programmeDomain.test.ts",
+    "tests": "53 passed (53), 1 test file passed, exit 0",
+    "typecheck": "pnpm --filter @t3tools/contracts typecheck (tsc --noEmit) exit 0",
+    "lint": "pnpm exec vp lint packages/contracts/src/programmeDomain.ts packages/contracts/src/programmeDomain.test.ts — 0 warnings 0 errors on 2 files, exit 0",
+    "postRunState": "pnpm-lock.yaml churn restored with git restore; git status --porcelain clean; HEAD unchanged 6ff1de76da690743ab5f652fd7c002d935f8c39b; nothing committed by auditor",
+    "nodeToolchain": "v26.12.1 from /Users/mac/Repos/invrt-code-local-pilot/.pilot/toolchain/node-v26.12.1-darwin-x64/bin"
+  },
+  "mutationProbe": {
+    "target": "recordReview shared-lineage distinctness check (identity.contextId comparison, programmeDomain.ts ~L1034) inverted === to !==",
+    "sha256Before": "fab419e9aa5bf17206593057be046effc3dfdc200917dca814697108e769d662",
+    "mutatedResult": "1 failed | 52 passed (53); failing test exactly 'recordReview > rejects shared lineage: the auditor identity may not equal any builder-run lineage entry'",
+    "restore": "byte-exact copy-back; sha256 after restore identical (fab419e9aa5bf17206593057be046effc3dfdc200917dca814697108e769d662); diff -q clean",
+    "postRestoreResult": "53 passed (53)",
+    "probeLog": "/tmp/b01-claude/audit/probe-sha-before.txt and probe-sha-after-restore.txt"
+  },
+  "commitVerification": {
+    "head": "6ff1de76da690743ab5f652fd7c002d935f8c39b",
+    "branch": "codex/claude-domain-core-b01-20261027",
+    "parent": "84b49e6151bae11d10adf97fac18b647b1c94ad6",
+    "changedPaths": [
+      "M packages/contracts/src/index.ts (+1 export line only)",
+      "A packages/contracts/src/programmeDomain.ts (1118 lines)",
+      "A packages/contracts/src/programmeDomain.test.ts (932 lines)"
+    ],
+    "treeClean": true
+  },
+  "builderClaimsChecked": {
+    "tests53of53": "verified by rerun",
+    "typecheckAndLintExit0": "verified by rerun",
+    "redMeaningfulAssertions": "not independently reproducible (red.log not inspected); consistent with behavioural suite design",
+    "revokedAtMutationProbe": "builder claim consistent with suite design; auditor ran an independent, stronger probe instead (lineage inversion) and confirmed failure",
+    "authorityPortNoBypass": "verified (no always-allow/default verifier/body-trust in module), with F-1 as the one residual body-trust seam",
+    "replaySemanticsNonDurableReceipts": "verified in code and documentation",
+    "budgetsAttemptsExercisedSpendDefinedNotEnforced": "verified",
+    "effectsEnum22MembersExact": "verified member-by-member against PRD L159"
+  },
+  "graphFact": "Spot-check passed: graph.json node admitBuildComplete() source_file programmeDomain.ts community 68; recount 3031 nodes, 4452 links + hyperedges key, 159 communities",
+  "label": "SAME-HARNESS INTERNAL AUDIT",
+  "auditorModel": "ZCode builtin:zai-coding-plan/GLM-5.3-Flash (same harness/model as builder; engineering review, NOT independent external certification)",
+  "skillsLoaded": [
+    "production-audit",
+    "production-guardrails",
+    "ai-native-agent",
+    "invrt-concise-code",
+    "api-designer",
+    "verification-before-completion",
+    "code-review"
+  ],
+  "evidenceFiles": [
+    "/Users/mac/Repos/.worktrees/invrt-claude-domain-core-b01-20261027/oneday-evidence/B01-REVIEW.md",
+    "/Users/mac/Repos/.worktrees/invrt-claude-domain-core-b01-20261027/oneday-evidence/B01-REVIEW.json"
+  ]
+}
