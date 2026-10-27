@@ -1,8 +1,10 @@
 # INVRT Code Server Runbook
 
 Owner: INVRT (Mark Gullickson). Lane: one-day INVRT Code programme, server lane.
-Last verified: 27 October 2026, ZCode (GLM 5.3 Flash), headless run on 127.0.0.1:14036 with
-runs 1 and 2 on the same state dir, plus a clean-room package test from the tar archive.
+Last verified: 27 October 2026, ZCode (GLM 5.3 Flash), server-archive lane: rebuilt the
+deployable package from adopted tip d6191bcd and ran a clean-room package test on
+127.0.0.1:14196 (runs 1 and 2 on the same state dir), after the earlier headless run on
+127.0.0.1:14036.
 
 ## 1. Runtime and versions
 
@@ -10,7 +12,7 @@ runs 1 and 2 on the same state dir, plus a clean-room package test from the tar 
   `/Users/mac/Repos/invrt-code-local-pilot/.pilot/toolchain/node-v26.12.1-darwin-x64/bin/node`).
 - macOS 26.7 (darwin x64) at verification time. The server is plain Node, so any OS with
   Node 26.12.1 should behave the same; re-run the health check after an OS change.
-- Server version: 0.1.2 (from `apps/server/package.json`, printed in the environment descriptor).
+- Server version: 0.1.3 (from `apps/server/package.json`, printed in the environment descriptor).
 - pnpm 12.14.0 for the build (the repo pins it via `packageManager`; do not install globally).
 
 ## 2. Build
@@ -107,9 +109,10 @@ curl -sS http://127.0.0.1:14036/.well-known/t3/environment                      
 curl -sS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:14036/api/orchestration/shell # expect 401 unauthenticated
 ```
 
-Verified 27 October 2026: root 200 with HTML referencing `/assets/index-D9bF5v4J.js`;
-descriptor 200; unauthenticated data routes 401 `EnvironmentAuthInvalidError`
-(`reason:"missing_credential"`). `/api/auth/session` returns 200 with
+Verified 27 October 2026 on the rebuilt archive: root 200 with HTML referencing
+`/assets/index-DJpS8QtT.js`; descriptor 200; unauthenticated data routes 401
+`EnvironmentAuthInvalidError` (`reason:"missing_credential"`) and a forged Bearer header
+401 (`reason:"invalid_credential"`). `/api/auth/session` returns 200 with
 `authenticated:false` by design (it is the auth-state probe, not a data route).
 
 ## 6. Graceful shutdown
@@ -162,32 +165,45 @@ To roll a deploy back:
 
 `dist-package/INVRT-CODE-SERVER.tar.gz` extracts `dist/`, `node_modules/` and
 `README.md` at the archive root (extract into an empty directory; the repo-tree paths
-in sections 2-4 are `apps/server/dist/` and do not exist inside the archive). Current correction archive is in the private review pack
-`CODEX-TAKEOVER-CANDIDATE/INVRT-CODE-SERVER.tar.gz`:65,009,201 bytes,
-sha256 `ff6a3ef51b8b711f66e5293d00f3d9de7588b3d027c81bb51d4712029adbd4ff`,
-built from source1a1ab10235d62839b83a9780dc78c5d7c00818cf and verified in a clean-room restart test.
-Its external MANIFEST.json binds exact source trees and limitations; it is not a released installer.
-The earlier delivered66,477,760-byte archive (sha256 `2d143c815c07f17933c99f96d83df75d6e077be14da6c0768a800c01e2dbbe7d`)
-is retained untouched. Repackage and reverify after every relevant source change.
+in sections 2-4 are `apps/server/dist/` and do not exist inside the archive). Current
+archive binding (server-archive lane, 27 October 2026): built from source tip
+`d6191bcd5655b770f2e84d61238022e46aa6c858` (branch `codex/claude-server-archive-20261027`),
+server version 0.1.3, 94,870,610 bytes,
+sha256 `562e8052cd4d53046c5241e1a70d8f79be1d523c0c7ddcf3e03f4e7b67dbaae8`.
+A durable copy with a SHA256SUMS file is kept under
+`.pilot/oneday-release-2026-10-27/server-archive-candidate/` of the pilot checkout;
+the archive itself stays untracked in git. The two earlier archives in this lane
+(65,009,201 and 66,477,760 bytes, built from superseded source tips) predate the adopted
+source, are retained untouched, and are superseded by the binding above. Repackage and
+reverify after every relevant source change.
 
 - `dist/`: the server bundle including `dist/client` web assets.
 - `node_modules/`: the runtime external dependencies the bundle requires at run time
-  (`@cursor/sdk`, `playwright-core`, `node-pty` (patched 1.2.0-beta.15),
+  (`@cursor/sdk` 1.0.38, `playwright-core` 1.60.0, `node-pty` (patched 1.2.0-beta.15),
   `@ff-labs/fff-node` (patched 0.11.0) plus its `fff-bin-darwin-x64` binary,
-  `@napi-rs/keyring`, and Cursor SDK runtime dependencies), pruned to darwin-x64.
+  `@napi-rs/keyring`, `zod`, `undici` 8.11.2, and the Cursor SDK transitive runtime
+  dependencies), pruned to darwin-x64.
 - A top-level README.md with run instructions.
 
 The raw `apps/server/dist` alone is NOT runnable: the bundle keeps these packages external
 by design (`scripts/lib/cli-external-packages.ts`), so a dist-only archive fails with
 `Cannot find module '@cursor/sdk'` (observed 27 October 2026). The package follows the
 same staging flow as the official CLI archive (`scripts/build-cli-archive.ts`:
-stageRuntimeExternals): write a stage `package.json` with the external dependencies pinned
-to the lockfile-resolved versions, a `pnpm-workspace.yaml` with
-`supportedArchitectures: {os: [darwin], cpu: [x64]}`, `allowBuilds: {node-pty: true}`,
-the matching `patchedDependencies`, and `nodeLinker: hoisted`; run `pnpm install --prod`;
-then prune `.pnpm`, `.bin`, patch inputs, and non-darwin-x64 prebuilds.
+stageRuntimeExternals): write a stage `package.json` (name `t3-runtime`) with the external
+dependencies pinned to the lockfile-resolved versions, a `pnpm-workspace.yaml` with
+`supportedArchitectures: {os: [darwin], cpu: [x64]}`, `allowBuilds` carried from the root
+workspace, the matching `patchedDependencies` (`@ff-labs/fff-node@0.11.0`,
+`node-pty@1.2.0-beta.15`), the resolved `overrides`, and `nodeLinker: hoisted`; run
+`pnpm install --prod`; then prune `.pnpm`, `.bin`, patch inputs, and non-darwin-x64
+prebuilds.
 
-Clean-room verification on 27 October 2026: extracted to a temporary directory, started
-with a fresh `--base-dir` on 127.0.0.1:14041, health checks passed (root 200 with the built
-asset, descriptor 200, unauthenticated data route 401), then stopped with SIGTERM and the
-temporary directory deleted.
+Clean-room verification of this archive on 27 October 2026: extracted to a fresh temporary
+directory, started with a fresh `--base-dir` on 127.0.0.1:14196: root 200 with the built
+asset, descriptor 200 (fresh environmentId 6067a482-8824-4e41-9df5-1c787f485633),
+unauthenticated data route 401 `missing_credential`, forged Bearer header 401
+`invalid_credential`; stopped with SIGTERM (process gone, port released); restarted on the
+same state dir and the SAME environmentId persisted; stopped again and the port freed.
+The listener was sampled with lsof and bound 127.0.0.1 only. Loopback binding is NOT a
+zero-egress claim: external HTTPS traffic under default settings was observed and the
+earlier egress retraction stands (see oneday-evidence/EG01-EGRESS-RETRACTION.md); make no
+egress certification from these checks.
