@@ -1,0 +1,118 @@
+{
+  "lane": "server",
+  "programme": "one-day INVRT Code",
+  "date": "2026-10-27",
+  "builder": {
+    "harness": "ZCode",
+    "model": "builtin:zai-coding-plan/GLM-5.3-Flash",
+    "sameHarnessAuditNote": "an audit from this harness is same-harness and is not cross-harness acceptance"
+  },
+  "skills": ["production-guardrails", "production-audit", "ai-native-agent", "invrt-concise-code"],
+  "worktree": "/Users/mac/Repos/.worktrees/invrt-oneday-server-20261027",
+  "branch": "invrt/oneday-server-20261027",
+  "baseCommit": "6ef29078c74d4cb82f0875d7f161ccdc24b4253c",
+  "runtime": { "node": "v26.12.1", "os": "macOS 26.7 darwin x64" },
+  "graph": {
+    "lookups": ["graphify explain bin --graph pilot graphify-out/graph.json"],
+    "result": "graph.json missing; miss recorded; bounded grep fallback used"
+  },
+  "steps": {
+    "install": {
+      "command": "pnpm install --frozen-lockfile",
+      "exitCode": 0,
+      "note": "pnpm 11.17.0 self-managed to pinned 12.14.0; lockfile churn restored each time, never committed"
+    },
+    "build": {
+      "command": "pnpm exec vp run --filter t3 build",
+      "exitCode": 0,
+      "outputs": [
+        "apps/web/dist populated",
+        "apps/server/dist/bin.mjs",
+        "apps/server/dist/client populated (209M total)"
+      ]
+    },
+    "serverRun1": {
+      "pid": 81019,
+      "port": 14036,
+      "command": "node apps/server/dist/bin.mjs --base-dir <worktree>/.headless-server-state --host 127.0.0.1 --port 14036 --no-browser .",
+      "listener": "127.0.0.1:14036 LISTEN (verified via lsof)",
+      "stoppedWith": "SIGTERM, verified gone"
+    },
+    "httpVerification": {
+      "root": 200,
+      "rootAsset": "/assets/index-D9bF5v4J.js",
+      "assetFetch": 200,
+      "wellKnownEnvironment": {
+        "status": 200,
+        "environmentId": "cda61fbc-bb8d-40cb-802d-e41c8d14a9e2",
+        "serverVersion": "0.1.2"
+      },
+      "negativeUnauthenticated": {
+        "apiOrchestrationShell": {
+          "status": 401,
+          "body": "EnvironmentAuthInvalidError auth_invalid missing_credential"
+        },
+        "apiAuthClients": {
+          "status": 401,
+          "body": "EnvironmentAuthInvalidError auth_invalid missing_credential"
+        },
+        "apiAuthSession": {
+          "status": 200,
+          "note": "auth-state probe by design, authenticated:false"
+        }
+      }
+    },
+    "restartPersistence": {
+      "run2Pid": 83075,
+      "environmentIdStable": "cda61fbc-bb8d-40cb-802d-e41c8d14a9e2",
+      "migrationsReRunOnRestart": 0,
+      "negativeAfterRestart": 401,
+      "stoppedWith": "SIGTERM, verified gone, port released"
+    },
+    "egress": { "establishedConnections": 0, "nonLoopback": "none observed (lsof -a -p <pid> -i)" },
+    "package": {
+      "artifact": "dist-package/INVRT-CODE-SERVER.tar.gz",
+      "sha256": "0a57faf6b2c21afb455836f89dea081a072620ffa70738be4cd275ad413e94f1",
+      "size": "64M",
+      "contents": [
+        "dist/ (server bundle incl dist/client)",
+        "node_modules/ runtime externals pinned to lockfile versions incl node-pty 1.2.0-beta.15 patch and fff patches",
+        "README.md"
+      ],
+      "firstAttemptFinding": "raw apps/server/dist alone fails with Cannot find module '@cursor/sdk'; externals are external by design",
+      "cleanRoomTest": {
+        "port": 14041,
+        "pid": 95904,
+        "root": 200,
+        "wellKnownEnvironment": 200,
+        "environmentIdFresh": "a246b301-1de6-4b11-8578-b3d1ee9b9d41",
+        "negativeUnauthenticated": 401,
+        "teardown": "SIGTERM verified gone; temp dir deleted and confirmed gone"
+      }
+    },
+    "typecheck": {
+      "command": "pnpm exec vp run --filter t3 typecheck",
+      "exitCode": 0,
+      "note": "pre-existing suggestion-level notes only (ws.ts TS377019); no server source changed in this lane"
+    }
+  },
+  "findings": [
+    "raw server dist is not self-contained; deploy must stage runtime externals (fixed in package)",
+    "pnpm self-managed version rewrites pnpm-lock.yaml on each invocation; restore, never commit",
+    "pilot checkout lacks graphify-out/graph.json; graph lookups miss until built",
+    "startup WARN Claude Agent CLI health check failed (PlatformError): provider CLIs not configured; server unaffected",
+    "server state dir holds key material under userdata/secrets and is not gitignored; preserved evidence only, then deleted, never committed",
+    "64M tarball left untracked with digest recorded; rebuild documented in runbook section 9"
+  ],
+  "digests": {
+    "dist-package/INVRT-CODE-SERVER.tar.gz": "0a57faf6b2c21afb455836f89dea081a072620ffa70738be4cd275ad413e94f1",
+    "dist-package/README.md": "e5a0fd111eaeb3d2122e7071530021939e48ac71d5ce0e1c749ae72d6820ddd1",
+    "INVRT-CODE-SERVER-RUNBOOK.md": "8e2ca08daa10646e9305f037b1cc673904b24a38dcaadddaa9b6b7a38d014842",
+    "oneday-evidence/server-run1-redacted.txt": "679d6be61634a4f703064450c0b6cdb83ce9af4f4e828bbca1e820d3708d9c51",
+    "oneday-evidence/server-run2-redacted.txt": "bf403956cbec306d10b466219654409d7a2f14dedb7088a558c52f496a36c23a",
+    "oneday-evidence/invrt-server-lane-install.txt": "ed1ee5131b13eded33b2d07dd37d978326979135a6315a6e9397c48069891aa4",
+    "oneday-evidence/invrt-server-lane-build.txt": "43a22981a5c6c013d93144b53a4b80d9b2dda92b81c6aa81e73752285798c73d",
+    "oneday-evidence/invrt-server-lane-typecheck.txt": "3d8757941f222682532b99cc1bf87a7d020ebff5be10b009407cb486f6a287d7"
+  },
+  "redaction": "pairing URLs, tokens and the pairing line values replaced with <REDACTED>; zero 'token' occurrences remain in committed evidence logs"
+}

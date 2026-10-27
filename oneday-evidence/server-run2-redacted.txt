@@ -1,0 +1,22 @@
+[05:22:57.153] WARN (#144): Claude Agent CLI health check failed.
+  { errorTag: 'PlatformError' }
+[05:22:58.728] INFO (#6467): Listening on http://127.0.0.1:14036
+[05:22:58.770] INFO (#6464): agent activity publishing standby; waiting for T3 Connect link reconciliation
+[05:22:58.825] INFO (#6464): V2 orchestration recovery completed
+  {
+    terminalizedRuns: 0,
+    stoppedSessions: 0,
+    closedRequests: 0,
+    retiredEffects: 0,
+    requeuedEffects: 0
+  }
+[05:22:58.946] INFO (#6826): Authentication required. Open T3 Code using the pairing URL.
+  pairingUrl: <REDACTED>
+[05:23:33.341] INFO (#2): V2 orchestration shutdown reconciliation completed
+  {
+    terminalizedRuns: 0,
+    stoppedSessions: 0,
+    closedRequests: 0,
+    retiredEffects: 0,
+    requeuedEffects: 0
+  }
