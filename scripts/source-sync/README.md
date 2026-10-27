@@ -17,6 +17,9 @@ the checkout's own adoption evidence. Last reviewed: 2026-10-27.
   `superseded` (unused today: no reviewed document supersedes one of the 41 identities).
 - A validator rule of record: an `adopted` entry must carry a pin. First-party working copies
   (monti-forge) may pin `kind: "local"` with a note instead of a sha.
+- The verbatim `coverage-2026-10-27-SEMANTIC-COVERAGE.json` copy must stay outside any future
+  whole-repo `vp fmt` scope: reformatting it would break the byte-identity provenance claim
+  above.
 
 ## What the check verifies (offline only)
 
@@ -29,7 +32,8 @@ named findings otherwise:
    per-entry counts sum to `changedBodies` (78); per-entry `missingPaths` sums to 23; per-entry
    `packsRecords` sums to `admittedRecords` (795).
 3. Coverage counts match `coverage-2026-10-27-SEMANTIC-COVERAGE.json`, a byte-identical copy of
-   the review wave's `ALL-SYNCED-SOURCES-SEMANTIC-COVERAGE.json` (78 bodies, 21570 lines,
+   the review wave's `ALL-SYNCED-SOURCES-SEMANTIC-COVERAGE.json` (sha256
+   `4234dc930599bb7327137e9a727027cb34dc2d27914100332c71c354a12dc3e7`; 78 bodies, 21570 lines,
    77 full diffs, `last30days` structural deletion, 78 evidence rows).
 4. Documented pins cross-check against git-reachable facts (local `git` reads only):
    - `Gully678/INVRT-Harness` pin `70eccd48...` is reachable and an ancestor of upstream
@@ -46,7 +50,8 @@ node scripts/source-sync/check-source-registry.ts --registry <path> --coverage <
 ```
 
 No package.json registration was added: scripts in this repo run directly with `node`, and the
-colocated tests run with the scripts workspace's `vp test run --config ../vite.config.ts --dir .`.
+colocated tests run, from this directory, with `pnpm exec vp test run --config
+../../vite.config.ts --dir .`.
 The check script uses only node builtins plus local `git`; the tests additionally spawn
 `process.execPath` for the corrupted-copy cases.
 

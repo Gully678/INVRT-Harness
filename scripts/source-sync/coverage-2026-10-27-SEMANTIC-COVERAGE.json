@@ -2,7 +2,9 @@
   "current_bodies_reviewed": 78,
   "current_lines": 21570,
   "full_literal_unified_diffs": 77,
-  "structural_old_deletion_diff": ["last30days"],
+  "structural_old_deletion_diff": [
+    "last30days"
+  ],
   "all_current_git_blobs_reverified": true,
   "scope": "Current root skill engineering/integration/policy/effect/routing/dependency/context/output contracts. Not every domain claim, recursive executable dependency, runtime or enterprise acceptance.",
   "runtime_tests_run": 0,

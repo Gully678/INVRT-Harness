@@ -145,13 +145,31 @@ function gitContains(runGit: GitRunner, args: ReadonlyArray<string>, needle: str
   return result.ok && result.stdout.includes(needle);
 }
 
+// Same 40-hex rule as registry.ts's COMMIT_SHA (kept local: that module is registry DATA code).
+// Git argv receives these strings raw, so a value starting with "-" would be parsed as a git
+// option (e.g. `--output=<path>` is a file-write primitive); each sha is validated before any
+// git call and malformed values never reach argv.
+const CROSS_CHECK_SHA = /^[0-9a-f]{40}$/;
+
+function malformedShaFinding(entryId: string, field: string, sha: string): CheckFinding {
+  return {
+    code: "malformed-cross-check-sha",
+    entryId,
+    message: `gitCrossCheck.${field} must be 40 lowercase hex characters, got ${sha}`,
+  };
+}
+
 export function checkGitCrossCheck(
   entry: SourceRegistryEntry,
   crossCheck: GitCrossCheck,
   runGit: GitRunner,
 ): ReadonlyArray<CheckFinding> {
   const findings: Array<CheckFinding> = [];
-  for (const sha of crossCheck.reachable ?? []) {
+  for (const [index, sha] of (crossCheck.reachable ?? []).entries()) {
+    if (!CROSS_CHECK_SHA.test(sha)) {
+      findings.push(malformedShaFinding(entry.id, `reachable[${index}]`, sha));
+      continue;
+    }
     if (!runGit(["cat-file", "-e", `${sha}^{commit}`]).ok) {
       findings.push({
         code: "git-unreachable",
@@ -160,7 +178,16 @@ export function checkGitCrossCheck(
       });
     }
   }
-  for (const { ancestor, of } of crossCheck.ancestors ?? []) {
+  for (const [index, { ancestor, of }] of (crossCheck.ancestors ?? []).entries()) {
+    const ancestorValid = CROSS_CHECK_SHA.test(ancestor);
+    const ofValid = CROSS_CHECK_SHA.test(of);
+    if (!ancestorValid) {
+      findings.push(malformedShaFinding(entry.id, `ancestors[${index}].ancestor`, ancestor));
+    }
+    if (!ofValid) {
+      findings.push(malformedShaFinding(entry.id, `ancestors[${index}].of`, of));
+    }
+    if (!ancestorValid || !ofValid) continue;
     if (!runGit(["merge-base", "--is-ancestor", ancestor, of]).ok) {
       findings.push({
         code: "git-ancestor-mismatch",
@@ -169,7 +196,11 @@ export function checkGitCrossCheck(
       });
     }
   }
-  for (const { sha, contains } of crossCheck.commitSubjectsBind ?? []) {
+  for (const [index, { sha, contains }] of (crossCheck.commitSubjectsBind ?? []).entries()) {
+    if (!CROSS_CHECK_SHA.test(sha)) {
+      findings.push(malformedShaFinding(entry.id, `commitSubjectsBind[${index}].sha`, sha));
+      continue;
+    }
     if (!gitContains(runGit, ["log", "-1", "--format=%B", sha], contains)) {
       const subject = runGit(["log", "-1", "--format=%s", sha]).stdout.trim();
       findings.push({

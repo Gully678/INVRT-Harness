@@ -92,6 +92,33 @@ describe("git cross-checks", () => {
     expect(findingsWithCode(report.findings, "git-unreachable")).toBe(true);
   });
 
+  it("rejects a non-40-hex cross-check sha without invoking git", async () => {
+    const registry = loadRegistry();
+    const mutated = JSON.parse(JSON.stringify(registry)) as {
+      sources: Array<{ id: string; gitCrossCheck?: { reachable?: string[] } }>;
+    };
+    const rea = mutated.sources.find((e) => e.id === "Gully678/rea");
+    if (!rea?.gitCrossCheck?.reachable) throw new Error("expected rea cross-check");
+    // A leading "-" would be parsed as a git option once passed into argv.
+    rea.gitCrossCheck.reachable[0] = "-output=/tmp/evil";
+    const file = await tempCopy("registry.json", JSON.stringify(mutated, null, 2));
+    const calls: Array<ReadonlyArray<string>> = [];
+    const spy: GitRunner = (args) => {
+      calls.push(args);
+      return { ok: false, stdout: "" };
+    };
+    const report = checkRegistryOffline({ registryPath: file, runGit: spy });
+    expect(findingsWithCode(report.findings, "malformed-cross-check-sha")).toBe(true);
+    const namedRea = report.findings.some(
+      (finding) =>
+        finding.entryId === "Gully678/rea" && finding.code === "malformed-cross-check-sha",
+    );
+    expect(namedRea).toBe(true);
+    expect(
+      calls.some((args) => args.some((argument) => argument.includes("-output=/tmp/evil"))),
+    ).toBe(false);
+  });
+
   it("reports a missing evidence file binding", async () => {
     const registry = loadRegistry();
     const mutated = JSON.parse(JSON.stringify(registry)) as SourceRegistry;
