@@ -1,0 +1,48 @@
+{
+  "stderr": "",
+  "lines": [
+    {
+      "t": 1793066229372,
+      "sent": {
+        "id": 1,
+        "method": "session/events",
+        "params": {
+          "sessionId": "sess_fb920e24-c49c-4fde-8733-45441739a1eb"
+        }
+      }
+    },
+    {
+      "t": 1793066236590,
+      "msg": {
+        "error": {
+          "code": -32004,
+          "message": "Session is not active: sess_fb920e24-c49c-4fde-8733-45441739a1eb"
+        },
+        "id": 1
+      }
+    },
+    {
+      "t": 1793066236595,
+      "sent": {
+        "id": 2,
+        "method": "session/read",
+        "params": {
+          "sessionId": "sess_fb920e24-c49c-4fde-8733-45441739a1eb"
+        }
+      }
+    },
+    {
+      "t": 1793066236596,
+      "msg": {
+        "error": {
+          "code": -32004,
+          "message": "Session is not active: sess_fb920e24-c49c-4fde-8733-45441739a1eb"
+        },
+        "id": 2
+      }
+    },
+    {
+      "exit": null
+    }
+  ]
+}

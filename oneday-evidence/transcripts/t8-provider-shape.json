@@ -1,0 +1,64 @@
+{
+  "stderr": "",
+  "lines": [
+    {
+      "t": 1793066166277,
+      "sent": {
+        "id": 1,
+        "method": "workspace/upsertModelProvider",
+        "params": {
+          "workspace": {
+            "workspaceKey": "/tmp/zcode-probe-ws",
+            "workspacePath": "/tmp/zcode-probe-ws"
+          },
+          "provider": {}
+        }
+      }
+    },
+    {
+      "t": 1793066167773,
+      "msg": {
+        "error": {
+          "code": -32602,
+          "data": {
+            "name": "ZodError",
+            "message": "[\n  {\n    \"expected\": \"string\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      \"provider\",\n      \"providerId\"\n    ],\n    \"message\": \"Invalid input: expected string, received undefined\"\n  },\n  {\n    \"code\": \"invalid_value\",\n    \"values\": [\n      \"anthropic\",\n      \"openai\",\n      \"openai-compatible\"\n    ],\n    \"path\": [\n      \"provider\",\n      \"kind\"\n    ],\n    \"message\": \"Invalid option: expected one of \\\"anthropic\\\"|\\\"openai\\\"|\\\"openai-compatible\\\"\"\n  },\n  {\n    \"expected\": \"array\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      \"provider\",\n      \"models\"\n    ],\n    \"message\": \"Invalid input: expected array, received undefined\"\n  }\n]"
+          },
+          "message": "Invalid params — provider.providerId: Invalid input: expected string, received undefined; provider.kind: Invalid option: expected one of \"anthropic\"|\"openai\"|\"openai-compatible\"; provider.models: Invalid input: expected array, received undefined"
+        },
+        "id": 1
+      }
+    },
+    {
+      "t": 1793066167774,
+      "sent": {
+        "id": 2,
+        "method": "workspace/setDefaultModel",
+        "params": {
+          "workspace": {
+            "workspaceKey": "/tmp/zcode-probe-ws",
+            "workspacePath": "/tmp/zcode-probe-ws"
+          },
+          "model": {}
+        }
+      }
+    },
+    {
+      "t": 1793066167776,
+      "msg": {
+        "error": {
+          "code": -32602,
+          "data": {
+            "name": "ZodError",
+            "message": "[\n  {\n    \"expected\": \"string\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      \"model\",\n      \"providerId\"\n    ],\n    \"message\": \"Invalid input: expected string, received undefined\"\n  },\n  {\n    \"expected\": \"string\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      \"model\",\n      \"modelId\"\n    ],\n    \"message\": \"Invalid input: expected string, received undefined\"\n  }\n]"
+          },
+          "message": "Invalid params — model.providerId: Invalid input: expected string, received undefined; model.modelId: Invalid input: expected string, received undefined"
+        },
+        "id": 2
+      }
+    },
+    {
+      "exit": null
+    }
+  ]
+}

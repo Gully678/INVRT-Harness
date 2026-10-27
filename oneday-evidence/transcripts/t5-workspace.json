@@ -1,0 +1,64 @@
+{
+  "stderr": "",
+  "lines": [
+    {
+      "t": 1793065727264,
+      "sent": {
+        "id": 1,
+        "method": "session/create",
+        "params": {
+          "workspace": {
+            "workspacePath": "/tmp/zcode-probe-ws"
+          }
+        }
+      }
+    },
+    {
+      "t": 1793065728256,
+      "msg": {
+        "error": {
+          "code": -32602,
+          "data": {
+            "name": "ZodError",
+            "message": "[\n  {\n    \"expected\": \"string\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      \"workspace\",\n      \"workspaceKey\"\n    ],\n    \"message\": \"Invalid input: expected string, received undefined\"\n  }\n]"
+          },
+          "message": "Invalid params — workspace.workspaceKey: Invalid input: expected string, received undefined"
+        },
+        "id": 1
+      }
+    },
+    {
+      "t": 1793065728258,
+      "sent": {
+        "id": 2,
+        "method": "session/usage",
+        "params": {
+          "sessionId": "sess_4b52709b-72ce-4246-ba8e-c64ccfd321ee"
+        }
+      }
+    },
+    {
+      "t": 1793065728260,
+      "msg": {
+        "id": 2,
+        "result": {
+          "sessionId": "sess_4b52709b-72ce-4246-ba8e-c64ccfd321ee",
+          "totalTokens": 933556,
+          "inputTokens": 895758,
+          "outputTokens": 37798,
+          "reasoningTokens": 0,
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "modelRequestCount": 54,
+          "modelErrorCount": 0,
+          "inputBaselineBySource": {
+            "main_turn": 320944
+          }
+        }
+      }
+    },
+    {
+      "exit": null
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+[
+  {
+    "t": 1793065867155,
+    "dir": "out",
+    "msg": {
+      "id": 1,
+      "method": "session/create",
+      "params": {
+        "workspace": {
+          "workspaceKey": "/tmp/zcode-probe-ws",
+          "workspacePath": "/tmp/zcode-probe-ws"
+        }
+      }
+    }
+  },
+  {
+    "t": 1793065869959,
+    "dir": "in",
+    "msg": {
+      "id": "server-1",
+      "method": "session/requestRuntimePreferences",
+      "params": {
+        "sessionId": "sess_481557b7-d008-4ed6-a71d-8aac2bca27d6",
+        "scope": "runtime-materialization"
+      }
+    }
+  },
+  {
+    "t": 1793065869960,
+    "dir": "out-reply",
+    "msg": {
+      "id": "server-1",
+      "result": "runtime-preferences-defaults"
+    }
+  },
+  {
+    "t": 1793065871560,
+    "dir": "in",
+    "msg": {
+      "error": {
+        "code": -32603,
+        "data": {
+          "name": "ModelProtocolError",
+          "stack": "ModelProtocolError: Model config is missing. Create /Users/mac/.zcode/cli/config.json with an explicit model provider before running ZCode.\n    at createModelConfigMissingError (/Applications/ZCode.app/Contents/Resources/glm/zcode.cjs:2879:340201)\n    at requireRuntimeModelConfig (/Applications/ZCode.app/Contents/Resources/glm/zcode.cjs:2884:1122)\n    at resolveAppRuntimeConfig (/Applications/ZCode.app/Contents/Resources/glm/zcode.cjs:2884:16828)\n    at createZCodeApp (/Applications/ZCode.app/Contents/Resources/glm/zcode.cjs:3107:9968)\n    at Object.createZCodeApp (/Applications/ZCode.app/Contents/Resources/glm/zcode.cjs:3126:5748)\n    at createWorkspaceZCodeApp (/Applications/ZCode.app/Contents/Resources/glm/zcode.cjs:3108:22565)\n    at createRecord (/Applications/ZCode.app/Contents/Resources/glm/zcode.cjs:3115:7544)\n    at materializeSessionRecord (/Applications/ZCode.app/Contents/Resources/glm/zcode.cjs:3115:6742)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async createSession (/Applications/ZCode.app/Contents/Resources/glm/zcode.cjs:3112:18570)",
+          "code": "model_config_missing"
+        },
+        "message": "Model config is missing. Create /Users/mac/.zcode/cli/config.json with an explicit model provider before running ZCode."
+      },
+      "id": 1
+    }
+  }
+]

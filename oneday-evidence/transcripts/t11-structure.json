@@ -1,0 +1,138 @@
+{
+  "_note": "Structural extract of t11-resume.json (2MB full transcript of a real session, NOT committed). Message bodies truncated; one sample per part type and one full message envelope per role.",
+  "sourceFile": "t11-resume.json (local only)",
+  "sessionSummary": {
+    "sessionId": "sess_fb920e24-...",
+    "status": "idle",
+    "mode": "build"
+  },
+  "messageInfoSample": {
+    "agent": "zcode-agent",
+    "cost": 0,
+    "finish": "completed",
+    "messageId": "msg_part_mvpyhne2_4e78fae8-b286-43e1-b892-958946a53c6d_message",
+    "model": {
+      "modelId": "GLM-5.3-Flash",
+      "providerId": "builtin:zai-coding-plan"
+    },
+    "parentMessageId": "msg_part_mvpyhne2_4e78fae8-b286-43e1-b892-958946a53c6d_message",
+    "path": {
+      "cwd": "/Users/mac/My Drive/Claude/Projects/REACH",
+      "root": "/Users/mac/My Drive/Claude/Projects/REACH"
+    },
+    "role": "assistant",
+    "semantics": {
+      "origin": "system",
+      "kind": "timeline_event",
+      "uiVisibility": "visible",
+      "providerVisibility": "hidden",
+      "transcriptVisibility": "visible"
+    },
+    "sessionId": "sess_fb920e24-c49c-4fde-8733-45441739a1eb",
+    "time": {
+      "created": 1793061456962,
+      "completed": 1793061456962
+    },
+    "tokens": {
+      "input": 0,
+      "output": 0,
+      "reasoning": 0,
+      "cache": {
+        "read": 0,
+        "write": 0
+      }
+    }
+  },
+  "partTypeSamples": {
+    "timeline": {
+      "messageId": "msg_part_mvpyhne2_4e78fae8-b286-43e1-b892-958946a53c6d_message",
+      "partId": "part_part_mvpyhne2_4e78fae8-b286-43e1-b892-958946a53c6d_timeline",
+      "sessionId": "sess_fb920e24-c49c-4fde-8733-45441739a1eb",
+      "display": "separator",
+      "fromModel": {
+        "label": "builtin:zai-coding-plan/GLM-5.3",
+        "modelId": "GLM-5.3",
+        "providerId": "builtin:zai-coding-plan"
+      },
+      "status": "completed",
+      "time": {
+        "start": 1793061456962,
+        "end": 1793061456962
+      },
+      "timelineType": "model_change",
+      "toModel": {
+        "label": "builtin:zai-coding-plan/GLM-5.3-Flash",
+        "modelId": "GLM-5.3-Flash",
+        "providerId": "builtin:zai-coding-plan",
+        "variant": "max"
+      },
+      "type": "timeline"
+    },
+    "text": {
+      "messageId": "msg_mvpyhssl_036aa4b7-fbcb-456d-b32a-a669c718696e",
+      "partId": "part_mvpyhuts_fc5f06ea-d63b-4a4e-a71b-a108b8af73e2",
+      "sessionId": "sess_fb920e24-c49c-4fde-8733-45441739a1eb",
+      "text": "Continue REACH autonomously until close of this session, which ends when Wave 1 remainder + Wave 2 (...[truncated]",
+      "type": "text"
+    },
+    "step-start": {
+      "messageId": "msg_mvpyhxmm_07387c17-d5e9-4478-9df8-712d3f556c59",
+      "partId": "part_mvpyhxmu_1a0a49be-82fd-4d9b-ae57-d2610edaf830",
+      "sessionId": "sess_fb920e24-c49c-4fde-8733-45441739a1eb",
+      "type": "step-start"
+    },
+    "tool": {
+      "messageId": "msg_mvpyhxmm_07387c17-d5e9-4478-9df8-712d3f556c59",
+      "partId": "part_mvpyioc5_4b8b82e4-e4e8-49d8-8217-9c7edcaf4a9c",
+      "sessionId": "sess_fb920e24-c49c-4fde-8733-45441739a1eb",
+      "callId": "call_d4b210c5c4b34d60979bbc2e",
+      "state": {
+        "completedAt": 1793061495408,
+        "error": "File content (294.3KB) exceeds maximum allowed size (256KB). Use offset and limit parameters to read...[truncated]",
+        "input": {
+          "file_path": "/Users/mac/My Drive/Claude/Projects/REACH/HANDOVER.md"
+        },
+        "metadata": {},
+        "startedAt": 1793061495408,
+        "status": "error"
+      },
+      "tool": "Read",
+      "type": "tool"
+    },
+    "reasoning": {
+      "messageId": "msg_mvpyhxmm_07387c17-d5e9-4478-9df8-712d3f556c59",
+      "partId": "part_mvpyioff_287b72ba-19da-4620-9fce-56c6f47915f7",
+      "sessionId": "sess_fb920e24-c49c-4fde-8733-45441739a1eb",
+      "metadata": {
+        "anthropic": {
+          "signature": "67f392b712ec4fa39d7f4750"
+        }
+      },
+      "text": "Let me start by reading the required documents in order before any command. The user wants me to con...[truncated]",
+      "type": "reasoning"
+    },
+    "step-finish": {
+      "messageId": "msg_mvpyhxmm_07387c17-d5e9-4478-9df8-712d3f556c59",
+      "partId": "part_mvpyiois_c9abdf83-b83c-4788-8586-030bf7a6539c",
+      "sessionId": "sess_fb920e24-c49c-4fde-8733-45441739a1eb",
+      "cost": 0,
+      "reason": "tool-calls",
+      "tokens": {
+        "total": 472433,
+        "input": 472199,
+        "output": 234,
+        "reasoning": 0,
+        "cache": {
+          "read": 0,
+          "write": 0
+        }
+      },
+      "type": "step-finish"
+    }
+  },
+  "messageCount": 80,
+  "roleCounts": {
+    "assistant": 136,
+    "user": 24
+  }
+}

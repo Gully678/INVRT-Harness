@@ -1,0 +1,39 @@
+{
+  "stderr": "",
+  "lines": [
+    {
+      "t": 1793066184055,
+      "sent": {
+        "id": 1,
+        "method": "workspace/upsertModelProvider",
+        "params": {
+          "workspace": {
+            "workspaceKey": "/tmp/zcode-probe-ws",
+            "workspacePath": "/tmp/zcode-probe-ws"
+          },
+          "provider": {
+            "providerId": "probe",
+            "kind": "zzz"
+          }
+        }
+      }
+    },
+    {
+      "t": 1793066193006,
+      "msg": {
+        "error": {
+          "code": -32602,
+          "data": {
+            "name": "ZodError",
+            "message": "[\n  {\n    \"code\": \"invalid_value\",\n    \"values\": [\n      \"anthropic\",\n      \"openai\",\n      \"openai-compatible\"\n    ],\n    \"path\": [\n      \"provider\",\n      \"kind\"\n    ],\n    \"message\": \"Invalid option: expected one of \\\"anthropic\\\"|\\\"openai\\\"|\\\"openai-compatible\\\"\"\n  },\n  {\n    \"expected\": \"array\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      \"provider\",\n      \"models\"\n    ],\n    \"message\": \"Invalid input: expected array, received undefined\"\n  }\n]"
+          },
+          "message": "Invalid params — provider.kind: Invalid option: expected one of \"anthropic\"|\"openai\"|\"openai-compatible\"; provider.models: Invalid input: expected array, received undefined"
+        },
+        "id": 1
+      }
+    },
+    {
+      "exit": null
+    }
+  ]
+}
