@@ -1,0 +1,794 @@
+{
+  "current_bodies_reviewed": 78,
+  "current_lines": 21570,
+  "full_literal_unified_diffs": 77,
+  "structural_old_deletion_diff": [
+    "last30days"
+  ],
+  "all_current_git_blobs_reverified": true,
+  "scope": "Current root skill engineering/integration/policy/effect/routing/dependency/context/output contracts. Not every domain claim, recursive executable dependency, runtime or enterprise acceptance.",
+  "runtime_tests_run": 0,
+  "enterprise_acceptance": false,
+  "rows": [
+    {
+      "skill": "last30days",
+      "source": "Gully678/last30days-skill",
+      "current_pin": "930a71391ada9dbb8f865c2bd5dc9282dc185484",
+      "current_source_blob": "2eeff5f15fb4cb5c2760276d771c918bd5e68feb",
+      "source_path": "skills/last30days/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": false,
+      "review_group": 1
+    },
+    {
+      "skill": "create-an-asset",
+      "source": "Gully678/knowledge-work-plugins",
+      "current_pin": "c75fda00ff0e41c8ee331ae312c8a07f1967653b",
+      "current_source_blob": "a6ad61a0c0f5d54c6d8c1de3771622d9b104eed9",
+      "source_path": "sales/skills/create-an-asset/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 1
+    },
+    {
+      "skill": "content-strategy",
+      "source": "Gully678/marketingskills",
+      "current_pin": "17772c7a80b7b8c7a47af30f648374cd8bd8adc5",
+      "current_source_blob": "772846f604505ccd8ad571cded9aa4391cdada65",
+      "source_path": "skills/content-strategy/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 1
+    },
+    {
+      "skill": "competitor-profiling",
+      "source": "Gully678/marketingskills",
+      "current_pin": "17772c7a80b7b8c7a47af30f648374cd8bd8adc5",
+      "current_source_blob": "63fc39fc9bbc937018ad88fe3f5700ca8adefa88",
+      "source_path": "skills/competitor-profiling/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 1
+    },
+    {
+      "skill": "geo-crawlers",
+      "source": "Gully678/geo-seo-claude",
+      "current_pin": "989cae01e8ebbc42a9ec798eb9e7cb423f5ec89c",
+      "current_source_blob": "6774ce94c190b7f9ba2b45c63c28b367460a4196",
+      "source_path": "skills/geo-crawlers/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 1
+    },
+    {
+      "skill": "video",
+      "source": "Gully678/marketingskills",
+      "current_pin": "17772c7a80b7b8c7a47af30f648374cd8bd8adc5",
+      "current_source_blob": "75870c4c88d5a7ee9a06cfb26496c1bb817bee43",
+      "source_path": "skills/video/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 1
+    },
+    {
+      "skill": "prospeo-search-api",
+      "source": "Gully678/coldoutboundskills",
+      "current_pin": "25c5d85fbb5dd3efec97b0ca457cbbc286547476",
+      "current_source_blob": "04fcf8380f862c6b8622a942fcd0e7a231593efb",
+      "source_path": "skills/prospeo-search-api/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 1
+    },
+    {
+      "skill": "aso",
+      "source": "Gully678/marketingskills",
+      "current_pin": "17772c7a80b7b8c7a47af30f648374cd8bd8adc5",
+      "current_source_blob": "71a6b23cc90bcb75582b8c4380c0a2a4787c6894",
+      "source_path": "skills/aso/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 1
+    },
+    {
+      "skill": "customer-research",
+      "source": "Gully678/marketingskills",
+      "current_pin": "17772c7a80b7b8c7a47af30f648374cd8bd8adc5",
+      "current_source_blob": "a00538447e9e75489dbf07378325dfa428ec46da",
+      "source_path": "skills/customer-research/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 1
+    },
+    {
+      "skill": "seo-backlinks",
+      "source": "Gully678/claude-seo",
+      "current_pin": "6be93f45064ffbadced572b5d5c95f55fd263af0",
+      "current_source_blob": "4e7802262ec22f2359115530e0b8fd63c14a3aec",
+      "source_path": "skills/seo-backlinks/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 1
+    },
+    {
+      "skill": "seo-hreflang",
+      "source": "Gully678/claude-seo",
+      "current_pin": "6be93f45064ffbadced572b5d5c95f55fd263af0",
+      "current_source_blob": "fa076784d9a8a795e24d080823e35b11c5a84136",
+      "source_path": "skills/seo-hreflang/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 1
+    },
+    {
+      "skill": "seo-maps",
+      "source": "Gully678/claude-seo",
+      "current_pin": "6be93f45064ffbadced572b5d5c95f55fd263af0",
+      "current_source_blob": "e78d1cfac500448195a39638375ffbf614f2052a",
+      "source_path": "skills/seo-maps/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 1
+    },
+    {
+      "skill": "seo-technical",
+      "source": "Gully678/claude-seo",
+      "current_pin": "6be93f45064ffbadced572b5d5c95f55fd263af0",
+      "current_source_blob": "2184128105f866eb04c10d3d2fcd50d079d41f03",
+      "source_path": "skills/seo-technical/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 1
+    },
+    {
+      "skill": "prospecting",
+      "source": "Gully678/marketingskills",
+      "current_pin": "17772c7a80b7b8c7a47af30f648374cd8bd8adc5",
+      "current_source_blob": "3e1d05b442711aab7641599a1666bd711d142f37",
+      "source_path": "skills/prospecting/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 1
+    },
+    {
+      "skill": "competitive-intelligence",
+      "source": "Gully678/knowledge-work-plugins",
+      "current_pin": "c75fda00ff0e41c8ee331ae312c8a07f1967653b",
+      "current_source_blob": "b05ebebaa6a6be7737b72705818c861dcce48464",
+      "source_path": "sales/skills/competitive-intelligence/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 1
+    },
+    {
+      "skill": "seo-content",
+      "source": "Gully678/claude-seo",
+      "current_pin": "6be93f45064ffbadced572b5d5c95f55fd263af0",
+      "current_source_blob": "be86bd23b85c7bffa157bacd8761caa45157d94d",
+      "source_path": "skills/seo-content/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 1
+    },
+    {
+      "skill": "attribution",
+      "source": "Gully678/marketingskills",
+      "current_pin": "17772c7a80b7b8c7a47af30f648374cd8bd8adc5",
+      "current_source_blob": "679e2684415ac2a5cfc382a46d25052e49df229a",
+      "source_path": "skills/attribution/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 1
+    },
+    {
+      "skill": "cold-email-weekly-rhythm",
+      "source": "Gully678/coldoutboundskills",
+      "current_pin": "25c5d85fbb5dd3efec97b0ca457cbbc286547476",
+      "current_source_blob": "054e7989df730b5bff3e0c44353a4f39c020361d",
+      "source_path": "skills/cold-email-weekly-rhythm/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 1
+    },
+    {
+      "skill": "seo-audit",
+      "source": "Gully678/claude-seo",
+      "current_pin": "6be93f45064ffbadced572b5d5c95f55fd263af0",
+      "current_source_blob": "45b957d746731cb50ed7195a3a122a4bbfd3a1b0",
+      "source_path": "skills/seo-audit/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 1
+    },
+    {
+      "skill": "call-prep",
+      "source": "Gully678/knowledge-work-plugins",
+      "current_pin": "c75fda00ff0e41c8ee331ae312c8a07f1967653b",
+      "current_source_blob": "7f20d12ff2e87a7769882a80acaf2f87782b8a64",
+      "source_path": "sales/skills/call-prep/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 1
+    },
+    {
+      "skill": "pipeline-review",
+      "source": "Gully678/knowledge-work-plugins",
+      "current_pin": "c75fda00ff0e41c8ee331ae312c8a07f1967653b",
+      "current_source_blob": "7fd6dbe6b9e35273755bade4e43171f047f05673",
+      "source_path": "sales/skills/pipeline-review/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 1
+    },
+    {
+      "skill": "blitz-list-builder",
+      "source": "Gully678/coldoutboundskills",
+      "current_pin": "25c5d85fbb5dd3efec97b0ca457cbbc286547476",
+      "current_source_blob": "56f3da8e0c4dd5a19c4df58dbbf3e709b74fcbc0",
+      "source_path": "skills/blitz-list-builder/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 1
+    },
+    {
+      "skill": "disco-like",
+      "source": "Gully678/coldoutboundskills",
+      "current_pin": "25c5d85fbb5dd3efec97b0ca457cbbc286547476",
+      "current_source_blob": "2dee23acb89f998e8e8ba9c276ff48621c16f2b0",
+      "source_path": "skills/disco-like/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 1
+    },
+    {
+      "skill": "call-summary",
+      "source": "Gully678/knowledge-work-plugins",
+      "current_pin": "c75fda00ff0e41c8ee331ae312c8a07f1967653b",
+      "current_source_blob": "ce36c1531645d4bc7a10330acfbf579f793a3d02",
+      "source_path": "sales/skills/call-summary/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 1
+    },
+    {
+      "skill": "seo-plan",
+      "source": "Gully678/claude-seo",
+      "current_pin": "6be93f45064ffbadced572b5d5c95f55fd263af0",
+      "current_source_blob": "f2a6729652575082b7d603d5beab9e8602cd5e3a",
+      "source_path": "skills/seo-plan/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 1
+    },
+    {
+      "skill": "taste-skill",
+      "source": "Gully678/taste-skill",
+      "current_pin": "12af471f627f866411b4bd785b19646d3672784c",
+      "current_source_blob": "d8444f13b76be100b3b088dfdae738e85288d6b6",
+      "source_path": "skills/taste-skill/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 2
+    },
+    {
+      "skill": "ai-seo",
+      "source": "Gully678/marketingskills",
+      "current_pin": "17772c7a80b7b8c7a47af30f648374cd8bd8adc5",
+      "current_source_blob": "547cc3228eaecb70713efc903a98e990477bec80",
+      "source_path": "skills/ai-seo/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 2
+    },
+    {
+      "skill": "scroll-craft",
+      "source": "Gully678/scroll-craft",
+      "current_pin": "75d81f74e83692add18cd7a8a8e078b8a887a579",
+      "current_source_blob": "ac879a75e6b8a07cf1c431d421623bb954d3caba",
+      "source_path": "plugins/nateherk-design/skills/scroll-craft/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 2
+    },
+    {
+      "skill": "seo-images",
+      "source": "Gully678/claude-seo",
+      "current_pin": "6be93f45064ffbadced572b5d5c95f55fd263af0",
+      "current_source_blob": "b4a584ac50628ded815c6418fb55d6b4da60a563",
+      "source_path": "skills/seo-images/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 2
+    },
+    {
+      "skill": "seo-dataforseo",
+      "source": "Gully678/claude-seo",
+      "current_pin": "6be93f45064ffbadced572b5d5c95f55fd263af0",
+      "current_source_blob": "02cd0515e669c22481c1ab22f7dfd11972338d91",
+      "source_path": "skills/seo-dataforseo/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 2
+    },
+    {
+      "skill": "launch",
+      "source": "Gully678/marketingskills",
+      "current_pin": "17772c7a80b7b8c7a47af30f648374cd8bd8adc5",
+      "current_source_blob": "b7783f50953c77cfc1d21fab4425549c2cd3ac33",
+      "source_path": "skills/launch/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 2
+    },
+    {
+      "skill": "seo-geo",
+      "source": "Gully678/claude-seo",
+      "current_pin": "6be93f45064ffbadced572b5d5c95f55fd263af0",
+      "current_source_blob": "b52a0745b06ed05c9e70487143a059a74e6288ab",
+      "source_path": "skills/seo-geo/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 2
+    },
+    {
+      "skill": "seo-cluster",
+      "source": "Gully678/claude-seo",
+      "current_pin": "6be93f45064ffbadced572b5d5c95f55fd263af0",
+      "current_source_blob": "7286d5054bb3443c0da39f412f805b089e9429bf",
+      "source_path": "skills/seo-cluster/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 2
+    },
+    {
+      "skill": "co-marketing",
+      "source": "Gully678/marketingskills",
+      "current_pin": "17772c7a80b7b8c7a47af30f648374cd8bd8adc5",
+      "current_source_blob": "dddee717713ca6d2b87032d148779305f396148d",
+      "source_path": "skills/co-marketing/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 2
+    },
+    {
+      "skill": "marketing-plan",
+      "source": "Gully678/marketingskills",
+      "current_pin": "17772c7a80b7b8c7a47af30f648374cd8bd8adc5",
+      "current_source_blob": "aac98990a566ed27964d9e7e56e9c67a6ae3f740",
+      "source_path": "skills/marketing-plan/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 2
+    },
+    {
+      "skill": "copywriting",
+      "source": "Gully678/marketingskills",
+      "current_pin": "17772c7a80b7b8c7a47af30f648374cd8bd8adc5",
+      "current_source_blob": "e70bd2e1f4e96cb94ef69b3899150950b0128be5",
+      "source_path": "skills/copywriting/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 2
+    },
+    {
+      "skill": "auto-research-public",
+      "source": "Gully678/coldoutboundskills",
+      "current_pin": "25c5d85fbb5dd3efec97b0ca457cbbc286547476",
+      "current_source_blob": "c0201072ad20152e262fba5fb3f0d22b08d29557",
+      "source_path": "skills/auto-research-public/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 2
+    },
+    {
+      "skill": "draft-outreach",
+      "source": "Gully678/knowledge-work-plugins",
+      "current_pin": "c75fda00ff0e41c8ee331ae312c8a07f1967653b",
+      "current_source_blob": "b58c386f6a3081592331773c6f4e7e240ac8ddcd",
+      "source_path": "sales/skills/draft-outreach/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 2
+    },
+    {
+      "skill": "list-builder",
+      "source": "Gully678/coldoutboundskills",
+      "current_pin": "25c5d85fbb5dd3efec97b0ca457cbbc286547476",
+      "current_source_blob": "1195ba3ce36c4d29f685168e22ff893b7a59247c",
+      "source_path": "skills/list-builder/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 2
+    },
+    {
+      "skill": "seo-sxo",
+      "source": "Gully678/claude-seo",
+      "current_pin": "6be93f45064ffbadced572b5d5c95f55fd263af0",
+      "current_source_blob": "731b7bc107b90eb392e8217f313e3bf64f37301c",
+      "source_path": "skills/seo-sxo/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 2
+    },
+    {
+      "skill": "smartlead-inbox-manager",
+      "source": "Gully678/coldoutboundskills",
+      "current_pin": "25c5d85fbb5dd3efec97b0ca457cbbc286547476",
+      "current_source_blob": "ddad4c643bb6ec7a1c13770b668a8ef0424b6967",
+      "source_path": "skills/smartlead-inbox-manager/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 2
+    },
+    {
+      "skill": "seo-content-brief",
+      "source": "Gully678/claude-seo",
+      "current_pin": "6be93f45064ffbadced572b5d5c95f55fd263af0",
+      "current_source_blob": "53e6908bd25d4e532878993c7031f91682857372",
+      "source_path": "skills/seo-content-brief/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 2
+    },
+    {
+      "skill": "seo-drift",
+      "source": "Gully678/claude-seo",
+      "current_pin": "6be93f45064ffbadced572b5d5c95f55fd263af0",
+      "current_source_blob": "61b8cf52ac6762ef56f029e08b9b913e383edccc",
+      "source_path": "skills/seo-drift/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 2
+    },
+    {
+      "skill": "influencer-marketing",
+      "source": "Gully678/marketingskills",
+      "current_pin": "17772c7a80b7b8c7a47af30f648374cd8bd8adc5",
+      "current_source_blob": "0766bba3bd2bde03dc8dc92b87502f95028fd4d8",
+      "source_path": "skills/influencer-marketing/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 2
+    },
+    {
+      "skill": "free-tools",
+      "source": "Gully678/marketingskills",
+      "current_pin": "17772c7a80b7b8c7a47af30f648374cd8bd8adc5",
+      "current_source_blob": "93c98b272bc8efe9c6b778f8305cee0b622038ce",
+      "source_path": "skills/free-tools/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 2
+    },
+    {
+      "skill": "seo-programmatic",
+      "source": "Gully678/claude-seo",
+      "current_pin": "6be93f45064ffbadced572b5d5c95f55fd263af0",
+      "current_source_blob": "c2791a5ccd4a6cc0b47fd13f40a4f5cb8f3381bb",
+      "source_path": "skills/seo-programmatic/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 2
+    },
+    {
+      "skill": "list-quality-scorecard",
+      "source": "Gully678/coldoutboundskills",
+      "current_pin": "25c5d85fbb5dd3efec97b0ca457cbbc286547476",
+      "current_source_blob": "ebe4ad2d1ffe6347b252927d0b5b4856f90d55a8",
+      "source_path": "skills/list-quality-scorecard/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 2
+    },
+    {
+      "skill": "daily-briefing",
+      "source": "Gully678/knowledge-work-plugins",
+      "current_pin": "c75fda00ff0e41c8ee331ae312c8a07f1967653b",
+      "current_source_blob": "55eb1774a183dad372e1dff8926bf99b48e54821",
+      "source_path": "sales/skills/daily-briefing/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 2
+    },
+    {
+      "skill": "offers",
+      "source": "Gully678/marketingskills",
+      "current_pin": "17772c7a80b7b8c7a47af30f648374cd8bd8adc5",
+      "current_source_blob": "e5230f3e67e298dc82b77abb247238882674eb63",
+      "source_path": "skills/offers/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 2
+    },
+    {
+      "skill": "seo-flow",
+      "source": "Gully678/claude-seo",
+      "current_pin": "6be93f45064ffbadced572b5d5c95f55fd263af0",
+      "current_source_blob": "39efcf1f202fbb7b17d799362169a8f5f581a8c3",
+      "source_path": "skills/seo-flow/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 2
+    },
+    {
+      "skill": "marketing-loops",
+      "source": "Gully678/marketingskills",
+      "current_pin": "17772c7a80b7b8c7a47af30f648374cd8bd8adc5",
+      "current_source_blob": "7dd6d8f92b4ee7212b53374fb528d4259bf8bda9",
+      "source_path": "skills/marketing-loops/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 2
+    },
+    {
+      "skill": "google-maps-list-builder",
+      "source": "Gully678/coldoutboundskills",
+      "current_pin": "25c5d85fbb5dd3efec97b0ca457cbbc286547476",
+      "current_source_blob": "1d5dd348d654a51061300639a0c2b19271b2b8c9",
+      "source_path": "skills/google-maps-list-builder/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 3
+    },
+    {
+      "skill": "mkt-seo-audit",
+      "source": "Gully678/marketingskills",
+      "current_pin": "17772c7a80b7b8c7a47af30f648374cd8bd8adc5",
+      "current_source_blob": "e0a41d8c46c06d1e33ce5295c0f303a94d8f6c5b",
+      "source_path": "skills/seo-audit/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 3
+    },
+    {
+      "skill": "ads",
+      "source": "Gully678/marketingskills",
+      "current_pin": "17772c7a80b7b8c7a47af30f648374cd8bd8adc5",
+      "current_source_blob": "a864cbc9090984e9f74110fb38da0ceb2b577d6e",
+      "source_path": "skills/ads/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 3
+    },
+    {
+      "skill": "ad-creative",
+      "source": "Gully678/marketingskills",
+      "current_pin": "17772c7a80b7b8c7a47af30f648374cd8bd8adc5",
+      "current_source_blob": "888beed0b913726e79e81201323a6acb4f879dc9",
+      "source_path": "skills/ad-creative/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 3
+    },
+    {
+      "skill": "social",
+      "source": "Gully678/marketingskills",
+      "current_pin": "17772c7a80b7b8c7a47af30f648374cd8bd8adc5",
+      "current_source_blob": "602451c83630228a8de3c643b0a271f7ce6e130e",
+      "source_path": "skills/social/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 3
+    },
+    {
+      "skill": "seo-ecommerce",
+      "source": "Gully678/claude-seo",
+      "current_pin": "6be93f45064ffbadced572b5d5c95f55fd263af0",
+      "current_source_blob": "6ffd57c239d2346f2ed482f88634136a5136da33",
+      "source_path": "skills/seo-ecommerce/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 3
+    },
+    {
+      "skill": "seo-google",
+      "source": "Gully678/claude-seo",
+      "current_pin": "6be93f45064ffbadced572b5d5c95f55fd263af0",
+      "current_source_blob": "699d3118ef629474b1768e1592cd49da9a60c4b9",
+      "source_path": "skills/seo-google/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 3
+    },
+    {
+      "skill": "analytics",
+      "source": "Gully678/marketingskills",
+      "current_pin": "17772c7a80b7b8c7a47af30f648374cd8bd8adc5",
+      "current_source_blob": "4ae578717344df70ade772e7712c6e151d9c9e36",
+      "source_path": "skills/analytics/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 3
+    },
+    {
+      "skill": "seo-local",
+      "source": "Gully678/claude-seo",
+      "current_pin": "6be93f45064ffbadced572b5d5c95f55fd263af0",
+      "current_source_blob": "2bbd3e88a0f2770c1d94f8c488f39723eac73250",
+      "source_path": "skills/seo-local/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 3
+    },
+    {
+      "skill": "seo",
+      "source": "Gully678/claude-seo",
+      "current_pin": "6be93f45064ffbadced572b5d5c95f55fd263af0",
+      "current_source_blob": "723ff9b47b9af3d4a79fc6d7d7a3da0a64a2f3d5",
+      "source_path": "skills/seo/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 3
+    },
+    {
+      "skill": "pricing",
+      "source": "Gully678/marketingskills",
+      "current_pin": "17772c7a80b7b8c7a47af30f648374cd8bd8adc5",
+      "current_source_blob": "7497dc500404081ed175c56db26b36de7264c246",
+      "source_path": "skills/pricing/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 3
+    },
+    {
+      "skill": "product-marketing",
+      "source": "Gully678/marketingskills",
+      "current_pin": "17772c7a80b7b8c7a47af30f648374cd8bd8adc5",
+      "current_source_blob": "3af463a602aa0233c4d5fc98c23ba13224aa8f6b",
+      "source_path": "skills/product-marketing/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 3
+    },
+    {
+      "skill": "referrals",
+      "source": "Gully678/marketingskills",
+      "current_pin": "17772c7a80b7b8c7a47af30f648374cd8bd8adc5",
+      "current_source_blob": "d5fb5946d0a033de986d47205afb3a80bdae9e04",
+      "source_path": "skills/referrals/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 3
+    },
+    {
+      "skill": "competitors",
+      "source": "Gully678/marketingskills",
+      "current_pin": "17772c7a80b7b8c7a47af30f648374cd8bd8adc5",
+      "current_source_blob": "bd0f0f49a616e9386a40020b7d6bc6c3c5520676",
+      "source_path": "skills/competitors/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 3
+    },
+    {
+      "skill": "onboarding",
+      "source": "Gully678/marketingskills",
+      "current_pin": "17772c7a80b7b8c7a47af30f648374cd8bd8adc5",
+      "current_source_blob": "4a1dd1fc50ef61c45d07e3f980655b8ed7b4245c",
+      "source_path": "skills/onboarding/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 3
+    },
+    {
+      "skill": "email-deliverability-audit",
+      "source": "Gully678/coldoutboundskills",
+      "current_pin": "25c5d85fbb5dd3efec97b0ca457cbbc286547476",
+      "current_source_blob": "6e6c7a9371752dfa2cce9a703918715177ec06ad",
+      "source_path": "skills/email-deliverability-audit/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 3
+    },
+    {
+      "skill": "deliverability-incident-response",
+      "source": "Gully678/coldoutboundskills",
+      "current_pin": "25c5d85fbb5dd3efec97b0ca457cbbc286547476",
+      "current_source_blob": "8c756d74d072256655dcbd52176472d9366ed538",
+      "source_path": "skills/deliverability-incident-response/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 3
+    },
+    {
+      "skill": "seo-competitor-pages",
+      "source": "Gully678/claude-seo",
+      "current_pin": "6be93f45064ffbadced572b5d5c95f55fd263af0",
+      "current_source_blob": "47fddaf7d1c9bfe1509cd3777ae6485d4c8755db",
+      "source_path": "skills/seo-competitor-pages/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 3
+    },
+    {
+      "skill": "icp-prompt-builder",
+      "source": "Gully678/coldoutboundskills",
+      "current_pin": "25c5d85fbb5dd3efec97b0ca457cbbc286547476",
+      "current_source_blob": "4104dbe3d5c8079381c40682b344edbe50f91c05",
+      "source_path": "skills/icp-prompt-builder/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 3
+    },
+    {
+      "skill": "account-research",
+      "source": "Gully678/knowledge-work-plugins",
+      "current_pin": "c75fda00ff0e41c8ee331ae312c8a07f1967653b",
+      "current_source_blob": "ea4335aaba62a2c4ffb4b1fcac7bfb0536679f5c",
+      "source_path": "sales/skills/account-research/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 3
+    },
+    {
+      "skill": "seo-schema",
+      "source": "Gully678/claude-seo",
+      "current_pin": "6be93f45064ffbadced572b5d5c95f55fd263af0",
+      "current_source_blob": "ce2747efaa221516e4bca54587c510fae33f70ca",
+      "source_path": "skills/seo-schema/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 3
+    },
+    {
+      "skill": "seo-image-gen",
+      "source": "Gully678/claude-seo",
+      "current_pin": "6be93f45064ffbadced572b5d5c95f55fd263af0",
+      "current_source_blob": "23b00e92b234da94c941fa31dceb93ee924c2d62",
+      "source_path": "skills/seo-image-gen/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 3
+    },
+    {
+      "skill": "seo-sitemap",
+      "source": "Gully678/claude-seo",
+      "current_pin": "6be93f45064ffbadced572b5d5c95f55fd263af0",
+      "current_source_blob": "d437c023a044bd6d3e90ed31fa601137b54c667c",
+      "source_path": "skills/seo-sitemap/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 3
+    },
+    {
+      "skill": "forecast",
+      "source": "Gully678/knowledge-work-plugins",
+      "current_pin": "c75fda00ff0e41c8ee331ae312c8a07f1967653b",
+      "current_source_blob": "f5243f9efee55a4fe1c5e25f026f04ba7f8527d4",
+      "source_path": "sales/skills/forecast/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 3
+    },
+    {
+      "skill": "public-relations",
+      "source": "Gully678/marketingskills",
+      "current_pin": "17772c7a80b7b8c7a47af30f648374cd8bd8adc5",
+      "current_source_blob": "8d22dda1818030da53554531d23f1b78547b93a6",
+      "source_path": "skills/public-relations/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 3
+    },
+    {
+      "skill": "competitor-engagers",
+      "source": "Gully678/coldoutboundskills",
+      "current_pin": "25c5d85fbb5dd3efec97b0ca457cbbc286547476",
+      "current_source_blob": "1c640af9dabddb386ce7767f9a345e438b8fa9ed",
+      "source_path": "skills/competitor-engagers/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 3
+    },
+    {
+      "skill": "seo-page",
+      "source": "Gully678/claude-seo",
+      "current_pin": "6be93f45064ffbadced572b5d5c95f55fd263af0",
+      "current_source_blob": "69eb6a19a82225bb39eea3b4e91f19e27cfd5da6",
+      "source_path": "skills/seo-page/SKILL.md",
+      "full_current_body_read": true,
+      "full_unified_diff_read": true,
+      "review_group": 3
+    }
+  ]
+}

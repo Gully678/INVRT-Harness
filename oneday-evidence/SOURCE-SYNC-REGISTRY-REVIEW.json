@@ -1,0 +1,148 @@
+{
+  "verdict": "CHANGES REQUIRED",
+  "commit": "89ff51c64615c17bcaf4c2d03e85154c275ded54",
+  "rowsSampled": 16,
+  "grounded": 16,
+  "findings": [
+    {
+      "id": "F1",
+      "severity": "medium",
+      "category": "honest-status/doc-accuracy",
+      "path": "scripts/source-sync/README.md",
+      "lines": "31, 66",
+      "trigger": "README claims the committed coverage-2026-10-27-SEMANTIC-COVERAGE.json is a byte-identical copy of ALL-SYNCED-SOURCES-SEMANTIC-COVERAGE.json",
+      "consequence": "Claim is false: sha256 original 4234dc930599bb7327137e9a727027cb34dc2d27914100332c71c354a12dc3e7 vs copy 0527a10d676a644eee7d91a8321d5c1534643b0d0400cbc412ac0b5dee92e2e4; cmp differs at char 133/line 5; 794 vs 792 lines. Parsed JSON identical (re-serialised copy), so no data-integrity impact, but the contract document states a falsehood.",
+      "verification": "shasum -a 256 both files; cmp; python json equality (True).",
+      "fix": "Re-copy byte-exact from the review wave, or reword both lines to 'semantically identical (re-serialised) copy'."
+    },
+    {
+      "id": "F2",
+      "severity": "low",
+      "category": "doc-accuracy/breakage",
+      "path": "scripts/source-sync/README.md",
+      "lines": "49",
+      "trigger": "Documented test invocation 'vp test run --config ../vite.config.ts --dir .' from the scripts workspace",
+      "consequence": "No ../vite.config.ts exists relative to scripts/source-sync (ls exit 1); the documented command fails for the next agent. Working invocation: 'pnpm exec vp test run --config ../../vite.config.ts --dir .' (14/14, exit 0).",
+      "verification": "ls ../vite.config.ts -> No such file or directory; corrected invocation ran 14/14 exit 0.",
+      "fix": "Change the README path to ../../vite.config.ts."
+    },
+    {
+      "id": "F3",
+      "severity": "low",
+      "category": "hardening",
+      "path": "scripts/source-sync/registry.ts",
+      "lines": "228-236 (gitCrossCheck handling)",
+      "trigger": "gitCrossCheck is validated only as isRecord; sha-shaped strings inside reachable[], ancestors and commitSubjectsBind are never checked against the 40-hex COMMIT_SHA rule before interpolation into git argv",
+      "consequence": "A crafted value beginning with '-' could inject a git option (e.g. 'git log -1 --format=%B --output=<path>' file-write). No shell is used (spawnSync argv array), and the registry is committed reviewed data, so exploitability is low; malformed cross-check data currently reaches git instead of failing validation with a named code.",
+      "verification": "Code read of toEntry (registry.ts lines 228-236); git argv sites at check-source-registry.ts lines 155/164/173-174.",
+      "fix": "Validate all gitCrossCheck sha fields with the existing COMMIT_SHA regex and add a validator negative test."
+    },
+    {
+      "id": "F4",
+      "severity": "info",
+      "category": "scope-note",
+      "path": "scripts/source-sync/check-source-registry.ts",
+      "lines": "59-100, 251-257",
+      "trigger": "The check enforces internal totals, not per-row distribution or document grounding; deleting an entry's gitCrossCheck data keeps findings=0",
+      "consequence": "None today: within the stated internal-consistency contract for slice 1. Noted so the check is not mistaken for document verification.",
+      "verification": "Code read; sum-based comparisons only.",
+      "fix": "Optional in a later slice: document-grounding cross-check and a minimum expected cross-check set."
+    },
+    {
+      "id": "F5",
+      "severity": "info",
+      "category": "doc-completeness",
+      "path": "scripts/source-sync/README.md",
+      "lines": "-",
+      "trigger": "No fmt-scope caveat in the README (audit duty expectation)",
+      "consequence": "Contract wording incomplete; fmt verified clean by the auditor on the six slice files regardless.",
+      "verification": "grep 'fmt|format' README.md matches only the sha-format line.",
+      "fix": "Optional one sentence stating the fmt check scope."
+    }
+  ],
+  "gatesRerun": {
+    "tests": {
+      "command": "pnpm exec vp test run --config ../../vite.config.ts --dir . (from scripts/source-sync)",
+      "result": "14 passed (14)",
+      "exit": 0
+    },
+    "checkEntry": {
+      "command": "node check-source-registry.ts",
+      "stdout": "source-registry OK: entries=41 gitCrossChecks=2 findings=0",
+      "exit": 0
+    },
+    "tscScoped": {
+      "command": "pnpm exec tsc --noEmit -p tsconfig.json (from scripts/)",
+      "exit": 0,
+      "note": "per-file tsc --noEmit is not the repo convention (TS5112 when a project tsconfig exists); scoped project run is the working invocation"
+    },
+    "lint": {
+      "command": "pnpm exec vp lint registry.ts check-source-registry.ts registry.test.ts check-source-registry.test.ts",
+      "result": "Found 0 warnings and 0 errors (4 files, 200 rules)",
+      "exit": 0
+    },
+    "fmt": {
+      "command": "pnpm exec vp fmt --check <6 slice files>",
+      "result": "All matched files use the correct format.",
+      "exit": 0
+    },
+    "lockfile": "churned by pnpm during runs; restored via git restore pnpm-lock.yaml; final git status --porcelain empty"
+  },
+  "mutationProbe": {
+    "countCorruption": {
+      "action": "temp registry copy with summary.admittedRecords 795->796, run via --registry flag",
+      "expected": "non-zero exit with named finding",
+      "observed": "exit 1; 'FAIL summary-admitted-records-mismatch per-entry packsRecords sum to 795 but summary.admittedRecords=796'",
+      "pass": true
+    },
+    "ruleRemoval": {
+      "action": "removed adopted-without-pin rule from a working-tree copy of registry.ts (uncommitted), ran the slice tests",
+      "expected": "exactly the adopted-without-pin test fails",
+      "observed": "1 failed ('rejects adopted without a pin') | 13 passed",
+      "pass": true
+    },
+    "restore": {
+      "sha256Before": "79fc0feea56611f87bffc08ebec089432b744faa8655a3bb94dec8e5ece6eba1",
+      "sha256After": "79fc0feea56611f87bffc08ebec089432b744faa8655a3bb94dec8e5ece6eba1",
+      "byteExact": true
+    },
+    "artifacts": "/tmp/b01-claude/registry-audit/"
+  },
+  "grounding": {
+    "rowsSampledDetail": 16,
+    "allIdsInInventory": "41/41 (inventory has exactly 41 entries; zero owner or forkOf mismatches across all rows)",
+    "pinsVerified": "14/14 sha pins found in named documents (12 full-sha exact; grill and fusion full-sha in inventory with prefixes in packet/checklist); zero invented hashes",
+    "pinPending": "26 rows pin:null with no documented consumed sha",
+    "packsRecords": "17/17 values match the checklist table; sum 795",
+    "changedBodies": "per-source 25/13/1/9/1/27/1/1 equals SEMANTIC-COVERAGE rows; sum 78",
+    "missingPaths": "23 = 12 taste-skill + 11 monti-forge verified in preservation doc",
+    "coverageCopy": "parsed-identical, NOT byte-identical (finding F1)",
+    "gitCrossChecks": "70eccd48 reachable and ancestor of 790ba13d0c (verified); 98422997 reachable (verified); 5b0f7fb84 subject binds 790ba13d0c (verified); evidence file binds all three shas (grep counts 1/4/1)",
+    "tddCorroboration": "/tmp/b01-claude/source-sync/red.log 'Tests 14 failed (14)' with NOT IMPLEMENTED stubs; green logs 'Tests 14 passed (14)'; builder mutation.log matches auditor probe B"
+  },
+  "boundaries": {
+    "diff": "exactly 7 files under scripts/source-sync/, +2418 vs parent d6191bcd5655b770f2e84d61238022e46aa6c858",
+    "lockfileInCommit": false,
+    "productSourceTouched": false,
+    "pushOrCommits": "none by auditor; tree clean after lockfile restore"
+  },
+  "honestStatus": {
+    "noFetchAutomationClaimed": true,
+    "reaReachabilityOnly": true,
+    "fmtScopeCaveatPresent": false,
+    "byteIdenticalClaimTrue": false
+  },
+  "label": "SAME-HARNESS INTERNAL AUDIT",
+  "auditor": "ZCode GLM 5.3 Flash, fresh context",
+  "date": "2026-10-27",
+  "skillsLoaded": [
+    "production-audit",
+    "production-guardrails",
+    "ai-native-agent",
+    "invrt-concise-code",
+    "verification-before-completion",
+    "code-review"
+  ],
+  "requiredFixesForPass": ["F1", "F2"],
+  "recommendedFixes": ["F3", "F5"]
+}
