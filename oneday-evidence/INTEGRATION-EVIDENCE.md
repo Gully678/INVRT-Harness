@@ -23,3 +23,10 @@ Coordinator: ZCode harness, model builtin:zai-coding-plan/GLM-5.3-Flash. Same-ha
 ## Desktop packaging
 
 - pnpm run dist:desktop:dmg:x64 launched on the integrated tree (log /tmp/oneday-dmg-build.log); result recorded in the release manifest when complete. Host: Intel x64, macOS 26.7; UNSIGNED local development build.
+
+## Desktop install and launch journey (27 October)
+
+- DMG mounted, identity verified from Info.plist: CFBundleIdentifier com.invrt.code, CFBundleName/DisplayName INVRT Code. Copied to /Applications/INVRT Code.app (retained as the usable local deliverable), quarantine xattr cleared for the unsigned local build, DMG detached.
+- Launch with isolated app data: T3CODE_DESKTOP_APP_DATA_DIR=/tmp/oneday-desktop-appdata, auto-update disabled. Main PID 51068 plus gpu/network/renderer helpers running with --user-data-dir=/tmp/oneday-desktop-appdata/t3code-v2 (isolation verified in the live process arguments). Quit by exact PID; all INVRT Code processes verified gone.
+- Honest visual capture: a screencapture was taken but the host screen was occupied by fullscreen video and a pending ZCode automation permission dialog; the app window was not visible in the frame. The image was deleted (private screen content, no product evidence value); window-level visual proof is NOT CLAIMED. Launch acceptance rests on the process-tree and isolation evidence above.
+- Rollback documented in INVRT-CODE-INSTALL-AND-ROLLBACK.md (trash app + chosen app-data dir).
