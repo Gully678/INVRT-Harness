@@ -181,7 +181,12 @@
         "@react-native-menu/menu",
         "expo-audio",
         "expo-network"
-      ]
+      ],
+      "ios": {
+        "exclude": [
+          "@t3tools/mobile-terminal-native"
+        ]
+      }
     }
   },
   "reanimated": {
