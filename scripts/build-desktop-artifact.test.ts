@@ -41,6 +41,7 @@ import {
   resolveMacPasskeySigningConfiguration,
   resolveMergedStageDependencies,
   resolveBuildOptions,
+  resolveDesktopProductName,
   stageWslRuntimeArchive,
   ancestorNodeModulesPaths,
   copyDirectoryPreservingSymlinks,
@@ -522,6 +523,12 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
       ),
     ),
   );
+
+  // The packaged artifact names must carry the product brand on every channel.
+  it("names packaged desktop artifacts INVRT Code on nightly and stable channels", () => {
+    assert.equal(resolveDesktopProductName("0.0.40-nightly.20260912.1589"), "INVRT Code (Nightly)");
+    assert.equal(resolveDesktopProductName("0.0.40"), "INVRT Code");
+  });
 
   // pnpm writes "set this to true or false" placeholders into allowBuilds when a
   // tarball changes. pnpm ignores them, but the release build decode rejects them.
