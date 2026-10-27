@@ -1,0 +1,87 @@
+{
+  "lane": "mobile REBUILD (iOS dev-client from integrated tree)",
+  "programme": "ONE-DAY INVRT Code",
+  "date": "2026-10-27",
+  "harness": "ZCode",
+  "builder_model": "builtin:zai-coding-plan/GLM-5.3-Flash (recorded honestly; ZCode does not route models)",
+  "skills_loaded": [
+    "production-guardrails",
+    "production-audit",
+    "ai-native-agent",
+    "invrt-concise-code",
+    "react-native-expert"
+  ],
+  "worktree": "/Users/mac/Repos/.worktrees/invrt-oneday-integration-20261027",
+  "branch": "invrt/oneday-integration-20261027",
+  "head_at_start": "8b1d75a5b1ae802fca69ed9d7e8fa2e7de11e168",
+  "outcome": "BUILD SUCCEEDED exit 0 on first xcodebuild attempt from the integrated tree; installed, launched; artifact carries INVRT Code identity",
+  "identity": {
+    "display_name_at_launch": "INVRT Code Dev",
+    "bundle_id_at_launch": "com.t3tools.t3code.dev",
+    "cfbundledisplayname_plist": "INVRT Code Dev",
+    "cfbundleidentifier_plist": "com.t3tools.t3code.dev",
+    "cfbundleexecutable": "INVRTCodeDev",
+    "cfbunshortversionstring": "2.1.0"
+  },
+  "scheme_used": "INVRTCodeDev",
+  "workspace": "apps/mobile/ios/INVRTCodeDev.xcworkspace",
+  "commands": {
+    "prebuild": "APP_VARIANT=development EXPO_NO_GIT_STATUS=1 npx expo prebuild --clean --platform ios (exit 0)",
+    "scheme_discovery": "xcodebuild -list -workspace INVRTCodeDev.xcworkspace",
+    "build": "xcodebuild -workspace INVRTCodeDev.xcworkspace -scheme INVRTCodeDev -configuration Debug -sdk iphonesimulator -destination 'id=6E80DC3B-E855-4FC0-83CE-098FF073ACBD' -derivedDataPath /tmp/ios-rebuild/dd build (BUILD SUCCEEDED, exit 0)",
+    "install": "xcrun simctl install 6E80DC3B-E855-4FC0-83CE-098FF073ACBD INVRTCodeDev.app (install-ok)",
+    "launch": "xcrun simctl launch 6E80DC3B-E855-4FC0-83CE-098FF073ACBD com.t3tools.t3code.dev (printed com.t3tools.t3code.dev: 65934)",
+    "process_proof": "launchctl list showed 65934 UIKitApplication:com.t3tools.t3code.dev 14s after launch",
+    "screenshot": "xcrun simctl io 6E80DC3B-E855-4FC0-83CE-098FF073ACBD screenshot oneday-evidence/ios-sim-INVRT-launch.png"
+  },
+  "simulator": {
+    "device": "iPhone 17 Pro",
+    "udid": "6E80DC3B-E855-4FC0-83CE-098FF073ACBD",
+    "runtime": "iOS 26.5",
+    "final_state": "Shutdown (verified by simctl list)"
+  },
+  "screenshot": {
+    "path": "oneday-evidence/ios-sim-INVRT-launch.png",
+    "sha256": "a1ae6c25416fe5e7187031f799376f5d7531dfccba1742cf67b3e6b7c5e5fa55"
+  },
+  "actool_workaround": {
+    "applied": true,
+    "when": "proactively before first build (deviation recorded)",
+    "icon_source": "repo-root assets/dev/blueprint-ios-1024.png (current INVRT dev icon, sips 1024x1024)",
+    "changes": [
+      "created apps/mobile/ios/INVRTCodeDev/Images.xcassets/app-icon.appiconset/ (Contents.json single 1024 universal entry + icon-1024.png)",
+      "deleted 4 app-icon.icon lines from apps/mobile/ios/INVRTCodeDev.xcodeproj/project.pbxproj (post-count 0; plutil -lint OK)"
+    ],
+    "scope": "gitignored generated output only; not committed; re-applied on every prebuild --clean until an upstream actool fix"
+  },
+  "ghosttykit_blocker": "did not recur; integrated package.json expo.autolinking.ios.exclude @t3tools/mobile-terminal-native verified present",
+  "lockfile_churn": "none this lane (vp present so pnpm install was not run; pnpm-lock.yaml untouched)",
+  "cleanup": {
+    "simulator": "shut down, exit 0, listed Shutdown",
+    "app": "terminated, exit 0",
+    "tmp_scratch": "/tmp/ios-rebuild (6.2 GB incl DerivedData) deleted, path absent",
+    "worktree_delta": "only the two IOS-REBUILD-EVIDENCE files plus the screenshot, committed by explicit path",
+    "foreign_items_untouched": [
+      "oneday-evidence/INTEGRATION-EVIDENCE.md (pre-existing modification)",
+      ".integrated-server-state/",
+      "dist-package/INVRT-CODE-SERVER.tar.gz"
+    ]
+  },
+  "proven": [
+    "build from integrated tree succeeds with INVRT identity in artifact",
+    "display name INVRT Code Dev at launch (screenshot)",
+    "bundle id com.t3tools.t3code.dev preserved",
+    "install and sustained launch on iPhone 17 Pro iOS 26.5 simulator"
+  ],
+  "not_done": [
+    "Metro JS bundle load in-app (needs one OS confirmation tap unavailable to this harness)",
+    "in-app server pairing (needs tap plus Mark-owned one-time token)",
+    "Clerk sign-in (no credentials in tree)",
+    "real-device build/install (needs signing identity)",
+    "push notifications and full deep-link journey",
+    "signed release Archive",
+    "Android (no SDK/JDK/adb on machine; needs owner authorisation)"
+  ],
+  "commit": "sha recorded in git log after commit of oneday-evidence/IOS-REBUILD-EVIDENCE.md, oneday-evidence/IOS-REBUILD-EVIDENCE.json, oneday-evidence/ios-sim-INVRT-launch.png",
+  "pushed": false
+}
