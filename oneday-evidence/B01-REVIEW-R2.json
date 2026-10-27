@@ -1,0 +1,102 @@
+{
+  "verdict": "PASS",
+  "commit": "50cbcd868405c2f8db6db4ac0f9b347bccce074e",
+  "round": 2,
+  "round1Closure": {
+    "F-1": {
+      "status": "CLOSED",
+      "evidence": "admitBuildComplete resolves input.requestingRun.runId via port.resolveRunRecord with the aggregate orgId (programmeDomain.ts L802-813); null denies capability_unavailable; role/task/owner/assignee, approval environment, attempt key and frozen builderRunId all come from the resolved record; body run fields used only as the lookup key (grep L803, L809); startReview takes no run body; recordReview resolves both runs org-scoped (L993, L1011); tests: forged-role denial (test L564, ProgrammeForbiddenError) and body-vs-resolved environment mismatch (test L585, ProgrammePolicyDeniedError)"
+    },
+    "F-2": {
+      "status": "CLOSED",
+      "evidence": "recordReview enforces accepted-only after every gate: incomplete throws ProgrammeEvidenceMissingError, rejected throws ProgrammeInvalidRequestError (L1146-1157), both before updated/commitReceipt so rejected/incomplete mutate nothing; tests assert the exact tags plus state reviewQueued and revision 7 (test L888, L899); residual N-1 recorded for declared lineageCheck/coverage labels"
+    },
+    "F-3": {
+      "status": "CLOSED",
+      "evidence": "requireApprovalCovering takes targetId and denies policy_denied when targetIds does not include it (L613, L640-641); admitBuildComplete passes the work item id (L835); only caller is admitBuildComplete so the check lands on the right mutation; positive control test L696 and denial test L704"
+    },
+    "F-4": {
+      "status": "CLOSED",
+      "evidence": "resolveRunRecord/resolveEvidenceRecord/resolveSourceRecord now require orgId (interface L485-498) and all five call sites pass the aggregate org (L802, L993, L1011, L1086, L1106); test L711 captures the orgId seen by resolveRunRecord across both mutations and asserts it is always ORG with a null-returning foreign-org wrapper"
+    },
+    "F-5": {
+      "status": "CLOSED",
+      "evidence": "commit-message actuals verified by grep against current source: requireApprovalCovering L602, admitBuildComplete L768, recordReview L955, all exact; old L756 offset consistent with the 6ff1de76 layout; graph correction recorded as bookkeeping per the commit message and round-1 recount"
+    },
+    "F-6": {
+      "status": "CLOSED",
+      "evidence": "typed-errors test replaced tag distinctness with exact _tag equality for 9 classes plus payload-field assertions (frozenCommit/currentCommit, suggestedDisposition/missingCoverage, attempts/maxAttempts), test L1042-1083; no round-1 assertion weakened (diff 6ff1de76..HEAD reviewed)"
+    }
+  },
+  "newFindings": [
+    {
+      "id": "N-1",
+      "severity": "low",
+      "title": "Declared review.lineageCheck/coverage labels not validated against the derived gates",
+      "path": "packages/contracts/src/programmeDomain.ts",
+      "lines": "recordReview returns input.review unchanged (L1167); derived lineage comparison L1050-1063 and coverage set L1104-1131 never compared to the declared labels",
+      "trigger": "A caller-supplied accepted review declaring lineageCheck failed or a short coverage list while every port-derived gate genuinely passes",
+      "consequence": "Work item accepts on data while the returned/persisted review record carries a contradicting self-declared label; no authority bypass because acceptance still requires all gates on port data and disposition is enforced",
+      "materiality": "Non-blocking: round-1 offered a fix route that did not require label consistency; PRD 02 L148 invariant names disposition only; disposition is enforced and tested",
+      "recommendation": "B02 wiring: overwrite derived labels on the returned record or deny label/data mismatches"
+    }
+  ],
+  "observationsPreExisting": [
+    "O-1: requireProgrammeActive consulted only by admitBuildComplete (L784); startReview/recordReview do not check closed/cancelled programme state (pre-existing, not introduced by this fix; B02 should wire or document)",
+    "O-2: port-resolved run projectId not compared to workItem project; org scoping now port-enforced and task anchoring via taskId/taskPacket remains (pre-existing note for the trusted-store contract)"
+  ],
+  "gatesRerun": {
+    "testCommand": "pnpm exec vp test run packages/contracts/src/programmeDomain.test.ts",
+    "testSelectionPrinted": "packages/contracts/src/programmeDomain.test.ts (60 it blocks counted before run)",
+    "tests": "60 passed (60), 1 test file passed, exit 0",
+    "typecheck": "pnpm --filter @t3tools/contracts typecheck (tsc --noEmit) exit 0",
+    "lint": "pnpm exec vp lint packages/contracts/src/programmeDomain.ts packages/contracts/src/programmeDomain.test.ts — 0 warnings 0 errors on 2 files, 200 rules, exit 0",
+    "postRunState": "pnpm-lock.yaml churn restored with git restore twice (after gates and after probe); git status --porcelain clean; HEAD unchanged 50cbcd868405c2f8db6db4ac0f9b347bccce074e; no commits made by auditor",
+    "nodeToolchain": "v26.12.1 from /Users/mac/Repos/invrt-code-local-pilot/.pilot/toolchain/node-v26.12.1-darwin-x64/bin"
+  },
+  "mutationProbe": {
+    "target": "F-2 disposition enforcement in recordReview: input.review.disposition === \"rejected\" changed to === \"never\" (single occurrence, count 1 verified) so rejected reviews fall through to acceptance",
+    "sha256Before": "8c14baa01ae19b923a0cc1fabe3e7c2a3d4f25b9463a9d8263d5dc9138087122",
+    "sha256Mutated": "9a33a0e2f386832572815d3ba4304140dafe94e037344cfd8a715732c9e8839c",
+    "mutatedResult": "exit 1; Tests 1 failed | 59 passed (60); failing test exactly 'recordReview > rejects a review with disposition rejected: no acceptance and no mutation'",
+    "restore": "byte-exact copy-back; sha256 after restore identical (8c14baa01ae19b923a0cc1fabe3e7c2a3d4f25b9463a9d8263d5dc9138087122); diff -q clean",
+    "postRestoreResult": "exit 0; Tests 60 passed (60), 1 test file passed",
+    "probeLog": "/tmp/b01-claude/b01-reaudit/ (probe-sha-before.txt, probe-sha-mutated.txt, probe-sha-after-restore.txt, probe-mutated-run.log, probe-restore-run.log, programmeDomain.ts.pristine)"
+  },
+  "commitVerification": {
+    "head": "50cbcd868405c2f8db6db4ac0f9b347bccce074e",
+    "branch": "codex/claude-domain-core-b01-20261027",
+    "diffVsEvidenceCommit": "exactly packages/contracts/src/programmeDomain.ts and packages/contracts/src/programmeDomain.test.ts (+230/-27)",
+    "diffVsAdoptionBase": "packages/contracts/src/index.ts (+1 export), programmeDomain.ts, programmeDomain.test.ts, plus oneday-evidence/B01-REVIEW.{md,json}",
+    "treeClean": true,
+    "noB01_2Surface": true,
+    "noStorageDurabilityClaimsBeyondDocs": true
+  },
+  "testQualitySample": [
+    "forged-role denial test L564 (port record auditor run owned by principal, body forges builder; ProgrammeForbiddenError)",
+    "body-vs-resolved environment mismatch test L585 (resolved env out of scope; ProgrammePolicyDeniedError)",
+    "unresolvable runId arm test L535-541 (ProgrammeCapabilityUnavailableError)",
+    "disposition rejected test L888 (invalid_request tag + state reviewQueued + revision 7)",
+    "disposition incomplete test L899 (evidence_missing tag + state reviewQueued + revision 7)",
+    "target covered positive control test L696 (buildComplete reached)",
+    "target outside test L704 (ProgrammePolicyDeniedError)",
+    "cross-org orgId capture test L711 (every observed orgId equals ORG across both mutations)",
+    "typed errors payload preservation test L1042-1083 (9 exact tags + 7 payload-field assertions)"
+  ],
+  "label": "SAME-HARNESS INTERNAL AUDIT",
+  "auditorModel": "ZCode builtin:zai-coding-plan/GLM-5.3-Flash (same harness/model family as fix builder; engineering review, NOT independent external certification)",
+  "skillsLoaded": [
+    "production-audit",
+    "production-guardrails",
+    "ai-native-agent",
+    "invrt-concise-code",
+    "api-designer",
+    "verification-before-completion",
+    "code-review"
+  ],
+  "graphNote": "Reused builder graph facts of record (4452 links + hyperedges, 3031 nodes, 159 communities) and targeted greps; no graph regenerated this session; no graphify-out in the worktree",
+  "evidenceFiles": [
+    "/Users/mac/Repos/.worktrees/invrt-claude-domain-core-b01-20261027/oneday-evidence/B01-REVIEW-R2.md",
+    "/Users/mac/Repos/.worktrees/invrt-claude-domain-core-b01-20261027/oneday-evidence/B01-REVIEW-R2.json"
+  ]
+}
