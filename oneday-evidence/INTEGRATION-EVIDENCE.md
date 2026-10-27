@@ -30,3 +30,7 @@ Coordinator: ZCode harness, model builtin:zai-coding-plan/GLM-5.3-Flash. Same-ha
 - Launch with isolated app data: T3CODE_DESKTOP_APP_DATA_DIR=/tmp/oneday-desktop-appdata, auto-update disabled. Main PID 51068 plus gpu/network/renderer helpers running with --user-data-dir=/tmp/oneday-desktop-appdata/t3code-v2 (isolation verified in the live process arguments). Quit by exact PID; all INVRT Code processes verified gone.
 - Honest visual capture: a screencapture was taken but the host screen was occupied by fullscreen video and a pending ZCode automation permission dialog; the app window was not visible in the frame. The image was deleted (private screen content, no product evidence value); window-level visual proof is NOT CLAIMED. Launch acceptance rests on the process-tree and isolation evidence above.
 - Rollback documented in INVRT-CODE-INSTALL-AND-ROLLBACK.md (trash app + chosen app-data dir).
+
+## Windows cross-package attempt (27 October)
+
+- pnpm run dist:desktop:win FAILED exit 1 at the native resource-monitor cross-compile: rustc E0463, x86_64-pc-windows-msvc target not installed. Installing the Rust cross-target is a global toolchain change deferred to the owner; P02 additionally requires an owned Windows host. Recorded BLOCKED in INVRT-CODE-PLATFORM-EVIDENCE.json; no fake package produced.
