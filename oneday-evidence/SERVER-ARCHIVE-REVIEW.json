@@ -1,0 +1,106 @@
+{
+  "verdict": "PASS",
+  "commit": "551c3cfc8abcb90c130029babf6210161aa879e2",
+  "artifact": {
+    "bytes": 94870610,
+    "sha256": "562e8052cd4d53046c5241e1a70d8f79be1d523c0c7ddcf3e03f4e7b67dbaae8",
+    "path": "/Users/mac/Repos/invrt-code-local-pilot/.pilot/oneday-release-2026-10-27/server-archive-candidate/INVRT-CODE-SERVER.tar.gz",
+    "sha256sumsCheck": "shasum -a 256 -c SHA256SUMS.txt: OK, exit 0"
+  },
+  "sourceTip": "d6191bcd5655b770f2e84d61238022e46aa6c858",
+  "branch": "codex/claude-server-archive-20261027",
+  "label": "SAME-HARNESS INTERNAL AUDIT",
+  "skillsLoaded": [
+    "production-audit",
+    "production-guardrails",
+    "ai-native-agent",
+    "invrt-concise-code",
+    "verification-before-completion",
+    "code-review"
+  ],
+  "blockingFindings": [],
+  "findings": [
+    {
+      "id": "F1",
+      "severity": "pass",
+      "summary": "Worktree identity verified: HEAD 551c3cfc..., branch codex/claude-server-archive-20261027, clean tree before and after, git log -2 reads 551c3cfc then d6191bcd."
+    },
+    {
+      "id": "F2",
+      "severity": "pass",
+      "summary": "Artifact authenticity: independent sha256 matches SHA256SUMS.txt (OK, exit 0); bytes 94870610; runbook section 9 and manifest current_server_archive_candidate bindings match the actual file."
+    },
+    {
+      "id": "F3",
+      "severity": "pass",
+      "summary": "No overwrites: old interim tarball still present in oneday-release-2026-10-27/ parent (66477760 bytes, sha 2d143c815c07f17933c99f96d83df75d6e077be14da6c0768a800c01e2dbbe7d recomputed, mtime 09:21); release/ 0.1.2 desktop artifacts untouched."
+    },
+    {
+      "id": "O1",
+      "severity": "observation",
+      "summary": "Audit brief located the old server tarball in release/; it is actually in the oneday-release-2026-10-27/ parent directory. release/ never held a server tarball. No overwrite either way; not a builder defect."
+    },
+    {
+      "id": "F4",
+      "severity": "pass",
+      "summary": "Pipeline faithfulness: source-derived externals from selectCliRuntimeExternalDependencies over apps/server/package.json plus resolveFffNativeDependencies(mac,x64) equal exactly the builder's 8 roots (@cursor/sdk 1.0.38, @ff-labs/fff-node 0.11.0, @ff-labs/fff-bin-darwin-x64, @napi-rs/keyring, node-pty 1.2.0-beta.15, playwright-core 1.60.0, zod, undici 8.11.2). Archive spot-check confirms all 8 plus transitive cursor deps (@bufbuild/protobuf, @connectrpc/connect{,-web}, @statsig/js-client, @statsig/client-core, @cursor/sdk-darwin-x64), ffi-rs + @yuuang/ffi-rs-darwin-x64, node-addon-api; node-pty prebuilds contain only darwin-x64. connect-node and @fastify/busboy absent and safe (0 bundle references, not @cursor/sdk deps). Prune list strips no runtime-required binary. Temp driver justified: official buildCliArchive packages the SEA layout, not the dist-package layout."
+    },
+    {
+      "id": "O2",
+      "severity": "observation",
+      "summary": "Runbook section 9 prose omits packageExtensions (STAGE_PACKAGE_EXTENSIONS), which the shared createStageWorkspaceConfig includes. Builder followed the shared code; doc nuance only."
+    },
+    {
+      "id": "F5",
+      "severity": "pass",
+      "summary": "Clean-room rerun: fresh extract, port 14197 free before and after, isolated state dir, toolchain node PATH prefix. Root 200 (/assets/index-DJpS8QtT.js), descriptor 200 (fresh environmentId 3307debb-bad9-4d9f-9a93-c87a312dddf9), unauth /api/orchestration/shell 401 missing_credential, forged Bearer 401 invalid_credential, SIGTERM: process gone (ps exit 1) and port freed (lsof exit 1)."
+    },
+    {
+      "id": "F6",
+      "severity": "pass",
+      "summary": "Docs binding: manifest JSON parses; new sha/bytes/tip/version/branch bound in runbook and manifest; ff6a3ef5 and 2d143c81 removed from binding sections (git show diff confirms). Manifest takeover_note line 103 retains one historical supersession mention, not a binding."
+    },
+    {
+      "id": "O3",
+      "severity": "observation",
+      "summary": "If zero occurrences anywhere is later wanted, the takeover_note historical sentence could be bytes-only; current text is accurate."
+    },
+    {
+      "id": "PI1",
+      "severity": "parent-integration-item",
+      "summary": "INVRT-CODE-PLATFORM-EVIDENCE.json current_takeover_candidate still cites the OLD candidate path (research/2026-10-27/ONE-DAY-RELEASE/CODEX-TAKEOVER-CANDIDATE/..., 65009201 bytes, ff6a3ef5..., preimage 2d143c81...). Verified; outside builder scope; parent should fold the new binding into platform evidence at integration."
+    },
+    {
+      "id": "F7",
+      "severity": "pass",
+      "summary": "Scope: git show --stat 551c3cfc touches only runbook, manifest and dist-package/README.md; git diff d6191bcd..HEAD --stat identical; no product source changed; auditor ran no pnpm; tree clean."
+    },
+    {
+      "id": "F8",
+      "severity": "pass",
+      "summary": "Ledger: git log --oneline -2 = 551c3cfc, d6191bcd; after cleanup no listeners on ports 14195-14197 (lsof exit 1); auditor temp dirs removed."
+    }
+  ],
+  "cleanRoomRerun": {
+    "port": 14197,
+    "host": "127.0.0.1",
+    "stateDir": "fresh temp dir (removed after run; contained generated server secrets)",
+    "extractDir": "fresh temp dir from durable archive (removed after run)",
+    "checks": {
+      "portFreeBefore": "lsof exit 1",
+      "tarExtract": "exit 0",
+      "serverStarted": "migrations ran; lsof LISTEN 127.0.0.1:14197",
+      "root": { "http": 200, "asset": "/assets/index-DJpS8QtT.js" },
+      "descriptor": { "http": 200, "environmentId": "3307debb-bad9-4d9f-9a93-c87a312dddf9" },
+      "unauthData": { "http": 401, "reason": "missing_credential" },
+      "forgedBearer": { "http": 401, "reason": "invalid_credential" },
+      "sigterm": { "processGone": "ps exit 1 after 5s", "portFreed": "lsof exit 1" },
+      "restartPersistenceLeg": "NOT rerun by auditor; builder proved it (stated honestly)",
+      "egress": "loopback LISTEN observed; NOT a zero-egress claim; EG01 retraction stands"
+    },
+    "cleanup": "extract/state/response temp files removed; port 14197 free; ports 14195-14197 no listeners"
+  },
+  "externalsDiffConclusion": "Source-derived expectation equals staged archive content for all 8 direct roots and all runtime-required transitive packages; two bundler-only externals absent and proven unreferenced; prune strips nothing runtime-required. Builder's replication matches the documented stageRuntimeExternals pipeline.",
+  "auditorModel": "ZCode GLM 5.3 Flash",
+  "auditDate": "2026-10-27"
+}
