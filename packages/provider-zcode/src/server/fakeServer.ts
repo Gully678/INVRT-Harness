@@ -24,12 +24,19 @@ export interface FakeServerScript {
   turnEvents?: ReadonlyArray<Record<string, unknown>>;
   /** An unknown server-to-client request to verify the -32601 reply path. */
   probeUnknownServerRequest?: string;
+  /** Diagnostic stderr written at startup: `head` marker first, then filler to `bytes`. */
+  stderrChatter?: { readonly bytes: number; readonly head: string };
 }
 
 export function fakeServerScriptSource(script: FakeServerScript): string {
   return `#!/usr/bin/env node
 const script = ${JSON.stringify(JSON.stringify(script))};
 const S = JSON.parse(script);
+if (S.stderrChatter) {
+  // Written before any reply: more than a pipe buffer, so an undrained client hangs here.
+  const filler = "x".repeat(Math.max(0, S.stderrChatter.bytes - S.stderrChatter.head.length));
+  process.stderr.write(S.stderrChatter.head + filler);
+}
 const replies = {
   "usage/stats": { result: S.usageStats ?? { range: "all", generatedAt: 0 } },
   "session/usage": { result: S.sessionUsage ?? { sessionId: "sess_test" } },

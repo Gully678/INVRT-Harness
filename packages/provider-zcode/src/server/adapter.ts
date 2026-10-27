@@ -72,6 +72,19 @@ import {
 
 export const ZCODE_PROVIDER = ProviderDriverKind.make("zcode");
 export const ZCODE_DEFAULT_INSTANCE_ID = defaultInstanceIdForDriver(ZCODE_PROVIDER);
+
+/**
+ * Snapshot messages must not share one constant app thread id when the orchestrator has
+ * not assigned appThreadId yet: that would group messages across provider threads. Fall
+ * back to the same per-provider-thread derivation the id mapping uses elsewhere, unique
+ * per native session id.
+ */
+export const snapshotAppThreadId = (
+  appThreadId: ThreadId | null,
+  nativeThreadId: string,
+): ThreadId =>
+  appThreadId ?? deriveId.threadFromProviderThread({ driver: ZCODE_PROVIDER, nativeThreadId });
+
 const DEFAULT_ZCODE_SETTINGS: ZCodeSettings = Schema.decodeSync(ZCodeSettings)({});
 
 /**
@@ -557,9 +570,10 @@ export const makeZcodeAdapterV2 = Effect.fn("makeZcodeAdapterV2")(function* (
             };
           }
           const read = yield* readSessionTranscript(snapshotInput.providerThread.id, sessionId);
-          const appThreadId: ThreadId =
-            snapshotInput.providerThread.appThreadId ??
-            ThreadId.make("thread:provider:zcode:snapshot");
+          const appThreadId: ThreadId = snapshotAppThreadId(
+            snapshotInput.providerThread.appThreadId,
+            sessionId,
+          );
           const now = yield* DateTime.now;
           const messages: OrchestrationV2ConversationMessage[] = [];
           for (const message of read.messages ?? []) {

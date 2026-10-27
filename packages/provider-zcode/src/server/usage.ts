@@ -71,11 +71,25 @@ export const zcodeUsageScan = Effect.fn("ZcodeUsage.scan")(function* (
     if (!instance.configured) continue;
     const commandPath = resolveCommandPath(instance);
     const range = rangeForWindowMs(Math.max(input.windowStartMs, input.retentionCutoffMs));
-    const stats = yield* fetchZcodeUsageStats({
+    const scanned = yield* fetchZcodeUsageStats({
       commandPath,
       env: instance.environment,
       range,
-    });
+    }).pipe(
+      Effect.catchTag("UsageReadError", (cause) => Effect.succeed({ failure: cause.message })),
+    );
+    if ("failure" in scanned) {
+      // A broken binaryPath on one instance must not drop the others: record the failed
+      // scan entry and continue with the remaining instances.
+      scans.push({
+        dir: "zcode://usage-stats",
+        status: "failed",
+        message: `ZCode usage scan failed for instance ${instance.instanceId}: ${scanned.failure}.`,
+        files: null,
+      });
+      continue;
+    }
+    const stats = scanned;
     const generatedAtIso = DateTime.formatIso(DateTime.makeUnsafe(stats.generatedAt));
     scans.push({
       dir: "zcode://usage-stats",

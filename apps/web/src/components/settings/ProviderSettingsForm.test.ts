@@ -39,6 +39,22 @@ describe("ProviderSettingsForm helpers", () => {
     expect(next).toEqual({ forkOwned: 1 });
   });
 
+  it("keeps the zcode client registered with the same required fields as the pi client", () => {
+    const zcode = providerClients.get(ProviderDriverKind.make("zcode"));
+    const pi = providerClients.get(ProviderDriverKind.make("pi"));
+    expect(zcode).toBeDefined();
+    expect(pi).toBeDefined();
+    expect(zcode!.label).toBe("ZCode");
+    // The settings panel and the add-instance dialog iterate definitions; each concrete
+    // client must carry the same registration fields (driver kind, label, schema, icon).
+    for (const definition of [pi!, zcode!]) {
+      expect(definition.driverKind).toBeTruthy();
+      expect(definition.label.length).toBeGreaterThan(0);
+      expect(Object.keys(definition.settingsSchema.fields).length).toBeGreaterThan(0);
+      expect(definition.icon?.paths.length).toBeGreaterThan(0);
+    }
+  });
+
   it("stores false boolean fields when true is the default", () => {
     const next = nextProviderConfigWithFieldValue(
       undefined,

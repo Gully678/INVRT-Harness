@@ -95,6 +95,22 @@ export function startZcodeProtocolClient(options: ZcodeClientOptions): ZcodeProt
   const pending = new Map<number, PendingRequest>();
   const waiters: (() => void)[] = [];
 
+  // The child's stderr is piped but not consumed by the protocol; it must still be
+  // drained or a chatty child blocks on a full pipe during long sessions. Keep only the
+  // first STDERR_CAPTURE_LIMIT characters for close diagnostics (startup stderr carries
+  // the failure banner and is stable against the exit/data event race), discard the rest.
+  const STDERR_CAPTURE_LIMIT = 4_096;
+  let stderrHead = "";
+  child.stderr?.on("data", (chunk: Buffer) => {
+    if (stderrHead.length < STDERR_CAPTURE_LIMIT) {
+      stderrHead = `${stderrHead}${chunk.toString("utf8")}`.slice(0, STDERR_CAPTURE_LIMIT);
+    }
+  });
+  const stderrContext = (): string => {
+    const trimmed = stderrHead.trim();
+    return trimmed.length === 0 ? "" : `; stderr: ${trimmed}`;
+  };
+
   const settleClosed = (detail: string) => {
     if (closed) return;
     closed = true;
@@ -111,8 +127,8 @@ export function startZcodeProtocolClient(options: ZcodeClientOptions): ZcodeProt
     options.onExit?.(child.exitCode);
   };
 
-  child.on("error", (cause) => settleClosed(`spawn failed: ${String(cause)}`));
-  child.on("exit", (code) => settleClosed(`exited with code ${String(code)}`));
+  child.on("error", (cause) => settleClosed(`spawn failed: ${String(cause)}${stderrContext()}`));
+  child.on("exit", (code) => settleClosed(`exited with code ${String(code)}${stderrContext()}`));
 
   let buffer = "";
   child.stdout?.on("data", (chunk: Buffer) => {

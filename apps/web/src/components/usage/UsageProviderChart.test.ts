@@ -42,6 +42,8 @@ describe("buildPeriodColumns", () => {
       { provider: "antigravity", value: 0 },
       { provider: "pi", value: 5 },
       { provider: "muse", value: 7 },
+      // zcode registered in PROVIDER_PRESENTATION; no usage in this fixture.
+      { provider: "zcode", value: 0 },
     ]);
   });
 });

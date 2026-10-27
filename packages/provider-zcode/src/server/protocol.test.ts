@@ -141,7 +141,7 @@ describe("ZcodeProtocolClient against the fake app-server", () => {
     const fake = await startFakeZcodeAppServer({
       sessionCreateError: {
         code: -32602,
-        message: "Invalid params — workspace: expected object",
+        message: "Invalid params - workspace: expected object",
         data: { name: "ZodError" },
       },
     });
@@ -219,6 +219,32 @@ describe("ZcodeProtocolClient against the fake app-server", () => {
   it("builds the standard app-server command", () => {
     expect(appServerCommand("/path/zcode.cjs")).toEqual(["/path/zcode.cjs", "app-server"]);
   });
+
+  it("drains chatty child stderr and keeps early stderr in the close error context", async () => {
+    const head = "ZCODE-STDERR-HEAD-MARKER";
+    const fake = await startFakeZcodeAppServer({
+      // More than a 64KiB pipe buffer: an undrained client would block the child on
+      // this write, the reply would never arrive, and the request would time out.
+      stderrChatter: { bytes: 200_000, head },
+    });
+    try {
+      const client = startZcodeProtocolClient({ command: fake.command, requestTimeoutMs: 10_000 });
+      try {
+        const result = (await client.request("session/list")) as { sessions?: unknown[] };
+        expect(result.sessions).toEqual([]);
+      } finally {
+        process.kill(client.pid!, "SIGKILL");
+      }
+      // Let the client observe the exit before the next request.
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      await expect(client.request("session/list")).rejects.toSatisfy(
+        (error: unknown) =>
+          error instanceof ZcodeProtocolClosedError && error.message.includes(head),
+      );
+    } finally {
+      await fake.dispose();
+    }
+  }, 20_000);
 });
 
 describe("session/usage and session/list fixtures", () => {
