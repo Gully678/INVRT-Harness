@@ -1,0 +1,52 @@
+note: You are running `vp test` as a Vite+ built-in command. If you meant to run the test npm script, use `vpr test` instead.
+
+[1m[30m[46m RUN [49m[39m[22m [36mv5.0.5 [39m[90m/Users/mac/Repos/.worktrees/invrt-oneday-fix-adapter-20261027/packages/provider-zcode[39m
+
+ [31m❯[39m src/server/usage.test.ts [2m([22m[2m4 tests[22m[2m | [22m[31m2 failed[39m[2m)[22m[33m 4085[2mms[22m[39m
+   [31m❯[39m zcodeUsageScan per-instance isolation [2m(4)[22m
+     [33m[2m✓[22m[39m records a failed scan for a broken instance and still scans the others[33m 1841[2mms[22m[39m
+     [31m❯[39m requested range bucket [2m(3)[22m
+[31m       [31m×[31m asks for 7d when the retained window is two days old[39m[33m 842[2mms[22m[39m
+[31m       [31m×[31m asks for 30d when the retained window is 31 days old[39m[33m 710[2mms[22m[39m
+       [33m[2m✓[22m[39m asks for all when the retained window is older than the 30d bucket[33m 689[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 2 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/server/usage.test.ts[2m > [22mzcodeUsageScan per-instance isolation[2m > [22mrequested range bucket[2m > [22masks for 7d when the retained window is two days old
+[31m[1mAssertionError[22m: expected 'all' to be '7d' // Object.is equality[39m
+
+Expected: [32m"7d"[39m
+Received: [31m"all"[39m
+
+[36m [2m❯[22m src/server/usage.test.ts:[2m142:76[22m[39m
+    [90m140|[39m     it("asks for 7d when the retained window is two days old", async (…
+    [90m141|[39m       const now = Date.now();
+    [90m142|[39m       expect(await scanRange(now - 2 * 86_400_000, now - 40 * 86_400_0…
+    [90m   |[39m                                                                            [31m^[39m
+    [90m143|[39m     }, 60_000);
+    [90m144|[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/server/usage.test.ts[2m > [22mzcodeUsageScan per-instance isolation[2m > [22mrequested range bucket[2m > [22masks for 30d when the retained window is 31 days old
+[31m[1mAssertionError[22m: expected 'all' to be '30d' // Object.is equality[39m
+
+Expected: [32m"30d"[39m
+Received: [31m"all"[39m
+
+[36m [2m❯[22m src/server/usage.test.ts:[2m147:77[22m[39m
+    [90m145|[39m     it("asks for 30d when the retained window is 31 days old", async (…
+    [90m146|[39m       const now = Date.now();
+    [90m147|[39m       expect(await scanRange(now - 31 * 86_400_000, now - 40 * 86_400_…
+    [90m   |[39m                                                                             [31m^[39m
+    [90m148|[39m     }, 60_000);
+    [90m149|[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m2 failed[39m[22m[2m | [22m[1m[32m2 passed[39m[22m[90m (4)[39m
+[2m   Start at [22m 12:34:56
+[2m   Duration [22m 5.49s[2m (tests 77%, import 16%, transform 5%, setup 2%)[22m
+

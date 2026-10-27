@@ -1,0 +1,5 @@
+=== FINAL full provider-zcode suite (after all fixes) ===
+[2m      Tests [22m [1m[32m73 passed[39m[22m[90m (73)[39m
+[2m   Start at [22m 12:44:00
+[2m   Duration [22m 9.10s[2m (tests 46%, import 41%, setup 7%, transform 6%)[22m
+

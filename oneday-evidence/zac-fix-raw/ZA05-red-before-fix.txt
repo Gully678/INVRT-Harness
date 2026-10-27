@@ -1,0 +1,116 @@
+note: You are running `vp test` as a Vite+ built-in command. If you meant to run the test npm script, use `vpr test` instead.
+
+[1m[30m[46m RUN [49m[39m[22m [36mv5.0.5 [39m[90m/Users/mac/Repos/.worktrees/invrt-oneday-fix-adapter-20261027/packages/provider-zcode[39m
+
+ [31m❯[39m src/server/eventMapping.test.ts [2m([22m[2m17 tests[22m[2m | [22m[31m5 failed[39m[2m)[22m[32m 19[2mms[22m[39m
+   [31m❯[39m mapSessionEventToTurnUpdates [2m(15)[22m
+     [32m✓[39m maps text and reasoning parts into turn item updates[32m 4[2mms[22m[39m
+     [32m✓[39m maps tool parts into command execution items[32m 0[2mms[22m[39m
+     [32m✓[39m emits a completed turn.terminal on info.finish completed[32m 0[2mms[22m[39m
+     [32m✓[39m emits a completed turn.terminal on a non-tool-calls step-finish reason[32m 0[2mms[22m[39m
+     [32m✓[39m does not terminate on tool-calls step reasons[32m 0[2mms[22m[39m
+     [32m✓[39m emits a failed terminal for non-completed finish values[32m 0[2mms[22m[39m
+[31m     [31m×[31m explicit aborted finish outranks a stop step-finish in a mixed payload[39m[32m 6[2mms[22m[39m
+[31m     [31m×[31m explicit error finish outranks a stop step-finish and carries the reason[39m[32m 1[2mms[22m[39m
+     [32m✓[39m aborted finish with a tool-calls step still fails[32m 0[2mms[22m[39m
+     [32m✓[39m explicit completed finish still completes with a stop step-finish[32m 0[2mms[22m[39m
+[31m     [31m×[31m an unknown finish value is a failure, never a completion[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m a step-finish error reason without an explicit finish fails the turn[39m[32m 0[2mms[22m[39m
+[31m     [31m×[31m an unknown step reason without a finish does not prove completion[39m[32m 3[2mms[22m[39m
+     [32m✓[39m returns no updates without active turn targets[32m 0[2mms[22m[39m
+     [32m✓[39m ignores unknown payload kinds without error[32m 0[2mms[22m[39m
+   [32m✓[39m parseTranscriptPart [2m(2)[22m
+     [32m✓[39m parses the part family from the live transcripts[32m 0[2mms[22m[39m
+     [32m✓[39m degrades unknown part types instead of failing[32m 0[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 5 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/server/eventMapping.test.ts[2m > [22mmapSessionEventToTurnUpdates[2m > [22mexplicit aborted finish outranks a stop step-finish in a mixed payload
+[31m[1mAssertionError[22m: expected 'completed' to be 'failed' // Object.is equality[39m
+
+Expected: [32m"[7mfail[27med"[39m
+Received: [31m"[7mcomplet[27med"[39m
+
+[36m [2m❯[22m src/server/eventMapping.test.ts:[2m137:30[22m[39m
+    [90m135|[39m     expect(terminals).toHaveLength(1);
+    [90m136|[39m     const terminal = terminals[0];
+    [90m137|[39m     expect(terminal?.status).toBe("failed");
+    [90m   |[39m                              [31m^[39m
+    [90m138|[39m     expect(terminal?.type === "turn.terminal" && terminal.failure?.cod…
+    [90m139|[39m     expect(
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/server/eventMapping.test.ts[2m > [22mmapSessionEventToTurnUpdates[2m > [22mexplicit error finish outranks a stop step-finish and carries the reason
+[31m[1mAssertionError[22m: expected 'completed' to be 'failed' // Object.is equality[39m
+
+Expected: [32m"[7mfail[27med"[39m
+Received: [31m"[7mcomplet[27med"[39m
+
+[36m [2m❯[22m src/server/eventMapping.test.ts:[2m153:30[22m[39m
+    [90m151|[39m     });
+    [90m152|[39m     const terminal = events.find((event) => event.type === "turn.termi…
+    [90m153|[39m     expect(terminal?.status).toBe("failed");
+    [90m   |[39m                              [31m^[39m
+    [90m154|[39m     expect(terminal?.type === "turn.terminal" && terminal.failure?.cod…
+    [90m155|[39m   });
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/server/eventMapping.test.ts[2m > [22mmapSessionEventToTurnUpdates[2m > [22man unknown finish value is a failure, never a completion
+[31m[1mAssertionError[22m: expected 'completed' to be 'failed' // Object.is equality[39m
+
+Expected: [32m"[7mfail[27med"[39m
+Received: [31m"[7mcomplet[27med"[39m
+
+[36m [2m❯[22m src/server/eventMapping.test.ts:[2m192:30[22m[39m
+    [90m190|[39m     });
+    [90m191|[39m     const terminal = events.find((event) => event.type === "turn.termi…
+    [90m192|[39m     expect(terminal?.status).toBe("failed");
+    [90m   |[39m                              [31m^[39m
+    [90m193|[39m     expect(terminal?.type === "turn.terminal" && terminal.failure?.cod…
+    [90m194|[39m       "some-future-finish",
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/server/eventMapping.test.ts[2m > [22mmapSessionEventToTurnUpdates[2m > [22ma step-finish error reason without an explicit finish fails the turn
+[31m[1mAssertionError[22m: expected 'completed' to be 'failed' // Object.is equality[39m
+
+Expected: [32m"[7mfail[27med"[39m
+Received: [31m"[7mcomplet[27med"[39m
+
+[36m [2m❯[22m src/server/eventMapping.test.ts:[2m206:30[22m[39m
+    [90m204|[39m     });
+    [90m205|[39m     const terminal = events.find((event) => event.type === "turn.termi…
+    [90m206|[39m     expect(terminal?.status).toBe("failed");
+    [90m   |[39m                              [31m^[39m
+    [90m207|[39m     expect(terminal?.type === "turn.terminal" && terminal.failure?.cod…
+    [90m208|[39m   });
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/server/eventMapping.test.ts[2m > [22mmapSessionEventToTurnUpdates[2m > [22man unknown step reason without a finish does not prove completion
+[31m[1mAssertionError[22m: expected [ { type: 'turn.terminal', …(7) } ] to have a length of +0 but got 1[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 0[39m
+[31m+ 1[39m
+
+[36m [2m❯[22m src/server/eventMapping.test.ts:[2m217:70[22m[39m
+    [90m215|[39m       },
+    [90m216|[39m     });
+    [90m217|[39m     expect(events.filter((event) => event.type === "turn.terminal")).t…
+    [90m   |[39m                                                                      [31m^[39m
+    [90m218|[39m   });
+    [90m219|[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m5 failed[39m[22m[2m | [22m[1m[32m12 passed[39m[22m[90m (17)[39m
+[2m   Start at [22m 12:06:10
+[2m   Duration [22m 1.06s[2m (import 67%, transform 16%, setup 14%, tests 2%, worker 1%)[22m
+

@@ -1,0 +1,5 @@
+=== FINAL builtInDrivers ===
+[2m      Tests [22m [1m[32m2 passed[39m[22m[90m (2)[39m
+[2m   Start at [22m 12:44:11
+[2m   Duration [22m 6.21s[2m (import 73%, transform 24%, setup 3%)[22m
+

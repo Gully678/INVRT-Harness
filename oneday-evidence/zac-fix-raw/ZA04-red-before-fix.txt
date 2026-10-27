@@ -1,0 +1,73 @@
+note: You are running `vp test` as a Vite+ built-in command. If you meant to run the test npm script, use `vpr test` instead.
+
+[1m[30m[46m RUN [49m[39m[22m [36mv5.0.5 [39m[90m/Users/mac/Repos/.worktrees/invrt-oneday-fix-adapter-20261027/packages/provider-zcode[39m
+
+ [31m❯[39m src/server/status.test.ts [2m([22m[2m12 tests[22m[2m | [22m[31m3 failed[39m[2m)[22m[32m 106[2mms[22m[39m
+   [32m✓[39m zcodeCommandPlan composition (ZA-02) [2m(5)[22m
+     [32m✓[39m an explicit override stands alone[32m 4[2mms[22m[39m
+     [32m✓[39m an empty setting composes PATH then the macOS app bundle[32m 2[2mms[22m[39m
+     [32m✓[39m the decoded default name composes the same fallback chain as a cleared value[32m 0[2mms[22m[39m
+     [32m✓[39m keeps the documented candidates view for the decoded default[32m 0[2mms[22m[39m
+     [32m✓[39m expands a tilde home prefix in explicit overrides[32m 0[2mms[22m[39m
+   [32m✓[39m resolveZcodeExecutable discovery (ZA-02) [2m(4)[22m
+     [32m✓[39m resolves the app bundle when PATH has no zcode[32m 43[2mms[22m[39m
+     [32m✓[39m is an honest error when PATH has no zcode and no bundle exists[32m 9[2mms[22m[39m
+     [32m✓[39m an explicit override that cannot resolve errors instead of falling back silently[32m 8[2mms[22m[39m
+     [32m✓[39m expands a tilde override against the environment HOME[32m 4[2mms[22m[39m
+   [31m❯[39m snapshot usage limits metadata (ZA-04) [2m(3)[22m
+[31m     [31m×[31m attaches the unsupported 5h/weekly metadata to the checked snapshot[39m[32m 18[2mms[22m[39m
+[31m     [31m×[31m attaches the same honest metadata when the probe cannot find the CLI[39m[32m 10[2mms[22m[39m
+[31m     [31m×[31m attaches the metadata to the initial snapshot too[39m[32m 2[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 3 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/server/status.test.ts[2m > [22msnapshot usage limits metadata (ZA-04)[2m > [22mattaches the unsupported 5h/weekly metadata to the checked snapshot
+[31m[1mAssertionError[22m: expected undefined to be defined[39m
+[36m [2m❯[22m src/server/status.test.ts:[2m175:34[22m[39m
+    [90m173|[39m       ),
+    [90m174|[39m     );
+    [90m175|[39m     expect(snapshot.usageLimits).toBeDefined();
+    [90m   |[39m                                  [31m^[39m
+    [90m176|[39m     expect(snapshot.usageLimits?.unavailable?.reason).toBe("unsupporte…
+    [90m177|[39m     expect(snapshot.usageLimits?.unavailable?.message).toContain("5-ho…
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/server/status.test.ts[2m > [22msnapshot usage limits metadata (ZA-04)[2m > [22mattaches the same honest metadata when the probe cannot find the CLI
+[31m[1mTypeError[22m: Cannot read properties of null (reading 'pipe')[39m
+[36m [2m❯[22m collectUint8StreamText ../provider-core/src/server/collectStreamText.ts:[2m33:23[22m[39m
+    [90m 31|[39m   const truncatedMarker = input.truncatedMarker ?? "";
+    [90m 32|[39m
+    [90m 33|[39m   return input.stream.pipe(
+    [90m   |[39m                       [31m^[39m
+    [90m 34|[39m     Stream.runFold(
+    [90m 35|[39m       (): CollectState => ({
+[90m [2m❯[22m collectStreamAsString ../provider-core/src/server/snapshotProbe.ts:[2m285:3[22m[39m
+[90m [2m❯[22m ../provider-core/src/server/snapshotProbe.ts:[2m115:7[22m[39m
+[90m [2m❯[22m ~effect/Effect/successCont ../../node_modules/.pnpm/effect@4.0.5/node_modules/effect/src/internal/effect.ts:[2m1422:28[22m[39m
+[90m [2m❯[22m ~effect/Effect/evaluate ../../node_modules/.pnpm/effect@4.0.5/node_modules/effect/src/internal/core.ts:[2m585:30[22m[39m
+[90m [2m❯[22m FiberImpl.runLoop ../../node_modules/.pnpm/effect@4.0.5/node_modules/effect/src/internal/effect.ts:[2m654:41[22m[39m
+[90m [2m❯[22m FiberImpl.evaluate ../../node_modules/.pnpm/effect@4.0.5/node_modules/effect/src/internal/effect.ts:[2m595:23[22m[39m
+[90m [2m❯[22m forkUnsafe ../../node_modules/.pnpm/effect@4.0.5/node_modules/effect/src/internal/effect.ts:[2m5542:11[22m[39m
+[90m [2m❯[22m MixedScheduler.<anonymous> ../../node_modules/.pnpm/effect@4.0.5/node_modules/effect/src/internal/effect.ts:[2m1691:23[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/server/status.test.ts[2m > [22msnapshot usage limits metadata (ZA-04)[2m > [22mattaches the metadata to the initial snapshot too
+[31m[1mAssertionError[22m: expected undefined to be defined[39m
+[36m [2m❯[22m src/server/status.test.ts:[2m200:34[22m[39m
+    [90m198|[39m       ),
+    [90m199|[39m     );
+    [90m200|[39m     expect(snapshot.usageLimits).toBeDefined();
+    [90m   |[39m                                  [31m^[39m
+    [90m201|[39m     expect(snapshot.usageLimits?.unavailable?.reason).toBe("unsupporte…
+    [90m202|[39m   });
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m3 failed[39m[22m[2m | [22m[1m[32m9 passed[39m[22m[90m (12)[39m
+[2m   Start at [22m 12:29:15
+[2m   Duration [22m 1.52s[2m (import 60%, transform 22%, setup 9%, tests 8%)[22m
+

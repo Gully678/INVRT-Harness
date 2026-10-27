@@ -150,8 +150,11 @@ export function mapSessionEventToTurnUpdates(context: TurnUpdateContext): TurnEv
       }
     }
   }
-  // Terminal detection: info.finish on a message payload, or a step-finish part whose
-  // reason is not "tool-calls". Heuristic flagged UNAUDITED in the evidence file.
+  // Terminal detection. An explicit message info.finish outranks the step-finish reason
+  // (ZA-05): a failed turn carrying a step-finish must never surface as completed. A
+  // step-finish proves completion only through a recognised success reason and only when
+  // no explicit finish disagrees; an error reason is itself a failure; unknown reasons
+  // and tool-calls prove nothing.
   const info = message?.info as Record<string, unknown> | undefined;
   const finish = typeof info?.finish === "string" ? info.finish : null;
   const stepFinish = Array.isArray(parts)
@@ -160,8 +163,9 @@ export function mapSessionEventToTurnUpdates(context: TurnUpdateContext): TurnEv
   const stepReason =
     stepFinish !== undefined && typeof stepFinish.reason === "string" ? stepFinish.reason : null;
   const targets = context.targets;
-  const completed = finish === "completed" || (stepReason !== null && stepReason !== "tool-calls");
-  if (completed) {
+  const explicitFinish = finish !== null;
+  const stepCompleted = !explicitFinish && (stepReason === "stop" || stepReason === "length");
+  if (explicitFinish ? finish === "completed" : stepCompleted) {
     events.push({
       type: "turn.terminal",
       driver: ZCODE_PROVIDER,
@@ -174,8 +178,10 @@ export function mapSessionEventToTurnUpdates(context: TurnUpdateContext): TurnEv
     });
     return events;
   }
-  if (finish !== null) {
-    // Non-completed finish values (error, aborted) surface as a failed terminal.
+  const failedReason = explicitFinish ? finish : stepReason === "error" ? "error" : null;
+  if (failedReason !== null) {
+    // Explicit non-completed finish values (error, aborted) and a step-finish error
+    // surface as a failed terminal, carrying the reason.
     events.push({
       type: "turn.terminal",
       driver: ZCODE_PROVIDER,
@@ -186,8 +192,11 @@ export function mapSessionEventToTurnUpdates(context: TurnUpdateContext): TurnEv
       status: "failed",
       failure: {
         class: "provider_error",
-        message: `ZCode turn finished with status: ${finish}.`,
-        code: finish,
+        message:
+          stepReason === "error" && !explicitFinish
+            ? "ZCode turn step finished with reason: error."
+            : `ZCode turn finished with status: ${failedReason}.`,
+        code: failedReason,
         retryable: true,
       },
       threadDisposition: "reusable",

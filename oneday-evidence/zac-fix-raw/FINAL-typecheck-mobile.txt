@@ -1,0 +1,2 @@
+=== @t3tools/mobile tsc --noEmit ===
+EXIT0

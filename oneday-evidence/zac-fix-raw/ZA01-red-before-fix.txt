@@ -1,0 +1,53 @@
+note: You are running `vp test` as a Vite+ built-in command. If you meant to run the test npm script, use `vpr test` instead.
+
+[1m[30m[46m RUN [49m[39m[22m [36mv5.0.5 [39m[90m/Users/mac/Repos/.worktrees/invrt-oneday-fix-adapter-20261027/packages/provider-zcode[39m
+
+ [31m❯[39m src/server/adapter.test.ts [2m([22m[2m5 tests[22m[2m | [22m[31m2 failed[39m[2m)[22m[33m 2760[2mms[22m[39m
+   [32m✓[39m readThreadSnapshot app thread id fallback [2m(2)[22m
+     [32m✓[39m keeps the orchestrator-assigned app thread id when present[32m 4[2mms[22m[39m
+     [32m✓[39m derives a per-provider-thread id instead of one constant when appThreadId is null[32m 2[2mms[22m[39m
+   [31m❯[39m startTurn interaction policy (ZA-01) [2m(3)[22m
+[31m     [31m×[31m a plan interaction sends the native plan mode, never a build/edit/yolo mode[39m[33m 870[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps the default interaction mapping unchanged: full-access still sends yolo[33m 849[2mms[22m[39m
+[31m     [31m×[31m a plan interaction holds for approval-required and auto-accept-edits runtime modes too[39m[33m 1031[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 2 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/server/adapter.test.ts[2m > [22mstartTurn interaction policy (ZA-01)[2m > [22ma plan interaction sends the native plan mode, never a build/edit/yolo mode
+[31m[1mAssertionError[22m: expected 'yolo' to be 'plan' // Object.is equality[39m
+
+Expected: [32m"plan"[39m
+Received: [31m"yolo"[39m
+
+[36m [2m❯[22m src/server/adapter.test.ts:[2m111:25[22m[39m
+    [90m109|[39m     expect(params.sessionId).toBe("sess_plan");
+    [90m110|[39m     expect(params.content).toBe("plan only");
+    [90m111|[39m     expect(params.mode).toBe("plan");
+    [90m   |[39m                         [31m^[39m
+    [90m112|[39m     expect(["build", "edit", "yolo"]).not.toContain(params.mode);
+    [90m113|[39m   }, 30_000);
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/server/adapter.test.ts[2m > [22mstartTurn interaction policy (ZA-01)[2m > [22ma plan interaction holds for approval-required and auto-accept-edits runtime modes too
+[31m[1mAssertionError[22m: expected 'build' to be 'plan' // Object.is equality[39m
+
+Expected: [32m"plan"[39m
+Received: [31m"build"[39m
+
+[36m [2m❯[22m src/server/adapter.test.ts:[2m127:27[22m[39m
+    [90m125|[39m       expect(frames).toHaveLength(1);
+    [90m126|[39m       const params = frames[0]!.params as { mode: string };
+    [90m127|[39m       expect(params.mode).toBe("plan");
+    [90m   |[39m                           [31m^[39m
+    [90m128|[39m     }
+    [90m129|[39m   }, 30_000);
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m2 failed[39m[22m[2m | [22m[1m[32m3 passed[39m[22m[90m (5)[39m
+[2m   Start at [22m 12:12:03
+[2m   Duration [22m 4.92s[2m (tests 61%, import 24%, transform 10%, setup 5%)[22m
+
