@@ -259,7 +259,7 @@ export const makeZcodeAdapterV2 = Effect.fn("makeZcodeAdapterV2")(function* (
     const contextUsageRef = yield* Ref.make<ZcodeSessionStateUsage | undefined>(undefined);
     const publishedUsageRef = yield* Ref.make<string | null>(null);
     let nativeSessionId: string | null = null;
-    let threadAppThreadId: ThreadId | null = null;
+    let currentThread: OrchestrationV2ProviderThread | null = null;
     let activeTurn: SessionTurnTargets | null = null;
 
     const offer = (event: AdapterEvent) => Effect.runSync(Queue.offer(eventQueue, event));
@@ -277,7 +277,7 @@ export const makeZcodeAdapterV2 = Effect.fn("makeZcodeAdapterV2")(function* (
         Effect.runSync(
           Effect.gen(function* () {
             yield* Ref.set(contextUsageRef, usage);
-            if (nativeSessionId === null) return;
+            if (currentThread === null) return;
             const snapshot = sessionStateUsageToSnapshot(usage);
             const key =
               snapshot === null
@@ -288,10 +288,11 @@ export const makeZcodeAdapterV2 = Effect.fn("makeZcodeAdapterV2")(function* (
             if (key === null || (yield* Ref.get(publishedUsageRef)) === key) return;
             yield* Ref.set(publishedUsageRef, key);
             const now = yield* DateTime.now;
+            currentThread = { ...currentThread, contextUsage: snapshot, updatedAt: now };
             offer({
               type: "provider_thread.updated",
               driver: ZCODE_PROVIDER,
-              providerThread: providerThreadFor(nativeSessionId, now, threadAppThreadId),
+              providerThread: currentThread,
             });
           }),
         );
@@ -304,7 +305,16 @@ export const makeZcodeAdapterV2 = Effect.fn("makeZcodeAdapterV2")(function* (
         threadId: activeTurn?.threadId ?? null,
         now: Effect.runSync(DateTime.now),
       });
-      for (const update of updates) offer(update);
+      for (const update of updates) {
+        if (update.type === "turn.terminal" && currentThread !== null) {
+          currentThread = {
+            ...currentThread,
+            status: update.threadDisposition === "broken" ? "error" : "idle",
+          };
+          activeTurn = null;
+        }
+        offer(update);
+      }
     };
 
     const client: ZcodeProtocolClient = yield* Effect.acquireRelease(
@@ -467,9 +477,19 @@ export const makeZcodeAdapterV2 = Effect.fn("makeZcodeAdapterV2")(function* (
             ensureInput.existingProviderThread?.nativeThreadRef?.nativeId ?? null;
           const sessionId = yield* ensureNativeSession(resumeNativeId);
           nativeSessionId = sessionId;
-          threadAppThreadId = ensureInput.threadId;
           const now = yield* DateTime.now;
-          const thread = providerThreadFor(sessionId, now, ensureInput.threadId);
+          const thread = ensureInput.existingProviderThread
+            ? {
+                ...ensureInput.existingProviderThread,
+                appThreadId: ensureInput.threadId,
+                nativeThreadRef: providerRef(sessionId),
+                ...(resumeNativeId === null
+                  ? { nativeConversationHeadRef: null, contextUsage: null }
+                  : {}),
+                updatedAt: now,
+              }
+            : providerThreadFor(sessionId, now, ensureInput.threadId);
+          currentThread = thread;
           yield* Ref.set(publishedUsageRef, usageKey(thread));
           offer({
             type: "provider_session.updated",
@@ -486,18 +506,20 @@ export const makeZcodeAdapterV2 = Effect.fn("makeZcodeAdapterV2")(function* (
 
       resumeThread: (resumeInput) =>
         Effect.gen(function* () {
-          const sessionId = yield* ensureNativeSession(
-            resumeInput.providerThread.nativeThreadRef?.nativeId ?? null,
-          );
+          const resumeNativeId = resumeInput.providerThread.nativeThreadRef?.nativeId ?? null;
+          const sessionId = yield* ensureNativeSession(resumeNativeId);
           nativeSessionId = sessionId;
-          threadAppThreadId =
-            resumeInput.providerThread.appThreadId ?? resumeInput.threadId ?? null;
           const now = yield* DateTime.now;
-          const thread = providerThreadFor(
-            sessionId,
-            now,
-            resumeInput.providerThread.appThreadId ?? resumeInput.threadId ?? null,
-          );
+          const thread = {
+            ...resumeInput.providerThread,
+            appThreadId: resumeInput.providerThread.appThreadId ?? resumeInput.threadId ?? null,
+            nativeThreadRef: providerRef(sessionId),
+            ...(resumeNativeId === null
+              ? { nativeConversationHeadRef: null, contextUsage: null }
+              : {}),
+            updatedAt: now,
+          };
+          currentThread = thread;
           yield* Ref.set(publishedUsageRef, usageKey(thread));
           offer({
             type: "provider_thread.updated",
@@ -517,6 +539,7 @@ export const makeZcodeAdapterV2 = Effect.fn("makeZcodeAdapterV2")(function* (
             turnInput.runtimePolicy.interactionMode === "plan"
               ? "plan"
               : zcodeRuntimeModeToCliMode(turnInput.runtimePolicy.runtimeMode);
+          currentThread = turnInput.providerThread;
           const sessionId = yield* ensureNativeSession(
             nativeSessionId ?? turnInput.providerThread.nativeThreadRef?.nativeId ?? null,
           );
@@ -597,6 +620,8 @@ export const makeZcodeAdapterV2 = Effect.fn("makeZcodeAdapterV2")(function* (
                 cause,
               }),
           });
+          currentThread = { ...interruptInput.providerThread, status: "idle" };
+          activeTurn = null;
           offer({
             type: "turn.terminal",
             driver: ZCODE_PROVIDER,

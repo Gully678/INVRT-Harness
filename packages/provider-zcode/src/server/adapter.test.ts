@@ -120,14 +120,14 @@ describe("startTurn interaction policy (ZA-01)", () => {
     expect(params.content).toBe("plan only");
     expect(params.mode).toBe("plan");
     expect(["build", "edit", "yolo"]).not.toContain(params.mode);
-  }, 30_000);
+  });
 
   it("keeps the default interaction mapping unchanged: full-access still sends yolo", async () => {
     const frames = await sendFramesFor(policy("full-access", "default"));
     expect(frames).toHaveLength(1);
     const params = frames[0]!.params as { mode: string };
     expect(params.mode).toBe("yolo");
-  }, 30_000);
+  });
 
   it("a plan interaction holds for approval-required and auto-accept-edits runtime modes too", async () => {
     for (const runtimeMode of ["approval-required", "auto-accept-edits"]) {
@@ -136,7 +136,7 @@ describe("startTurn interaction policy (ZA-01)", () => {
       const params = frames[0]!.params as { mode: string };
       expect(params.mode).toBe("plan");
     }
-  }, 30_000);
+  });
 });
 
 describe("adapter command resolution (ZA-02)", () => {
@@ -182,7 +182,7 @@ describe("adapter command resolution (ZA-02)", () => {
       await fake.dispose();
       await rm(dir, { recursive: true, force: true });
     }
-  }, 30_000);
+  });
 });
 
 describe("post-start context usage publication (ZA-03)", () => {
@@ -227,11 +227,15 @@ describe("post-start context usage publication (ZA-03)", () => {
             });
             // Initial snapshot has no usage yet.
             expect(thread.contextUsage).toBeNull();
-            const collected: unknown[] = [];
-            const collectFiber = yield* Stream.runForEach(runtime.events, (event) =>
-              Effect.sync(() => {
-                collected.push(event);
-              }),
+            const collectFiber = yield* Stream.runCollect(
+              runtime.events.pipe(
+                Stream.filter(
+                  (event) =>
+                    event.type === "provider_thread.updated" &&
+                    event.providerThread.contextUsage?.usedTokens === 400,
+                ),
+                Stream.take(1),
+              ),
             ).pipe(Effect.forkScoped);
             yield* runtime.startTurn({
               threadId,
@@ -246,10 +250,7 @@ describe("post-start context usage publication (ZA-03)", () => {
               runtimePolicy: policy("approval-required", "default"),
               appThread: {} as never,
             } as never);
-            // The fake emits the usage notification right after the send reply.
-            yield* Effect.sleep("400 millis");
-            yield* Fiber.interrupt(collectFiber);
-            return collected;
+            return [...(yield* Fiber.join(collectFiber))];
           }),
         ),
       );
@@ -257,7 +258,7 @@ describe("post-start context usage publication (ZA-03)", () => {
         (event) => event.type === "provider_thread.updated",
       );
       // ensureThread published one; the post-start usage notification must add another.
-      expect(threadUpdates.length).toBeGreaterThanOrEqual(2);
+      expect(threadUpdates).toHaveLength(1);
       const latest = threadUpdates[threadUpdates.length - 1]!.providerThread as {
         contextUsage: { usedTokens: number; maxTokens: number } | null;
       };
@@ -268,5 +269,5 @@ describe("post-start context usage publication (ZA-03)", () => {
       await fake.dispose();
       await rm(dir, { recursive: true, force: true });
     }
-  }, 30_000);
+  });
 });

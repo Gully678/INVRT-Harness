@@ -93,7 +93,7 @@ describe("zcodeUsageScan per-instance isolation", () => {
     } finally {
       await fake.dispose();
     }
-  }, 60_000);
+  });
 
   // ZA-06 regression: usage/stats receives a range DURATION selector (7d/30d/all), not an
   // epoch timestamp. The recorded request params prove which bucket the scan asks for.
@@ -141,16 +141,16 @@ describe("zcodeUsageScan per-instance isolation", () => {
     it("asks for 7d when the retained window is two days old", async () => {
       const now = await Effect.runPromise(Clock.currentTimeMillis);
       expect(await scanRange(now - 2 * 86_400_000, now - 40 * 86_400_000)).toBe("7d");
-    }, 60_000);
+    });
 
     it("asks for 30d when the retained window is 28 days old", async () => {
       const now = await Effect.runPromise(Clock.currentTimeMillis);
       expect(await scanRange(now - 28 * 86_400_000, now - 40 * 86_400_000)).toBe("30d");
-    }, 60_000);
+    });
 
     it("asks for all when the retained window is older than the 30d bucket", async () => {
       const now = await Effect.runPromise(Clock.currentTimeMillis);
       expect(await scanRange(now - 400 * 86_400_000, now - 500 * 86_400_000)).toBe("all");
-    }, 60_000);
+    });
   });
 });

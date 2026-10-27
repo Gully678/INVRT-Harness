@@ -190,27 +190,31 @@ export interface ZcodeVersionProbe {
 export const probeZcodeVersion = Effect.fn("ZcodeStatus.probeZcodeVersion")(function* (
   settings: ZCodeSettings,
   environment: NodeJS.ProcessEnv,
+  appBundleCli: string = ZCODE_APP_BUNDLE_CLI,
 ): Effect.fn.Return<
   ZcodeVersionProbe,
   never,
   ChildProcessSpawner.ChildProcessSpawner | FileSystem.FileSystem
 > {
-  const home = environment.HOME ?? process.env.HOME ?? "";
-  const candidates = resolveZcodeCommandCandidates(settings.binaryPath, home);
-  for (const candidate of candidates) {
-    const outcome = yield* runVersionProbe(candidate, environment);
-    if (outcome.found) {
-      return {
-        installed: true,
-        version: outcome.version,
-        commandPath: candidate,
-      };
-    }
+  const selected = yield* resolveZcodeExecutable(
+    settings.binaryPath,
+    environment,
+    appBundleCli,
+  ).pipe(Effect.option);
+  if (Option.isNone(selected)) {
+    return { installed: false, version: null, commandPath: null };
   }
+  const outcome = yield* runVersionProbe(selected.value.commandPath, environment);
   return {
-    installed: false,
-    version: null,
-    commandPath: null,
+    installed: outcome.found,
+    version: outcome.version,
+    commandPath: selected.value.commandPath,
+    ...(outcome.found
+      ? {}
+      : {
+          message:
+            "The selected ZCode CLI failed its version probe. Check its binary path and installation.",
+        }),
   };
 });
 

@@ -5,6 +5,7 @@ import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as Sink from "effect/Sink";
 import * as Stream from "effect/Stream";
 import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
@@ -16,6 +17,7 @@ import * as Schema from "effect/Schema";
 import { ZCodeSettings } from "../settings.ts";
 import {
   buildInitialZcodeProviderSnapshot,
+  probeZcodeVersion,
   checkZcodeProviderStatus,
   resolveZcodeCommandCandidates,
   resolveZcodeExecutable,
@@ -201,4 +203,45 @@ describe("snapshot usage limits metadata (ZA-04)", () => {
     expect(snapshot.usageLimits).toBeDefined();
     expect(snapshot.usageLimits?.unavailable?.reason).toBe("unsupported");
   });
+});
+
+describe("status uses the executable selected for turns and usage (ZA-02)", () => {
+  it.live(
+    "does not substitute a bundle when the selected PATH executable fails its version probe",
+    () =>
+      Effect.gen(function* () {
+        const dir = yield* Effect.acquireRelease(
+          Effect.promise(() => mkdtemp(join(tmpdir(), "zcode-selection-"))),
+          (dir) => Effect.promise(() => rm(dir, { recursive: true, force: true })),
+        );
+        const pathCommand = join(dir, "zcode");
+        const bundle = join(dir, "bundle");
+        yield* Effect.promise(() => writeFile(pathCommand, "#!/bin/sh\nexit 1\n"));
+        yield* Effect.promise(() => writeFile(bundle, "#!/bin/sh\necho 0.16.5\n"));
+        yield* Effect.promise(() => chmod(pathCommand, 0o755));
+        yield* Effect.promise(() => chmod(bundle, 0o755));
+        const environment = { ...process.env, PATH: dir };
+        const settings = decodeZcodeSettings({ enabled: true });
+        const { selected, probe, explicit, fallback } = yield* Effect.gen(function* () {
+          return {
+            selected: yield* resolveZcodeExecutable(settings.binaryPath, environment, bundle),
+            probe: yield* probeZcodeVersion(settings, environment, bundle),
+            explicit: yield* probeZcodeVersion(
+              decodeZcodeSettings({ enabled: true, binaryPath: pathCommand }),
+              environment,
+              bundle,
+            ),
+            fallback: yield* probeZcodeVersion(settings, { ...environment, PATH: "" }, bundle),
+          };
+        }).pipe(Effect.provide(NodeServices.layer));
+        expect(selected.commandPath).toBe(pathCommand);
+        expect(probe).toMatchObject({ installed: false, commandPath: pathCommand, version: null });
+        expect(explicit).toMatchObject({
+          installed: false,
+          commandPath: pathCommand,
+          version: null,
+        });
+        expect(fallback).toMatchObject({ installed: true, commandPath: bundle, version: "0.16.5" });
+      }).pipe(Effect.scoped),
+  );
 });
