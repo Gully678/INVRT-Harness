@@ -103,6 +103,23 @@
       "apps": "7052acdaed484235704baa7ea732ce0e4be8f461",
       "packages": "9c140a4e12cd229cd79f2c2eca58669772c97607",
       "scripts": "51db167c42b449d65c3d898d6025100ba10ae0ad"
-    }
+    },
+    "supersededBy": "current_server_archive_candidate",
+    "supersededAt": "2026-10-27",
+    "supersededNote": "Retained intact as honest history; not deleted. Superseded by the rebuilt archive candidate below, which supersedes this entry only as the server-package candidate of record."
+  },
+  "current_server_archive_candidate": {
+    "status": "PRIVATE CANDIDATE, SELF-TESTED + WAVE-INTEGRATION REGRESSION RUN; NOT ENTERPRISE ACCEPTED",
+    "boundOn": "2026-10-27",
+    "boundOnBranch": "codex/claude-wave-integration-20261027",
+    "file": "/Users/mac/Repos/invrt-code-local-pilot/.pilot/oneday-release-2026-10-27/server-archive-candidate/INVRT-CODE-SERVER.tar.gz",
+    "bytes": 94870610,
+    "sha256": "562e8052cd4d53046c5241e1a70d8f79be1d523c0c7ddcf3e03f4e7b67dbaae8",
+    "sourceTip": "d6191bcd5655b770f2e84d61238022e46aa6c858",
+    "builtOnBranch": "codex/claude-server-archive-20261027",
+    "builtOnCommit": "551c3cfc8a",
+    "sizeHuman": "94,870,610 bytes",
+    "provenance": "Rebuilt deployable server archive bound to adopted tip d6191bcd (adoption merge 5b0f7fb84 + fix 84b49e61 + adoption review evidence); archive build and SAME-HARNESS review evidence are committed as c7c9de11 on codex/claude-server-archive-20261027",
+    "supersedes": "current_takeover_candidate (retained above, sha256 ff6a3ef51b8b711f66e5293d00f3d9de7588b3d027c81bb51d4712029adbd4ff)"
   }
 }
