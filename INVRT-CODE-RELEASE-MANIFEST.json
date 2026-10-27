@@ -1,0 +1,86 @@
+{
+  "programme": "ONE-DAY NEW INVRT Code build",
+  "generated": "2026-10-27, Asia/Dubai",
+  "T0": "2026-10-27T05:03:16+04:00",
+  "deadline": "2026-10-28T05:03:16+04:00",
+  "executor": {
+    "harness": "ZCode",
+    "model": "builtin:zai-coding-plan/GLM-5.3-Flash",
+    "note": "same-harness internal audits only; cross-harness release acceptance owed and not claimed"
+  },
+  "source": {
+    "fork_baseline": "b3d382e1009d5430de8c528aef99a39854a7cbc4",
+    "session_base": "6ef29078c74d4cb82f0875d7f161ccdc24b4253c",
+    "integration_branch": "invrt/oneday-integration-20261027",
+    "integration_head": "see git log; merges: 1b5357dc server, 7a311560 adapter, e00fbe53 lockfile, 60bbf0d8 mobile, 70572442 brand, gitignore guardrail, integration evidence",
+    "lane_branches": {
+      "server": "invrt/oneday-server-20261027 (3b5873f1814dda59788882dd13682925f52db37a + 1c0765dcfeb5898c182b0334fb9957ee8131438d)",
+      "zcode_adapter": "invrt/oneday-zcode-adapter-20261027 (d161e960 + 4d5968a8222c8cfe5c911f7b1425838e71058e27)",
+      "mobile": "invrt/oneday-mobile-20261027 (b57cc4a7 + 86b47974)",
+      "brand": "invrt/oneday-brand-20261027 (7327cdefe1ffe67403e753c445254857b055148a + d16b042ae1863fd1d8e03fc99eff000691fb4df2 + 6c1fed5a53ed86a8167d2e3984e602086e3c8807 + 059b56d1cfe0bd51a9874adffd9936c99a319af5)"
+    }
+  },
+  "host": {
+    "os": "macOS 26.7 (25G229)",
+    "arch": "x86_64",
+    "node": "26.12.1 (candidate-local toolchain)",
+    "pnpm": "12.14.0"
+  },
+  "identity": {
+    "product_name": "INVRT Code",
+    "desktop_bundle_id": "com.invrt.code",
+    "design_system": "/Users/mac/My Drive/Claude/INVRT Design System",
+    "accent": "#405BD8"
+  },
+  "artifacts": {
+    "desktop_dmg_x64": {
+      "path": "release/INVRT-Code-0.1.2-x64.dmg",
+      "size": "157M",
+      "sha256": "89a30aedcc6426ffa9882c2f078923000335afccc648d6065c1786604b89dec4",
+      "signed": false,
+      "note": "unsigned local development build"
+    },
+    "desktop_zip_x64": {
+      "path": "release/INVRT-Code-0.1.2-x64.zip",
+      "size": "152M",
+      "sha256": "2c1c4f1a2751c8718744250b2a40c711e34b09c65aefca10ee5e98207e5d2daf",
+      "signed": false
+    },
+    "server_package": {
+      "path": "dist-package/INVRT-CODE-SERVER.tar.gz",
+      "size": "63M",
+      "sha256": "2d143c815c07f17933c99f96d83df75d6e077be14da6c0768a800c01e2dbbe7d",
+      "clean_room": "root 200 INVRT title, auth 401, descriptor 200, clean stop, port free"
+    },
+    "web_client": {
+      "delivery": "served single-origin by the server bundle (apps/server/dist/client)",
+      "title": "INVRT Code (Beta)",
+      "dist_T3Code_grep": 0
+    },
+    "ios_simulator": {
+      "status": "rebuild from integrated tree IN PROGRESS at manifest time; base-built dev-client evidence in mobile lane",
+      "note": "final row completed in PLATFORM-EVIDENCE.json"
+    },
+    "android": { "status": "BLOCKED", "missing": ["Android SDK", "JDK", "adb"] },
+    "windows": {
+      "status": "attempted cross-package from macOS; see PLATFORM-EVIDENCE.json for the exact result; a Mac cross-build does NOT prove the Windows host journey (P02)"
+    }
+  },
+  "tests_and_audits": {
+    "baseline": "52/52 focused tests on 6ef29078 at session start",
+    "brand": "29/29 branding+identity, 43/43 packaging, 14/14 URL-handler, server sample 13/13, relay 31/31, CI 47/47; typechecks exit 0 (web, desktop, server, relay); dist zero T3 Code",
+    "server": "typecheck exit 0; headless run 200/401; restart persistence; zero egress; auditor re-ran acceptance independently; evidence digests machine-verified",
+    "adapter": "provider-zcode 46/46; builtInDrivers 2/2; web superset 228/228; mobile 2/2; four typechecks exit 0; live read-only CLI acceptance PASS",
+    "mobile": "BUILD SUCCEEDED (iphonesimulator); typecheck exit 0; screenshots digested; audit PASS",
+    "audits": "every lane: fresh-context same-harness audit on the exact tip; fix loops closed with re-audit PASS (server recheck folded into integration verification, digests machine-verified)"
+  },
+  "open_owner_decisions": [
+    "ZCode CLI model provider config for live model turns (adapter turn mapping UNAUDITED until then)",
+    "T3 Connect rename-or-keep (96 user-visible occurrences, protocol-bound)",
+    "mobile bundle ids com.t3tools.t3code.* (Clerk universal links), @t3tools npm scope, T3CODE_*/VITE_T3CODE_* env names (saved launcher + upstream sync cost), URL schemes, t3.codes URLs, winget/brew/AUR ids, OTel service names",
+    "DESKTOP_DOWNLOAD_URL still t3.codes/download (no INVRT URL exists to invent)",
+    "WordCraft/GridCraft D3 inclusion (pre-existing, unchanged)",
+    "signed release identity (com.invrt.code applied for unsigned local dev only)"
+  ],
+  "honest_limits": "This is a one-day partial delivery: server, desktop and web surfaces are built, integrated, verified and packaged; iOS is built with simulator-level proof; Android and Windows host journeys are blocked on missing owned resources; the full 42-requirement/75-card release scope remains visible in INVRT-CODE-75-CARD-STATUS.md with most integration cards NOT STARTED; B39 combined release acceptance cannot pass and is not claimed."
+}

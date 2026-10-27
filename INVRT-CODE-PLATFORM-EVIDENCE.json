@@ -1,0 +1,77 @@
+{
+  "programme": "ONE-DAY NEW INVRT Code build, 2026-10-27",
+  "host": { "os": "macOS 26.7 (25G229)", "arch": "x86_64", "node": "26.12.1 candidate-local" },
+  "desktop_macos": {
+    "status": "BUILT + INSTALLED + LAUNCHED (local, unsigned)",
+    "artifact": {
+      "name": "INVRT-Code-0.1.2-x64.dmg",
+      "sha256": "89a30aedcc6426ffa9882c2f078923000335afccc648d6065c1786604b89dec4",
+      "size": "157M"
+    },
+    "identity": {
+      "CFBundleIdentifier": "com.invrt.code",
+      "CFBundleName": "INVRT Code",
+      "CFBundleDisplayName": "INVRT Code"
+    },
+    "install": "mounted DMG, copied to /Applications/INVRT Code.app (retained as usable local deliverable), quarantine cleared for unsigned local build, DMG detached",
+    "launch": "main PID 51068 + gpu/network/renderer helpers, --user-data-dir isolated to /tmp/oneday-desktop-appdata/t3code-v2, auto-update disabled; quit by exact PID, all processes verified gone",
+    "visual_proof": "NOT CLAIMED: host screen was occupied by fullscreen video + pending ZCode automation permission dialog; no screen interaction performed; screenshot deleted (private screen content)",
+    "not_done": [
+      "signed distribution",
+      "auto-update channel",
+      "first-run wizard walk-through",
+      "provider live journey in-app"
+    ]
+  },
+  "server_headless": {
+    "status": "BUILT + RUN + RESTART-PERSISTENT + PACKAGED (local loopback)",
+    "integrated_run": "127.0.0.1:14038 PID 47700: ROOT 200 (INVRT Code (Beta) title), GET /api/auth/clients 401, GET /api/orchestration/shell 401, descriptor 200 (fresh environmentId), loopback-only LISTEN, zero egress, clean stop",
+    "package": {
+      "name": "INVRT-CODE-SERVER.tar.gz",
+      "sha256": "2d143c815c07f17933c99f96d83df75d6e077be14da6c0768a800c01e2dbbe7d",
+      "size": "63M",
+      "clean_room": "port 14039: ROOT 200 INVRT title, 401 protected, descriptor 200, SIGTERM stop, port free, temp deleted"
+    },
+    "runbook": "INVRT-CODE-SERVER-RUNBOOK.md (build, run, config from source, state locations, backup/restore, health, shutdown, rollback)",
+    "not_done": [
+      "remote VM deployment (no authorised target)",
+      "real authenticated client journey on the headless server (requires owner pairing)"
+    ]
+  },
+  "web": {
+    "status": "BUILT + SERVED BY THE SERVER (single origin)",
+    "delivery": "apps/server/dist/client inside the qualified server bundle; apps/web/dist produced by vp build",
+    "verification": "title INVRT Code (Beta); zero 'T3 Code' in dist; manifest name INVRT Code with DS-digest icons + theme #405BD8",
+    "not_done": [
+      "declared-browser journey matrix (auth sign-in needs owner credentials)",
+      "reconnect/revocation probes",
+      "separately hosted web address"
+    ]
+  },
+  "ios": {
+    "status": "BUILT + SIMULATOR (base identity) ; INVRT-branded rebuild IN PROGRESS from integrated tree",
+    "base_build_evidence": "BUILD SUCCEEDED (Debug, iphonesimulator, Intel), installed+launched on iPhone 17 Pro sim, deep-link scheme registration proven, simulator Safari rendered the server pairing page; screenshots sha256 recorded in mobile lane evidence",
+    "intel_exclusion": "GhosttyKit arm64-only simulator slice; @t3tools/mobile-terminal-native excluded via expo.autolinking.ios.exclude; designed JS FallbackTerminalSurface covers it",
+    "not_done": [
+      "Metro JS load on device (needs one human tap)",
+      "native pairing (owner token)",
+      "Clerk sign-in (publishable key not present in owned env)",
+      "real device",
+      "push/deep-link journey",
+      "signed release"
+    ]
+  },
+  "android": {
+    "status": "BLOCKED",
+    "missing": ["Android SDK", "JDK", "adb binary"],
+    "attempted": "PATH searches of default SDK locations, /opt, /usr/local, mdfind; nothing installed without authorisation"
+  },
+  "windows": {
+    "status": "BLOCKED (attempted, failed at a native cross-compile)",
+    "attempt": "pnpm run dist:desktop:win on the integrated tree",
+    "exact_error": "rustc error E0463: can't find crate for `core`; the x86_64-pc-windows-msvc target may not be installed (scripts/build-desktop-artifact.ts stageResourceMonitor)",
+    "missing_dependency": "rustup target add x86_64-pc-windows-msvc (global toolchain change, deferred to owner) AND an owned Windows host",
+    "note": "even a successful Mac cross-build does NOT prove P02 (Windows host journey with native provider/process/path/firewall/REA/Craft, install/update/rollback)"
+  },
+  "audit_labels": "All evidence same-harness (ZCode GLM 5.3 Flash); cross-harness release acceptance owed on every row"
+}
