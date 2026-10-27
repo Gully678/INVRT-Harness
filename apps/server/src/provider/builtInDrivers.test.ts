@@ -12,6 +12,7 @@ describe("builtInDrivers registration", () => {
       "claudeAgent",
       "cursor",
       "grok",
+      "fx",
       "opencode",
       "pi",
       "muse",

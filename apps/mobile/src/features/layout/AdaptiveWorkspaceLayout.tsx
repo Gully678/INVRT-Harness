@@ -1,6 +1,6 @@
 import { SafeAreaInsetsContext, useSafeAreaInsets } from "react-native-safe-area-context";
 import { AdaptiveWorkspaceContext, useAdaptiveWorkspaceLayout } from "./adaptive-workspace-context";
-import { createDeferredNavigation } from "./deferred-navigation";
+import { threadSelectionDeferral } from "./deferred-navigation";
 import { uuidv4 } from "../../lib/uuid";
 import type {
   EnvironmentProject,
@@ -66,6 +66,7 @@ import {
   type WorkspaceDetail,
   type WorkspaceDetailSheet,
 } from "../workspace/workspace-detail-selection";
+import { startOpeningDetail } from "../workspace/useSelectWorkspaceDetail";
 import { useWorkspaceTabs } from "../workspace/WorkspaceTabsContext";
 import { HomeListOptionsProvider } from "../home/home-list-options";
 import { newTaskDestination } from "../threads/new-task-project-selection";
@@ -94,9 +95,13 @@ import {
   currentWorkspaceSelections,
   workspaceSelectionCheck,
 } from "../workspace/workspace-selection-store";
-import { workspaceTabNavigationState } from "../workspace/workspace-tab-navigation";
+import {
+  workspaceTabColumns,
+  workspaceTabNavigationState,
+} from "../workspace/workspace-tab-navigation";
 import type { WorkspaceTab } from "../workspace/workspace-tabs-state";
 import { workspaceRoutesOf } from "./workspace-overlay-routes";
+import { SettingsWorkspaceLayout } from "../settings/SettingsWorkspaceLayout";
 
 export { useAdaptiveWorkspaceLayout };
 
@@ -147,6 +152,7 @@ export function useRegisterWorkspaceInspector(render: (() => ReactNode) | undefi
     if (focusedRef.current) {
       syncRegistration();
     }
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Changed pane content replaces its existing native workspace registration.
   }, [wrappedRender]);
 
   useEffect(
@@ -323,6 +329,7 @@ function AdaptiveWorkspaceLayoutContent(
       deriveWorkspacePaneLayout({
         layout,
         viewportWidth: width,
+        nativeWorkspace,
         primarySidebarPreferredVisible: showPrimarySidebar,
         auxiliaryPanePreferredVisible,
         auxiliaryPaneRole,
@@ -333,6 +340,7 @@ function AdaptiveWorkspaceLayoutContent(
       auxiliaryPaneRole,
       auxiliaryPanePreferredWidth,
       layout,
+      nativeWorkspace,
       showPrimarySidebar,
       width,
     ],
@@ -474,7 +482,7 @@ function AdaptiveWorkspaceLayoutContent(
       tab,
       currentWorkspaceSelections(),
       {
-        columns: Platform.OS === "ios" && (options?.columns ?? layout.usesSplitView),
+        columns: workspaceTabColumns(Platform.OS, tab, options?.columns ?? layout.usesSplitView),
         check: workspaceSelectionCheck,
         overlays,
       },
@@ -487,10 +495,9 @@ function AdaptiveWorkspaceLayoutContent(
   };
   const handleOpenSettings = () => openWorkspaceTab("settings");
 
-  const deferredThreadSelection = useMemo(() => createDeferredNavigation(), []);
   /** The one way to show a page in the detail column; see `selectWorkspaceDetail`. */
   function handleSelectDetail(detail: WorkspaceDetail, sheet?: WorkspaceDetailSheet) {
-    deferredThreadSelection.run(() => {
+    threadSelectionDeferral.run(() => {
       if (Platform.OS === "android") Keyboard.dismiss();
       setFileInspectorPreferredVisible(false);
       if (layout.primarySidebarOverlaysContent) setPrimarySidebarVisible(false);
@@ -498,6 +505,7 @@ function AdaptiveWorkspaceLayoutContent(
         type: "select",
         tab: detail.name === "Thread" ? "threads" : "pullRequests",
       });
+      startOpeningDetail(detail);
       navigation.dispatch(selectWorkspaceDetail(detail, sheet));
     });
   }
@@ -519,24 +527,27 @@ function AdaptiveWorkspaceLayoutContent(
         : undefined;
     const first = (value: string | string[] | undefined) =>
       Array.isArray(value) ? value[0] : value;
-    const thread = appAtomRegistry
-      .get(environmentThreadShells.navigationThreadShellsAtom)
-      .find(
-        (candidate) =>
-          candidate.environmentId === first(params?.environmentId) &&
-          candidate.id === first(params?.threadId),
-      );
-    const draft = params?.draft;
-    const draftEnvironmentId = first(draft?.environmentId);
-    const draftProjectId = first(draft?.projectId);
-    const currentProject = thread
-      ? { environmentId: thread.environmentId, id: thread.projectId }
-      : projects.find(
-          (project) =>
-            project.environmentId === draftEnvironmentId && project.id === draftProjectId,
-        );
+    const environmentId = first(params?.environmentId);
+    const threadId = first(params?.threadId);
+    // The full index, not the sidebar list: subagent and archived threads are current threads too.
+    const projectId =
+      environmentId && threadId
+        ? appAtomRegistry
+            .get(
+              environmentThreadShells.environmentThreadIndexAtom(EnvironmentId.make(environmentId)),
+            )
+            .get(ThreadId.make(threadId))?.projectId
+        : undefined;
+    const preferences = appAtomRegistry.get(mobilePreferencesAtom);
+    const saved = AsyncResult.isSuccess(preferences) ? preferences.value : undefined;
     handleSelectThreadRoute(
-      newTaskDestination(layout.usesSplitView, projects, currentProject, uuidv4()),
+      newTaskDestination({
+        projects,
+        requestId: uuidv4(),
+        useLastProject: saved?.useLastProjectForNewThreads,
+        currentProject: environmentId && projectId ? { environmentId, projectId } : undefined,
+        lastProject: saved?.lastThreadProject,
+      }),
     );
   };
 
@@ -741,13 +752,30 @@ function AdaptiveWorkspaceLayoutContent(
     });
   };
 
+  // Rotating flips the overlay; until the new size reaches JS, predict the reset above.
+  const sidebarOverRotates =
+    nativeWorkspace && nativeMetrics?.hasHinge === true && layout.usesSplitView;
+  // The current orientation's panes already account for an inspector that needs the sidebar's room.
+  const sidebarInLandscape = baseLayout.primarySidebarOverlaysContent
+    ? primarySidebarPinned || primarySidebarPreferredVisible
+    : panes.primarySidebarVisible;
+  const sidebarInPortrait =
+    primarySidebarPinned ||
+    (baseLayout.primarySidebarOverlaysContent
+      ? overlaySidebar.visible
+      : isWorkspaceListPath(pathname));
+  const sidebarByOrientation = useMemo(
+    () =>
+      sidebarOverRotates ? { landscape: sidebarInLandscape, portrait: sidebarInPortrait } : null,
+    [sidebarInLandscape, sidebarInPortrait, sidebarOverRotates],
+  );
+
   const contextValue = {
     layout,
     panes,
     fileInspector,
     primarySidebarSearchQuery,
     startNewTask: handleStartNewTask,
-    deferThreadSelectionUntil: deferredThreadSelection.waitFor,
     selectDetail: handleSelectDetail,
     activateAuxiliaryPaneRole,
     registerWorkspaceInspector,
@@ -760,6 +788,7 @@ function AdaptiveWorkspaceLayoutContent(
     setAuxiliaryPaneWidth,
     composerKeyboardActive,
     setComposerEditing,
+    sidebarByOrientation,
   };
 
   if (nativeWorkspace) {
@@ -883,7 +912,9 @@ function AdaptiveWorkspaceLayoutContent(
                         compactAndroidSettings ? { ...safeAreaInsets, bottom: 0 } : safeAreaInsets
                       }
                     >
-                      <View className="flex-1">{props.children}</View>
+                      <View className="flex-1">
+                        <SettingsWorkspaceLayout>{props.children}</SettingsWorkspaceLayout>
+                      </View>
                     </SafeAreaInsetsContext>
                     {compactAndroidSettings ? (
                       <AndroidWorkspaceNavigation onNewThread={handleStartNewTask} />

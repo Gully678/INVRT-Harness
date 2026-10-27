@@ -151,7 +151,7 @@ const make = Effect.fn("desktop.environment.make")(function* (
   const devServerUrl = config.devServerUrl;
   const isDevelopment = Option.isSome(devServerUrl);
   if (Option.isSome(config.desktopAppDataDirectory)) {
-    yield* Schema.decodeUnknownEffect(
+    yield* Schema.decodeEffect(
       Schema.String.check(
         Schema.makeFilter((value) =>
           path.isAbsolute(value) &&

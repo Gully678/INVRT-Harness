@@ -262,7 +262,8 @@ export const makeZcodeAdapterV2 = Effect.fn("makeZcodeAdapterV2")(function* (
     let currentThread: OrchestrationV2ProviderThread | null = null;
     let activeTurn: SessionTurnTargets | null = null;
 
-    const offer = (event: AdapterEvent) => Effect.runSync(Queue.offer(eventQueue, event));
+    const runSync = Effect.runSyncWith(yield* Effect.context<never>());
+    const offer = (event: AdapterEvent) => runSync(Queue.offer(eventQueue, event));
 
     const onNotification = (method: string, params: unknown) => {
       if (method !== "session/event") return;
@@ -274,7 +275,7 @@ export const makeZcodeAdapterV2 = Effect.fn("makeZcodeAdapterV2")(function* (
         // ZA-03: a usage change is not only stored in the private ref. Once the thread is
         // live, a changed context usage is published as provider_thread.updated on the
         // session event stream, which is the projection caller's actual input.
-        Effect.runSync(
+        runSync(
           Effect.gen(function* () {
             yield* Ref.set(contextUsageRef, usage);
             if (currentThread === null) return;
@@ -303,7 +304,7 @@ export const makeZcodeAdapterV2 = Effect.fn("makeZcodeAdapterV2")(function* (
         nativeSessionId,
         targets: activeTurn,
         threadId: activeTurn?.threadId ?? null,
-        now: Effect.runSync(DateTime.now),
+        now: runSync(DateTime.now),
       });
       for (const update of updates) {
         if (update.type === "turn.terminal" && currentThread !== null) {
@@ -372,7 +373,7 @@ export const makeZcodeAdapterV2 = Effect.fn("makeZcodeAdapterV2")(function* (
       lastRunOrdinal: null,
       handoffIds: [],
       forkedFrom: null,
-      contextUsage: sessionStateUsageToSnapshot(Effect.runSync(Ref.get(contextUsageRef))),
+      contextUsage: sessionStateUsageToSnapshot(runSync(Ref.get(contextUsageRef))),
       createdAt: now,
       updatedAt: now,
     });
@@ -470,137 +471,134 @@ export const makeZcodeAdapterV2 = Effect.fn("makeZcodeAdapterV2")(function* (
       providerSession: providerSessionFor(sessionNow),
       events: Stream.fromQueue(eventQueue),
       getModelContextWindow: () => {
-        const usage = sessionStateUsageToSnapshot(Effect.runSync(Ref.get(contextUsageRef)));
+        const usage = sessionStateUsageToSnapshot(runSync(Ref.get(contextUsageRef)));
         return usage?.maxTokens;
       },
       canReuseContextUsage: () => true,
 
-      ensureThread: (ensureInput) =>
-        Effect.gen(function* () {
-          const resumeNativeId =
-            ensureInput.existingProviderThread?.nativeThreadRef?.nativeId ?? null;
-          const sessionId = yield* ensureNativeSession(resumeNativeId);
-          nativeSessionId = sessionId;
-          const now = yield* DateTime.now;
-          const thread = ensureInput.existingProviderThread
-            ? {
-                ...ensureInput.existingProviderThread,
-                appThreadId: ensureInput.threadId,
-                nativeThreadRef: providerRef(sessionId),
-                ...(resumeNativeId === null
-                  ? { nativeConversationHeadRef: null, contextUsage: null }
-                  : {}),
-                updatedAt: now,
-              }
-            : providerThreadFor(sessionId, now, ensureInput.threadId);
-          currentThread = thread;
-          yield* Ref.set(publishedUsageRef, usageKey(thread));
-          offer({
-            type: "provider_session.updated",
-            driver: ZCODE_PROVIDER,
-            providerSession: { ...providerSessionFor(now), updatedAt: now },
-          });
-          offer({
-            type: "provider_thread.updated",
-            driver: ZCODE_PROVIDER,
-            providerThread: thread,
-          });
-          return thread;
-        }),
+      ensureThread: Effect.fn("ZcodeAdapter.ensureThread")(function* (ensureInput) {
+        const resumeNativeId =
+          ensureInput.existingProviderThread?.nativeThreadRef?.nativeId ?? null;
+        const sessionId = yield* ensureNativeSession(resumeNativeId);
+        nativeSessionId = sessionId;
+        const now = yield* DateTime.now;
+        const thread = ensureInput.existingProviderThread
+          ? {
+              ...ensureInput.existingProviderThread,
+              appThreadId: ensureInput.threadId,
+              nativeThreadRef: providerRef(sessionId),
+              ...(resumeNativeId === null
+                ? { nativeConversationHeadRef: null, contextUsage: null }
+                : {}),
+              updatedAt: now,
+            }
+          : providerThreadFor(sessionId, now, ensureInput.threadId);
+        currentThread = thread;
+        yield* Ref.set(publishedUsageRef, usageKey(thread));
+        offer({
+          type: "provider_session.updated",
+          driver: ZCODE_PROVIDER,
+          providerSession: { ...providerSessionFor(now), updatedAt: now },
+        });
+        offer({
+          type: "provider_thread.updated",
+          driver: ZCODE_PROVIDER,
+          providerThread: thread,
+        });
+        return thread;
+      }),
 
-      resumeThread: (resumeInput) =>
-        Effect.gen(function* () {
-          const resumeNativeId = resumeInput.providerThread.nativeThreadRef?.nativeId ?? null;
-          const sessionId = yield* ensureNativeSession(resumeNativeId);
-          nativeSessionId = sessionId;
-          const now = yield* DateTime.now;
-          const thread = {
-            ...resumeInput.providerThread,
-            appThreadId: resumeInput.providerThread.appThreadId ?? resumeInput.threadId ?? null,
-            nativeThreadRef: providerRef(sessionId),
-            ...(resumeNativeId === null
-              ? { nativeConversationHeadRef: null, contextUsage: null }
-              : {}),
-            updatedAt: now,
-          };
-          currentThread = thread;
-          yield* Ref.set(publishedUsageRef, usageKey(thread));
-          offer({
-            type: "provider_thread.updated",
-            driver: ZCODE_PROVIDER,
-            providerThread: thread,
-          });
-          return thread;
-        }),
+      resumeThread: Effect.fn("ZcodeAdapter.resumeThread")(function* (resumeInput) {
+        const resumeNativeId = resumeInput.providerThread.nativeThreadRef?.nativeId ?? null;
+        const sessionId = yield* ensureNativeSession(resumeNativeId);
+        nativeSessionId = sessionId;
+        const now = yield* DateTime.now;
+        const thread = {
+          ...resumeInput.providerThread,
+          appThreadId: resumeInput.providerThread.appThreadId ?? resumeInput.threadId ?? null,
+          nativeThreadRef: providerRef(sessionId),
+          ...(resumeNativeId === null
+            ? { nativeConversationHeadRef: null, contextUsage: null }
+            : {}),
+          updatedAt: now,
+        };
+        currentThread = thread;
+        yield* Ref.set(publishedUsageRef, usageKey(thread));
+        offer({
+          type: "provider_thread.updated",
+          driver: ZCODE_PROVIDER,
+          providerThread: thread,
+        });
+        return thread;
+      }),
 
-      startTurn: (turnInput) =>
-        Effect.gen(function* () {
-          // ZA-01: the interaction policy is enforced here, at the adapter boundary and
-          // before any effect. A plan interaction always sends the native plan mode, so a
-          // plan thread can never acquire a build/edit/yolo execution mode, for every
-          // runtime mode. Hiding the interaction-mode toggle in the UI is not enforcement.
-          const mode =
-            turnInput.runtimePolicy.interactionMode === "plan"
-              ? "plan"
-              : zcodeRuntimeModeToCliMode(turnInput.runtimePolicy.runtimeMode);
-          currentThread = turnInput.providerThread;
-          const sessionId = yield* ensureNativeSession(
-            nativeSessionId ?? turnInput.providerThread.nativeThreadRef?.nativeId ?? null,
-          );
-          nativeSessionId = sessionId;
-          const now = yield* DateTime.now;
-          const providerThreadId = deriveId.providerThread({
-            driver: ZCODE_PROVIDER,
-            providerInstanceId: options.instanceId,
-            nativeThreadId: sessionId,
-          });
-          const providerTurnId = deriveId.providerTurn({
-            driver: ZCODE_PROVIDER,
-            nativeTurnId: `turn:${turnInput.runId}`,
-          });
-          const turn: OrchestrationV2ProviderTurn = {
-            id: providerTurnId,
-            providerThreadId,
-            nodeId: turnInput.rootNodeId,
-            runAttemptId: turnInput.attemptId,
-            nativeTurnRef: null,
-            ordinal: turnInput.providerTurnOrdinal,
-            status: "running",
-            startedAt: now,
-            completedAt: null,
-          };
-          activeTurn = {
-            providerThreadId,
-            providerTurnId,
-            threadId: turnInput.threadId,
-            runId: turnInput.runId,
-            runOrdinal: turnInput.runOrdinal,
-            nodeId: turnInput.rootNodeId,
-            attemptId: turnInput.attemptId,
-          };
-          offer({
-            type: "provider_turn.updated",
-            driver: ZCODE_PROVIDER,
-            threadId: turnInput.threadId,
-            providerTurn: turn,
-          });
-          yield* Effect.tryPromise({
-            try: () =>
-              client.request("session/send", {
-                sessionId,
-                content: turnInput.message.text,
-                mode,
-              }),
-            catch: (cause) =>
-              new ProviderAdapter.ProviderAdapterTurnStartError({
-                driver: ZCODE_PROVIDER,
-                threadId: turnInput.threadId,
-                providerThreadId,
-                runId: turnInput.runId,
-                cause,
-              }),
-          });
-        }),
+      startTurn: Effect.fn("ZcodeAdapter.startTurn")(function* (turnInput) {
+        // ZA-01: the interaction policy is enforced here, at the adapter boundary and
+        // before any effect. A plan interaction always sends the native plan mode, so a
+        // plan thread can never acquire a build/edit/yolo execution mode, for every
+        // runtime mode. Hiding the interaction-mode toggle in the UI is not enforcement.
+        const mode =
+          turnInput.runtimePolicy.interactionMode === "plan"
+            ? "plan"
+            : zcodeRuntimeModeToCliMode(turnInput.runtimePolicy.runtimeMode);
+        currentThread = turnInput.providerThread;
+        const sessionId = yield* ensureNativeSession(
+          nativeSessionId ?? turnInput.providerThread.nativeThreadRef?.nativeId ?? null,
+        );
+        nativeSessionId = sessionId;
+        const now = yield* DateTime.now;
+        const providerThreadId = deriveId.providerThread({
+          driver: ZCODE_PROVIDER,
+          providerInstanceId: options.instanceId,
+          nativeThreadId: sessionId,
+        });
+        const providerTurnId = deriveId.providerTurn({
+          driver: ZCODE_PROVIDER,
+          nativeTurnId: `turn:${turnInput.runId}`,
+        });
+        const turn: OrchestrationV2ProviderTurn = {
+          id: providerTurnId,
+          providerThreadId,
+          nodeId: turnInput.rootNodeId,
+          runAttemptId: turnInput.attemptId,
+          nativeTurnRef: null,
+          ordinal: turnInput.providerTurnOrdinal,
+          status: "running",
+          startedAt: now,
+          completedAt: null,
+        };
+        activeTurn = {
+          providerThreadId,
+          providerTurnId,
+          threadId: turnInput.threadId,
+          runId: turnInput.runId,
+          runOrdinal: turnInput.runOrdinal,
+          nodeId: turnInput.rootNodeId,
+          attemptId: turnInput.attemptId,
+        };
+        offer({
+          type: "provider_turn.updated",
+          driver: ZCODE_PROVIDER,
+          threadId: turnInput.threadId,
+          providerTurn: turn,
+        });
+        yield* Effect.tryPromise({
+          try: () =>
+            client.request("session/send", {
+              sessionId,
+              content: turnInput.message.text,
+              mode,
+            }),
+          catch: (cause) =>
+            new ProviderAdapter.ProviderAdapterTurnStartError({
+              driver: ZCODE_PROVIDER,
+              threadId: turnInput.threadId,
+              providerThreadId,
+              runId: turnInput.runId,
+              cause,
+            }),
+        });
+      }),
 
       steerTurn: (steerInput) =>
         Effect.fail(
@@ -610,33 +608,32 @@ export const makeZcodeAdapterV2 = Effect.fn("makeZcodeAdapterV2")(function* (
           }),
         ),
 
-      interruptTurn: (interruptInput) =>
-        Effect.gen(function* () {
-          const sessionId = interruptInput.providerThread.nativeThreadRef?.nativeId;
-          if (sessionId === null || sessionId === undefined) return;
-          yield* Effect.tryPromise({
-            try: () => client.request("session/stop", { sessionId }),
-            catch: (cause) =>
-              new ProviderAdapter.ProviderAdapterInterruptError({
-                driver: ZCODE_PROVIDER,
-                providerThreadId: interruptInput.providerThread.id,
-                providerTurnId: interruptInput.providerTurnId,
-                cause,
-              }),
-          });
-          currentThread = { ...interruptInput.providerThread, status: "idle" };
-          activeTurn = null;
-          offer({
-            type: "turn.terminal",
-            driver: ZCODE_PROVIDER,
-            providerThreadId: interruptInput.providerThread.id,
-            providerTurnId: interruptInput.providerTurnId,
-            runOrdinal: interruptInput.providerThread.lastRunOrdinal ?? 1,
-            status: "interrupted",
-            failure: null,
-            threadDisposition: "reusable",
-          });
-        }),
+      interruptTurn: Effect.fn("ZcodeAdapter.interruptTurn")(function* (interruptInput) {
+        const sessionId = interruptInput.providerThread.nativeThreadRef?.nativeId;
+        if (sessionId === null || sessionId === undefined) return;
+        yield* Effect.tryPromise({
+          try: () => client.request("session/stop", { sessionId }),
+          catch: (cause) =>
+            new ProviderAdapter.ProviderAdapterInterruptError({
+              driver: ZCODE_PROVIDER,
+              providerThreadId: interruptInput.providerThread.id,
+              providerTurnId: interruptInput.providerTurnId,
+              cause,
+            }),
+        });
+        currentThread = { ...interruptInput.providerThread, status: "idle" };
+        activeTurn = null;
+        offer({
+          type: "turn.terminal",
+          driver: ZCODE_PROVIDER,
+          providerThreadId: interruptInput.providerThread.id,
+          providerTurnId: interruptInput.providerTurnId,
+          runOrdinal: interruptInput.providerThread.lastRunOrdinal ?? 1,
+          status: "interrupted",
+          failure: null,
+          threadDisposition: "reusable",
+        });
+      }),
 
       respondToRuntimeRequest: (responseInput) =>
         Effect.fail(
@@ -649,63 +646,61 @@ export const makeZcodeAdapterV2 = Effect.fn("makeZcodeAdapterV2")(function* (
           }),
         ),
 
-      readThreadSnapshot: (snapshotInput) =>
-        Effect.gen(function* () {
-          const sessionId = snapshotInput.providerThread.nativeThreadRef?.nativeId;
-          if (sessionId === null || sessionId === undefined) {
-            return {
-              providerThread: snapshotInput.providerThread,
-              providerTurns: [],
-              messages: [],
-              runtimeRequests: [],
-            };
-          }
-          const read = yield* readSessionTranscript(snapshotInput.providerThread.id, sessionId);
-          const appThreadId: ThreadId = snapshotAppThreadId(
-            snapshotInput.providerThread.appThreadId,
-            sessionId,
-          );
-          const now = yield* DateTime.now;
-          const messages: OrchestrationV2ConversationMessage[] = [];
-          for (const message of read.messages ?? []) {
-            const role = message.info?.role;
-            const nativeMessageId = message.info?.messageId;
-            if ((role !== "user" && role !== "assistant") || nativeMessageId === undefined)
-              continue;
-            const text = (message.parts ?? [])
-              .map((part) => parseTranscriptPart(part))
-              .filter(
-                (part): part is Extract<ReturnType<typeof parseTranscriptPart>, { type: "text" }> =>
-                  part.type === "text",
-              )
-              .map((part) => part.text ?? "")
-              .join("");
-            messages.push({
-              createdBy: role === "user" ? "user" : "agent",
-              creationSource: "provider",
-              id: deriveId.messageFromProviderItem({
-                driver: ZCODE_PROVIDER,
-                nativeItemId: nativeMessageId,
-              }),
-              threadId: appThreadId,
-              runId: null,
-              nodeId: null,
-              role,
-              text,
-              attachments: [],
-              streaming: false,
-              createdAt: now,
-              updatedAt: now,
-            });
-          }
+      readThreadSnapshot: Effect.fn("ZcodeAdapter.readThreadSnapshot")(function* (snapshotInput) {
+        const sessionId = snapshotInput.providerThread.nativeThreadRef?.nativeId;
+        if (sessionId === null || sessionId === undefined) {
           return {
             providerThread: snapshotInput.providerThread,
             providerTurns: [],
-            messages,
+            messages: [],
             runtimeRequests: [],
-            providerPayload: read,
           };
-        }),
+        }
+        const read = yield* readSessionTranscript(snapshotInput.providerThread.id, sessionId);
+        const appThreadId: ThreadId = snapshotAppThreadId(
+          snapshotInput.providerThread.appThreadId,
+          sessionId,
+        );
+        const now = yield* DateTime.now;
+        const messages: OrchestrationV2ConversationMessage[] = [];
+        for (const message of read.messages ?? []) {
+          const role = message.info?.role;
+          const nativeMessageId = message.info?.messageId;
+          if ((role !== "user" && role !== "assistant") || nativeMessageId === undefined) continue;
+          const text = (message.parts ?? [])
+            .map((part) => parseTranscriptPart(part))
+            .filter(
+              (part): part is Extract<ReturnType<typeof parseTranscriptPart>, { type: "text" }> =>
+                part.type === "text",
+            )
+            .map((part) => part.text ?? "")
+            .join("");
+          messages.push({
+            createdBy: role === "user" ? "user" : "agent",
+            creationSource: "provider",
+            id: deriveId.messageFromProviderItem({
+              driver: ZCODE_PROVIDER,
+              nativeItemId: nativeMessageId,
+            }),
+            threadId: appThreadId,
+            runId: null,
+            nodeId: null,
+            role,
+            text,
+            attachments: [],
+            streaming: false,
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
+        return {
+          providerThread: snapshotInput.providerThread,
+          providerTurns: [],
+          messages,
+          runtimeRequests: [],
+          providerPayload: read,
+        };
+      }),
 
       rollbackThread: () =>
         Effect.fail(

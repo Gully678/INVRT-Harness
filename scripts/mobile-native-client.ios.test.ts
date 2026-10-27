@@ -8,6 +8,7 @@ import * as Path from "effect/Path";
 import * as Sink from "effect/Sink";
 import * as Stream from "effect/Stream";
 import { Command } from "effect/cli";
+import { FetchHttpClient } from "effect/http";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 import * as NodeChildProcess from "node:child_process";
 import * as NodeModule from "node:module";
@@ -35,9 +36,11 @@ const fixture = Effect.gen(function* () {
     let stdout = "";
     if (child.args.includes("--eval")) stdout = `T3_NATIVE_FINGERPRINT=${"a".repeat(40)}`;
     else if (child.args.includes("list") && child.args.includes("devices")) {
-      stdout = JSON.stringify({ devices: { runtime: [{ udid: device, state }] } });
+      stdout = JSON.stringify({
+        devices: { runtime: [{ udid: device, name: "Test simulator", state }] },
+      });
     } else if (child.args.includes("uname")) stdout = architecture;
-    else if (child.args.includes("listapps")) stdout = installed ? '"com.invrt.code.dev"' : "";
+    else if (child.args.includes("listapps")) stdout = installed ? '"com.t3tools.t3code.dev"' : "";
     else if (child.args.includes("get_app_container")) stdout = app;
     else if (child.args.includes("simctl") && child.args.includes("install")) installed = true;
     return Effect.succeed(
@@ -64,6 +67,7 @@ const fixture = Effect.gen(function* () {
       Effect.provideService(HostProcess.Environment, { HOME: home, [flag]: inheritedFlag }),
       Effect.provideService(HostProcess.Platform, "darwin"),
       Effect.provideService(HostProcess.Architecture, host),
+      Effect.provide(FetchHttpClient.layer),
     );
   return {
     calls,
@@ -106,6 +110,16 @@ it.layer(NodeServices.layer)("iOS native-client destination", (it) => {
         for (const call of native) {
           assert.strictEqual(call.options.env?.[flag], architecture === "x86_64" ? "1" : "0");
         }
+        const build = native.find((call) => call.args[0] === "xcodebuild")!;
+        assert(build.args.includes(`ARCHS=${architecture}`));
+        assert(build.args.some((arg) => arg.endsWith("ios/InvrtCodeDev.xcworkspace")));
+        assert(
+          test.calls.some(
+            (call) =>
+              call.args.includes("install") &&
+              call.args.some((arg) => arg.endsWith("InvrtCodeDev.app")),
+          ),
+        );
         const pod = native.find((call) => call.command === "pod")!;
         const plugin: unknown = NodeModule.createRequire(import.meta.url)(
           "../apps/mobile/plugins/terminalNativeExclusion.cjs",
@@ -139,7 +153,7 @@ it.layer(NodeServices.layer)("iOS native-client destination", (it) => {
     Effect.gen(function* () {
       const test = yield* fixture;
       yield* test.run();
-      const buildCount = () => test.calls.filter((call) => call.args.includes("xcodebuild")).length;
+      const buildCount = () => test.calls.filter((call) => call.args[0] === "xcodebuild").length;
       assert.strictEqual(buildCount(), 1);
       yield* test.run();
       assert.strictEqual(buildCount(), 1);
