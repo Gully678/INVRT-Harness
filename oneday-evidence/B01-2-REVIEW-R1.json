@@ -1,0 +1,98 @@
+{
+  "verdict": "PASS",
+  "commit": "87f2088e4dbf248b5802f9779e22cad32d9db0de",
+  "parent": "50cbcd868405c2f8db6db4ac0f9b347bccce074e",
+  "branch": "codex/claude-b01-2-identity-20261027",
+  "label": "SAME-HARNESS INTERNAL AUDIT",
+  "skillsLoaded": [
+    "production-audit",
+    "production-guardrails",
+    "ai-native-agent",
+    "invrt-concise-code",
+    "api-designer",
+    "verification-before-completion",
+    "code-review"
+  ],
+  "findings": [
+    {
+      "id": "F1",
+      "severity": "low",
+      "blocking": false,
+      "path": "packages/contracts/src/programmeIdentity.ts",
+      "lines": "201-205",
+      "title": "Promoted record copies claimedIdentityRef instead of the port's resolved identityRef",
+      "trigger": "Caller supplies a claimedIdentityRef whose declared binding field differs from the port's resolution",
+      "consequence": "Stored record could carry a declared binding inconsistent with the authority store; no bypass today (only resolved.binding is read; minting invariant holds); future slices reading identityRef.binding without the port could be misled",
+      "verification": "grep shows sole .binding read is resolved.binding at L195; source read of promoteToHuman",
+      "recommendation": "On success write resolved.identityRef instead of input.claimedIdentityRef; fix at B05 integration, no rework of this slice"
+    },
+    {
+      "id": "F2",
+      "severity": "info",
+      "blocking": false,
+      "path": "packages/contracts/src/programmeIdentity.test.ts",
+      "title": "Exact-minimum role boundary asserted only at the guest edge; revoked fail-closed unasserted",
+      "trigger": "requiresOrganisationRole(x, 'member') for an active member membership not directly asserted; revoked status untested",
+      "consequence": "Minimal risk: ROLE_RANK exhaustive over the union; both suspended and revoked blocked by the same status==='active' guard",
+      "verification": "Test read L298-335"
+    },
+    {
+      "id": "F3",
+      "severity": "info",
+      "blocking": false,
+      "path": "/tmp/b01-claude/b01-2/programmeIdentity.pre-mutation.ts",
+      "title": "Builder pre-mutation snapshot differs from HEAD only in comment wording/formatting",
+      "trigger": "Builder reworded comments after the probe restore, before final green run and commit",
+      "consequence": "No behavioural difference; restore proof remains self-consistent (byte-exact vs its own snapshot, sha256 f4707ca7... matched)",
+      "verification": "diff snapshot vs HEAD: comments and one Literals formatting only"
+    }
+  ],
+  "gatesRerun": {
+    "test": {
+      "command": "pnpm exec vp test run packages/contracts/src/programmeIdentity.test.ts",
+      "exit": 0,
+      "result": "26 passed / 26"
+    },
+    "typecheck": {
+      "command": "pnpm --filter @t3tools/contracts typecheck",
+      "exit": 0,
+      "result": "tsc --noEmit clean"
+    },
+    "lint": {
+      "command": "pnpm exec vp lint packages/contracts/src/programmeIdentity.ts packages/contracts/src/programmeIdentity.test.ts",
+      "exit": 0,
+      "result": "0 warnings, 0 errors on 2 files"
+    },
+    "treeStateAfter": "clean; pnpm-lock.yaml churn restored via git restore; HEAD unchanged; no commits made"
+  },
+  "mutationProbe": {
+    "description": "Independent probe: made promoteToHuman trust claimedHumanRole==='human' when port is absent (insert early return minting kind human)",
+    "sha256Before": "6f1312e3197e01ca7b9e761ef024c5fd046bb63b89fb2dbca1d373ac335e118c",
+    "sha256AfterRestore": "6f1312e3197e01ca7b9e761ef024c5fd046bb63b89fb2dbca1d373ac335e118c",
+    "restoreByteExact": true,
+    "mutatedRun": "exit 1; 1 failed | 25 passed; failing test: 'still denies promotion when the request body claims role human without a port'",
+    "restoredRun": "exit 0; 26 passed / 26",
+    "logs": "/tmp/b01-claude/b01-2-audit/{audit-mutation.log,audit-restore-test.log,sha-before.txt,sha-after-restore.txt,programmeIdentity.orig.ts}"
+  },
+  "builderClaimsVerified": {
+    "tests26of26": true,
+    "typecheckLintExit0": true,
+    "red16Failed10PassedBehavioural": "corroborated by /tmp/b01-claude/b01-2/red.log (NOT-IMPLEMENTED throws)",
+    "builderProbeTwoFailedWithByteExactRestore": "corroborated by /tmp/b01-claude/b01-2/mutation.log",
+    "promotePortGatedOnly": true,
+    "claimedHumanRoleNeverRead": true,
+    "rolesFromMembershipNotGlobals": true,
+    "guestExplicitNone": true,
+    "suspendedFailClosed": true,
+    "importsReuseProgrammeDomainExports": true
+  },
+  "boundaryChecks": {
+    "programmeDomainUntouched": "git diff 50cbcd86..HEAD -- packages/contracts/src/programmeDomain.ts empty",
+    "indexTsOnlyOneExportLine": true,
+    "noStorageAuthSessionInviteRoutingSurface": true,
+    "noAlwaysAllowPort": true,
+    "durabilityDeferredToB02Documented": true,
+    "crossSliceImportCompilesAgainstParentBase": true
+  },
+  "evidenceFiles": ["oneday-evidence/B01-2-REVIEW-R1.md", "oneday-evidence/B01-2-REVIEW-R1.json"]
+}
