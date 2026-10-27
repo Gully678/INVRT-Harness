@@ -609,7 +609,7 @@ function acpMcpContext(
   return {
     servers: [
       {
-        name: "t3-code",
+        name: "invrt-code",
         command: self.command,
         args: [...selfInvocationArgs(self, ["acp-mcp-bridge"])],
         env: [
@@ -619,7 +619,7 @@ function acpMcpContext(
         ],
       },
     ],
-    acpServers: [{ type: "acp", name: "t3-code", serverId: "t3-code" }],
+    acpServers: [{ type: "acp", name: "invrt-code", serverId: "invrt-code" }],
     endpoint: session.endpoint,
     authorization: session.authorizationHeader,
     processEnvironment: {
@@ -1986,7 +1986,7 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
               elicitation: { form: {}, ...(flavor.onUrlElicitation ? { url: {} } : {}) },
               ...(flavor.clientCapabilitiesMeta ? { _meta: flavor.clientCapabilitiesMeta } : {}),
             },
-            clientInfo: { name: "t3-code", version: "0.0.0" },
+            clientInfo: { name: "invrt-code", version: "0.0.0" },
             onTermination,
             onOutgoingResponseFailure: (requestId, error) =>
               Ref.modify(nativeResponseAcknowledgements, (current) => {

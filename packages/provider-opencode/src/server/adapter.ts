@@ -941,7 +941,7 @@ export const makeOpenCodeAdapterV2 = Effect.fn("makeOpenCodeAdapterV2")(function
         if (hasT3Mcp) {
           yield* OpenCodeRuntime.runOpenCodeSdk("mcp.add", () =>
             client.mcp.add({
-              name: "t3-code",
+              name: "invrt-code",
               config: {
                 type: "remote",
                 url: mcpSession.endpoint,

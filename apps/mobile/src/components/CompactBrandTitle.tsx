@@ -4,6 +4,7 @@ import type { NativeStackNavigationOptions } from "@react-navigation/native-stac
 import { useState } from "react";
 import { Platform, View } from "react-native";
 
+import { InvrtWordmark } from "./InvrtMark";
 import { AppText as Text } from "./ui/AppText";
 import { IPAD_HOME_TITLE_OFFSET } from "../lib/layoutMetrics";
 import { resolveMobileStageLabel } from "../lib/mobileBranding";
@@ -47,13 +48,7 @@ export function CompactBrandTitle(
         props.fit && { flexShrink: 0 },
       ]}
     >
-      <Text
-        allowFontScaling={props.allowFontScaling}
-        className="font-t3-bold text-foreground-muted"
-        style={{ fontSize: 21 * scale, letterSpacing: -0.5 * scale }}
-      >
-        INVRT
-      </Text>
+      <InvrtWordmark height={22 * scale} colorClassName="text-foreground-muted" />
       <Text
         allowFontScaling={props.allowFontScaling}
         className="font-t3-medium text-foreground-muted"

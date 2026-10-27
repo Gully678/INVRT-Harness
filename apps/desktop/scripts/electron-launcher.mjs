@@ -15,8 +15,8 @@ const devBundleIdSuffix = NodePath.basename(repoRoot)
   .replaceAll(/[^a-z0-9]+/g, "");
 const APP_DISPLAY_NAME = isDevelopment ? "INVRT Code (Dev)" : "INVRT Code (Beta)";
 const APP_BUNDLE_ID = isDevelopment
-  ? `com.t3tools.t3code.dev.${devBundleIdSuffix || "local"}`
-  : "com.t3tools.t3code";
+  ? `com.invrt.code.dev.${devBundleIdSuffix || "local"}`
+  : "com.invrt.code";
 const APP_PROTOCOL_SCHEMES = isDevelopment ? ["t3code-dev"] : ["t3code"];
 const LAUNCHER_VERSION = 20;
 const developmentMacIconPngPath = NodePath.join(
@@ -268,8 +268,9 @@ function resolveMacBundleInfoPlistStrings(executableName) {
     CFBundleExecutable: executableName,
     CFBundleIconFile: "icon.icns",
     NSScreenCaptureUsageDescription:
-      "T3 Code captures the active window when you use the snapshot shortcut.",
-    NSDocumentsFolderUsageDescription: "T3 Code reads project files you open in the desktop app.",
+      "INVRT Code captures the active window when you use the snapshot shortcut.",
+    NSDocumentsFolderUsageDescription:
+      "INVRT Code reads project files you open in the desktop app.",
   };
 }
 

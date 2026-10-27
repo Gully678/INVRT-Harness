@@ -384,7 +384,7 @@ export const RelayMonitoring = Effect.fn("RelayMonitoring")(function* (traces: A
     dashboard: Output.map(traces.name, (dataset) => {
       const charts = relayDashboardCharts(dataset);
       return {
-        name: relayResourceNameForStage("t3-code-relay-health", stage),
+        name: relayResourceNameForStage("invrt-code-relay-health", stage),
         // Shared with the whole org. An empty owner only means that for API
         // tokens; deploys with a personal token would make it private.
         owner: "X-AXIOM-EVERYONE",

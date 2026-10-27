@@ -2775,7 +2775,7 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
   const buildConfig: Record<string, unknown> = {
     appId: DESKTOP_APP_ID,
     productName: resolveDesktopProductName(version),
-    artifactName: "T3-Code-${version}-${arch}.${ext}",
+    artifactName: "INVRT-Code-${version}-${arch}.${ext}",
     electronLanguages: [...DESKTOP_ELECTRON_LANGUAGES],
     files: [
       ...DESKTOP_FILE_EXCLUSIONS,
@@ -2913,7 +2913,7 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
     buildConfig.deb = {
       // FPM runs outside the staged app directory, so source paths must be absolute.
       fpm: [
-        `${path.join(repoRoot, "apps/desktop/resources/linux/com.t3tools.t3code.metainfo.xml")}=/usr/share/metainfo/com.t3tools.t3code.metainfo.xml`,
+        `${path.join(repoRoot, "apps/desktop/resources/linux/com.invrt.code.metainfo.xml")}=/usr/share/metainfo/com.invrt.code.metainfo.xml`,
         `${path.join(repoRoot, "LICENSE")}=/usr/share/doc/t3code/copyright`,
       ],
       // Debian 13 and Ubuntu 24.04 use 64-bit-time names; retain old-name fallbacks.

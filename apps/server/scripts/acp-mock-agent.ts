@@ -1332,9 +1332,9 @@ const program = Effect.gen(function* () {
             rawInput: { variant: "WebFetch", url: "https://t3.codes" },
             rawOutput: {
               type: "WebFetch",
-              Content: { url: "https://t3.codes", content: "T3 Code page" },
+              Content: { url: "https://t3.codes", content: "INVRT Code page" },
             },
-            content: [{ type: "content", content: { type: "text", text: "T3 Code page" } }],
+            content: [{ type: "content", content: { type: "text", text: "INVRT Code page" } }],
           },
           {
             sessionUpdate: "tool_call_update",

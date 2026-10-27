@@ -112,3 +112,53 @@ Machine-printed results (toolchain PATH per the lane brief, no whole-repo suite)
 ## Commit
 
 Recorded after commit (see the lane report for the exact sha). Only the files listed above are staged by explicit path; nothing is pushed.
+
+## Sweep and logo pass, 27 October 2026
+
+Implementing agent: ZCode harness, model builtin:zai-coding-plan/GLM-5.3-Flash. Implements the owner's 27 October blanket instruction: no mention of T3 Code/T3Code anywhere (it is all INVRT Code/INVRT CODE), and use the INVRT Design System logo. Skills loaded: production-guardrails, production-audit, ai-native-agent, invrt-concise-code, invrt-ui-quality, design-system.
+
+### A. Mention sweep (git grep over tracked files; excludes node_modules, .pilot, dist outputs, pnpm-lock.yaml)
+
+| Token                                      | Before (occ/files at d16b042a) | After (occ/files)                               |
+| ------------------------------------------ | ------------------------------ | ----------------------------------------------- |
+| "T3 Code"                                  | 1367 / 447                     | 0 / 0                                           |
+| "T3 CODE"                                  | 2 / 1                          | 0 / 0                                           |
+| "T3Code"                                   | 100 / 40                       | 2 / 2                                           |
+| "T3code"                                   | 3 / 2                          | 0 / 0                                           |
+| "t3.code" (regex, covers t3.codes domains) | 160 / 73                       | 158 / 73                                        |
+| "t3code" (case-insensitive)                | 2628 / 532                     | 2459 / 475 (all in the exception classes below) |
+
+Rewritten surfaces include: UI strings and prose across web/desktop/mobile/server, marketing app (tweets testimonials, 95.astro, asset dir renamed to invrt-code-concepts with files), devcontainer volume names, infra/relay (workspace package name invrt-code-relay, alchemy stage InvrtCodeRelay, tunnel prefix, docs), native dbus namespace com.invrt.KdeCapture + X-InvrtCode-Capture-Helper marker, provider client names (invrt-code, invrt-code-acp-cli, invrt-thread-cli), MCP server/tool names mcp__invrt-code__*, CLI auth/env help text, systemd unit invrt-code.service, README/docs, email and permission descriptions (electron-launcher.mjs:271-272 now INVRT Code), error messages, legal/marketing pages, update-manifest artifact names (INVRT-Code-*), and the desktop identity set: CFBundleIdentifier com.invrt.code(.dev.*), appUserModelId, Linux metainfo file com.invrt.code.metainfo.xml (git mv), DMG backgrounds.
+
+Deliberate exceptions in the current tree (with approximate occurrence counts):
+
+- T3CODE_* env var names, _*T3CODE_BUILD*\*__ defines, VITE_T3CODE_* (owner decision pending; the saved pilot launcher .pilot/launch-pilot.sh depends on them): about 1020.
+- npm scope @t3tools/* and the @t3tools/t3code package name (owner decision pending): about 76 direct.
+- Mobile bundle ids com.t3tools.t3code(.dev/.preview) in apps/mobile/app.config.ts and the Play/App Store URLs that point at those listings (Clerk universal links, keychain, EAS binding): 8 bundle-id lines plus 4 store URLs.
+- Functional upstream URLs: t3.codes / app.t3.codes / clerk.t3.codes domains (158), github.com/t3tools/t3code and pingdotgg/t3code repository references (about 500, mostly sample-data fixtures), App/Play store slugs, brew cask t3-code, winget T3Tools.T3Code (the 2 remaining "T3Code" hits), AUR package names t3code-bin/t3code-nightly-bin (26).
+- Internal non-user-visible identifiers kept for behavioural integrity: URL schemes t3code/t3code-dev/t3code-preview (shared with the mobile exception), data-dir and profile migration names (t3code-dev, t3code-v2, "T3 Code (Alpha)", "T3 Code (Dev)", .t3code/vcs.json, .t3code-wsl-* markers), temp-dir prefixes (t3code-git-manager-_, t3code-codex-_-home, t3code-workspace-_, t3code-chromium-_), oxlint-plugin-t3code package and t3code/* rule namespace, OTel service names t3code-server / t3code_desktop and sample transcript fixtures (replay-user/t3code paths, originator strings).
+
+### B. Logo wiring (INVRT Design System, accent #405BD8, tokens/invrt-tokens.css)
+
+- Supply-chain check on the DS SVGs passed: plain SVG, no script/onload/javascript/href.
+- Icon pipeline wired, not hand-copied: DS derived assets replaced the source CONTENT of assets/dev, assets/nightly and assets/prod (9 platform 1024 pngs, web favicon 16/32, apple-touch-180, favicon.ico rebuilt from 16/32/48 and windows .ico from 16-256 through the repo's own scripts/lib/icon-export.ts encodePngIco); production source files renamed t3-black-* to invrt-black-* with BRAND_ASSET_PATHS and DesktopAssets.ts updated. `node scripts/apply-web-brand-assets.ts development apps/web/public` populated apps/web/public; digests of the deployed copies equal the DS sources (favicon-32 379dc9c1..., apple-touch-180 24041e2e..., app-icon-1024 1727d3a3...).
+- apps/web/public/favicon-512.png added and manifest.webmanifest icons extended with the 512 entry; theme_color set to #405BD8.
+- Web components: T3Wordmark.tsx replaced by InvrtMark.tsx (DS invrt-mark.svg path, currentColor); usages in SidebarChrome (aria-label "INVRT"), TimelineToolActivityIcon, V2LifecycleRow; WelcomeWizard identity now renders InvrtMark + "Code" with aria-label "INVRT Code".
+- Mobile: InvrtMark.tsx (react-native-svg) exports InvrtMark and InvrtWordmark (DS mark and wordmark paths); thread-work-log glyph, CompactBrandTitle (InvrtWordmark + "Code"), BrandMark source constant renamed INVRT_CODE_BRAND_MARK_SOURCE and now renders the INVRT pipeline icon. Bundle ids untouched.
+- Marketing: favicon set replaced with the DS derived files; retro page alt text and asset paths renamed.
+- Icon Composer (.icon) projects and assets/prod/logo.svg were NOT regenerated (Icon Composer 2.x / ictool is not installed in this environment).
+
+### Validation (machine-printed results)
+
+- icons:check: exit 1, IconExportToolResolutionError "Could not find an Icon Composer 2.x exporter compatible with design generation 26" (environmental: ictool absent; .icon sources untouched). The consumed derived-asset layer was verified by digest equality instead (favicon-32, apple-touch-180, app-icon-1024 all equal to the DS sources through assets/dev, apps/web/public and dist).
+- Typechecks (tsc --noEmit via the repo typecheck task): @t3tools/web exit 0, @t3tools/desktop exit 0, server workspace "t3" exit 0, invrt-code-relay exit 0.
+- Web build exit 0; dist reverified after the component changes: title "INVRT Code (Beta)", favicon-32 digest equals the DS source, manifest name "INVRT Code" theme #405BD8 with all three icon entries resolving, zero "T3 Code" matches in dist html/webmanifest.
+- Test suites: branding/identity files 29/29; build-desktop-artifact.test.ts 43/43 (final gate 72/72 across the four files); scripts batch (merge-update-manifests, dev-runner, public-config, electron-launcher) 88 tests with the one identity-regex failure fixed, then green; desktop batch (CLI shim/command, Linux URL handler, Clerk, backend configuration, legacy local storage, user data, browser session, permission helper) 73/73; server batch (adapters, MCP stdio bridge, CLI config, boot service, McpOAuth) 359 tests, all green after the BOOT_SERVICE_NAME and systemd unit fixes (boot service + service suites 39/39 rerun); mixed batch (provider-grok, GitHub REST/GraphQL, mobile composer/theme/thread activity, server settings, relay managed endpoints) 143 passed with the relay fixes applied, then relay 31/31; CI script tests (node --test) 13+6+7+21 = 47, 0 failures. Fixes found by tests and applied: bootService BOOT_SERVICE_NAME "invrt-code", deploymentConfig tunnel prefix, db namespace, escaped regex literals, ManagedEndpointProvider test domain, DesktopLinuxUrlHandler single-spelling theme icon scenarios, and the legacy profile migration names ("T3 Code (Alpha)"/"T3 Code (Dev)") restored in DesktopUserData, DesktopLegacyLocalStorage, DesktopAppIdentity.test and DesktopUserData.test because migration must match the historical on-disk names. Mobile: no brand-component unit tests exist; the mobile lib suites above cover the renamed icon/theme identifiers, and no iOS build was run (owned by another lane).
+
+### Digests
+
+No sha256 digest blocks are recorded in this evidence file, so none were recomputed. Historical before-values in the earlier sections above intentionally keep the old brand strings: they record prior states, and rewriting them would falsify the before/after record. The untracked BRAND-LANE-AUDIT.md was not modified or staged.
+
+## Commit
+
+Recorded after commit (see the lane report for the exact sha). Only the files listed in each pass are staged by explicit path; nothing is pushed.

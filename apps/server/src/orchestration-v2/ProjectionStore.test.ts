@@ -344,7 +344,7 @@ it.effect.each([
     const delegation = {
       ...wait,
       id: TurnItemId.make("item:thread-wait:delegation"),
-      toolName: "t3-code-thread_opencode2-adapter_delegate_task",
+      toolName: "invrt-code-thread_opencode2-adapter_delegate_task",
       input: { task: "Review", mode: "async" },
     };
     yield* updateItem(delegation);
@@ -3090,7 +3090,7 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
   );
 
   it.effect.each([
-    ["T3 Code's idle compaction", "agent", "server", undefined, true, "/compact"],
+    ["INVRT Code's idle compaction", "agent", "server", undefined, true, "/compact"],
     ["compacting on return", "user", "web", "onReturn", true, "/compact"],
     ["a typed /compact", "user", "mobile", undefined, false, "/compact"],
     ["a normalized idle command", "agent", "server", undefined, true, " \t\u00a0/COMPACT\u3000\n"],
