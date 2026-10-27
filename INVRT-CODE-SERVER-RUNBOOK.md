@@ -51,10 +51,10 @@ node apps/server/dist/bin.mjs \
   the current directory.
 - `t3 serve` (same flags) is the strictly headless variant: no browser, forced
   `auto-bootstrap-project-from-cwd=false`, and it prints the headless pairing block.
-- On first start the log prints: "Authentication required. Open T3 Code using the pairing
-  URL." with `http://127.0.0.1:14036/pair#token=<one-time-token>`. The token is a secret:
+- On first start the log prints: "Authentication required. Open INVRT Code using the
+  pairing URL." with `http://127.0.0.1:14036/pair#token=<one-time-token>`. The token is a secret:
   redact it in any shared log, never copy it into code or docs.
-- A second server over the same `--base-dir` is refused ("A T3 Code server is already
+- A second server over the same `--base-dir` is refused ("A INVRT Code server is already
   running for <base-dir>"), enforced by the persisted runtime state plus a process-liveness
   preflight. This is intentional; use a different `--base-dir` for a second instance.
 
@@ -160,7 +160,12 @@ To roll a deploy back:
 
 ## 9. Deployable package
 
-`dist-package/INVRT-CODE-SERVER.tar.gz` contains:
+`dist-package/INVRT-CODE-SERVER.tar.gz` extracts `dist/`, `node_modules/` and
+`README.md` at the archive root (extract into an empty directory; the repo-tree paths
+in sections 2-4 are `apps/server/dist/` and do not exist inside the archive). Shipped
+archive, bound to its exact bytes: 66,477,760 bytes,
+sha256 `2d143c815c07f17933c99f96d83df75d6e077be14da6c0768a800c01e2dbbe7d`
+(repackage required after any server change; packaging is a separate controlled step).
 
 - `dist/`: the server bundle including `dist/client` web assets.
 - `node_modules/`: the runtime external dependencies the bundle requires at run time

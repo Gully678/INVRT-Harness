@@ -270,7 +270,7 @@ export const buildInitialZcodeProviderSnapshot = Effect.fn(
         auth: { status: "unknown" },
         // ZA-04: the honest unsupported rate-limit metadata ships with every snapshot.
         usageLimits: usageLimitsFromAvailability({ checkedAt }),
-        message: "ZCode is disabled in T3 Code settings.",
+        message: "ZCode is disabled in INVRT Code settings.",
       },
     });
   }
@@ -313,7 +313,7 @@ export const checkZcodeProviderStatus = Effect.fn("ZcodeStatus.checkZcodeProvide
           status: "warning",
           auth: { status: "unknown" },
           usageLimits: usageLimitsFromAvailability({ checkedAt }),
-          message: "ZCode is disabled in T3 Code settings.",
+          message: "ZCode is disabled in INVRT Code settings.",
         },
       });
     }

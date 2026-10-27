@@ -1,4 +1,8 @@
 import { ProviderDriverKind, ProviderInstanceId, type ServerProvider } from "@t3tools/contracts";
+import { ZCodeSettings } from "@t3tools/provider-zcode/settings";
+import { ZCODE_PROVIDER, buildInitialZcodeProviderSnapshot } from "@t3tools/provider-zcode/server";
+import * as Effect from "effect/Effect";
+import * as Schema from "effect/Schema";
 import { describe, expect, it } from "vite-plus/test";
 
 import {
@@ -47,6 +51,23 @@ describe("getProviderSummary", () => {
       headline: "Not authenticated",
       detail: "Run codex login.",
     });
+  });
+
+  // Regression: the disabled ZCode snapshot message must present INVRT Code, not upstream T3 Code.
+  it("presents the disabled ZCode snapshot through the settings UI with INVRT Code wording", async () => {
+    const settings = Schema.decodeSync(ZCodeSettings)({ enabled: false });
+    const draft = await Effect.runPromise(buildInitialZcodeProviderSnapshot(settings));
+    const snapshot: ServerProvider = {
+      ...draft,
+      instanceId: ProviderInstanceId.make("zcode"),
+      driver: ZCODE_PROVIDER,
+    };
+    expect(snapshot.enabled).toBe(false);
+    expect(getProviderStatusKey(snapshot)).toBe("disabled");
+    const summary = getProviderSummary(snapshot);
+    expect(summary.headline).toBe("Disabled");
+    expect(summary.detail).toContain("INVRT Code");
+    expect(summary.detail).not.toContain("T3 Code");
   });
 });
 

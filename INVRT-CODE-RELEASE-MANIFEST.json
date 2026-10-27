@@ -84,7 +84,7 @@
   "tests_and_audits": {
     "baseline": "52/52 focused tests on 6ef29078 at session start",
     "brand": "29/29 branding+identity, 43/43 packaging, 14/14 URL-handler, server sample 13/13, relay 31/31, CI 47/47; typechecks exit 0 (web, desktop, server, relay); dist zero T3 Code",
-    "server": "typecheck exit 0; headless run 200/401; restart persistence; zero egress; auditor re-ran acceptance independently; evidence digests machine-verified",
+    "server": "typecheck exit 0; headless run 200/401; restart persistence; egress claim RETRACTED and corrected 2026-10-27 (two attributed default outbound HTTPS callers, see oneday-evidence/EG01-EGRESS-RETRACTION.md); auditor re-ran acceptance independently; evidence digests machine-verified",
     "adapter": "provider-zcode 46/46; builtInDrivers 2/2; web superset 228/228; mobile 2/2; four typechecks exit 0; live read-only CLI acceptance PASS",
     "mobile": "BUILD SUCCEEDED (iphonesimulator); typecheck exit 0; screenshots digested; audit PASS",
     "audits": "every lane: fresh-context same-harness audit on the exact tip; fix loops closed with re-audit PASS (server recheck folded into integration verification, digests machine-verified)"

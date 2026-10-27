@@ -29,7 +29,7 @@
   },
   "server_headless": {
     "status": "BUILT + RUN + RESTART-PERSISTENT + PACKAGED (local loopback)",
-    "integrated_run": "127.0.0.1:14038 PID 47700: ROOT 200 (INVRT Code (Beta) title), GET /api/auth/clients 401, GET /api/orchestration/shell 401, descriptor 200 (fresh environmentId), loopback-only LISTEN, zero egress, clean stop",
+    "integrated_run": "127.0.0.1:14038 PID 47700: ROOT 200 (INVRT Code (Beta) title), GET /api/auth/clients 401, GET /api/orchestration/shell 401, descriptor 200 (fresh environmentId), loopback-only LISTEN, clean stop; EGRESS CORRECTED 2026-10-27: default-settings startup opens short-lived outbound HTTPS to raw.githubusercontent.com (model-manifest check; suppressible with enableProviderUpdateChecks=false) and Cloudflare addresses (telemetry to the default ingest.t3.codes host is inferred, payload unverified; source telemetry suppressible with T3CODE_TELEMETRY_ENABLED=0), normal missing settings use enableProviderUpdateChecks=true defaults; caught settings-service failure is separate; deleted builder captures were not reproduced in Codex recovery; see oneday-evidence/EG01-EGRESS-RETRACTION.md",
     "package": {
       "name": "INVRT-CODE-SERVER.tar.gz",
       "sha256": "2d143c815c07f17933c99f96d83df75d6e077be14da6c0768a800c01e2dbbe7d",
