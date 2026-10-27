@@ -1,0 +1,110 @@
+{
+  "verdict": "PASS",
+  "commit": "6fd3d6f2a5a21d45093c18545618c91f5bfda7eb",
+  "branch": "codex/claude-source-sync-registry-20261027",
+  "auditedAt": "2026-10-27",
+  "auditor": "ZCode GLM 5.3 Flash, fresh context",
+  "round1Code": "89ff51c6",
+  "round1EvidenceCommit": "743e3005",
+  "round1Closure": {
+    "F1": {
+      "status": "CLOSED",
+      "evidence": "git show HEAD:scripts/source-sync/coverage-2026-10-27-SEMANTIC-COVERAGE.json sha256 4234dc930599bb7327137e9a727027cb34dc2d27914100332c71c354a12dc3e7 equals the original ALL-SYNCED-SOURCES-SEMANTIC-COVERAGE.json sha256; cmp identical; README cites that exact sha"
+    },
+    "F2": {
+      "status": "CLOSED",
+      "evidence": "README documents 'pnpm exec vp test run --config ../../vite.config.ts --dir .' from scripts/source-sync; no stale single-parent ../vite.config reference in the slice; documented invocation ran 15/15 exit 0 in this audit"
+    },
+    "F3": {
+      "status": "CLOSED",
+      "evidence": "CROSS_CHECK_SHA /^[0-9a-f]{40}$/ guards all three sha-to-argv positions (reachable[i], ancestors[i].ancestor and .of, commitSubjectsBind[i].sha) before any runGit call; only three sha-carrying runGit sites exist (lines 173/191/204-205), all guarded; negative test is behavioural, constructs '-output=/tmp/evil', asserts named malformed-cross-check-sha finding on Gully678/rea and that the evil string never enters any git argv"
+    },
+    "F4": {
+      "status": "NO-ACTION-CONFIRMED",
+      "evidence": "check remains totals-only; fix diff adds only sha validation, no per-row doc-grounding scope creep"
+    },
+    "F5": {
+      "status": "CLOSED",
+      "evidence": "README carries the fmt-scope caveat: the verbatim coverage copy must stay outside any future whole-repo vp fmt scope"
+    }
+  },
+  "newFindings": [],
+  "newDefectHunt": {
+    "legitimateValuesRejected": false,
+    "evidence": "check at HEAD exits 0, entries=41 gitCrossChecks=2 findings=0",
+    "testsBrokenByRecopy": false,
+    "evidence": "15 passed (15), exit 0",
+    "gitHooksOptoutScope": "only the verbatim coverage json",
+    "evidence": "git show 6fd3d6f2 --stat lists the four permitted paths; vp fmt --check across them flags only coverage-2026-10-27-SEMANTIC-COVERAGE.json; registry.json/README/TS files fmt-clean; commit message documents VP_GIT_HOOKS=0 and its reason",
+    "diffScope": "exactly scripts/source-sync/{README.md, coverage-2026-10-27-SEMANTIC-COVERAGE.json, check-source-registry.ts, check-source-registry.test.ts}",
+    "registryTsUntouched": true,
+    "treeCleanAtStart": true,
+    "treeCleanAtEnd": "except this audit's two evidence files"
+  },
+  "substanceRecheck": {
+    "entries": 41,
+    "rowsSampled": 4,
+    "sample": [
+      {
+        "id": "Gully678/knowledge-work-plugins",
+        "verdict": "GROUNDED",
+        "proof": "pin c75fda00... in SEMANTIC-COVERAGE (9 rows) and CURRENT-INVENTORY; changedBodies 9 matches 9 coverage rows"
+      },
+      {
+        "id": "Gully678/taste-skill",
+        "verdict": "GROUNDED",
+        "proof": "pin 12af471f... in coverage/inventory; missingPaths 12 matches 12 preservation-doc rows"
+      },
+      {
+        "id": "INVRT-AI/monti-forge",
+        "verdict": "GROUNDED",
+        "proof": "packsRecords 102 matches checklist line 38; missingPaths 11 matches 11 preservation-doc rows"
+      },
+      {
+        "id": "Gully678/INVRT-Harness",
+        "verdict": "GROUNDED",
+        "proof": "pin 70eccd48... in ADOPTION-QUEUE line 8; gitCrossCheck facts machine-executed at HEAD, findings=0"
+      }
+    ],
+    "summaryCounts": "check recomputed totals with findings=0; independent coverage recount 78 rows, per-source 25/13/1/9/1/27/1/1 equals changedBodiesBySource"
+  },
+  "gatesRerun": {
+    "sliceTests": {
+      "command": "pnpm exec vp test run --config ../../vite.config.ts --dir . (from scripts/source-sync)",
+      "result": "15 passed (15)",
+      "exit": 0
+    },
+    "checkEntry": {
+      "command": "node scripts/source-sync/check-source-registry.ts",
+      "result": "source-registry OK: entries=41 gitCrossChecks=2 findings=0",
+      "exit": 0
+    },
+    "tsc": { "command": "pnpm exec tsc --noEmit -p tsconfig.json (from scripts/)", "exit": 0 },
+    "vpLint": {
+      "command": "pnpm exec vp lint on the two changed TS files",
+      "result": "0 warnings and 0 errors",
+      "exit": 0
+    },
+    "vpFmtCheck": {
+      "command": "pnpm exec vp fmt --check on the two changed TS files (plus scope check on all four changed files)",
+      "result": "clean on TS; only coverage json outside fmt (documented verbatim exception)",
+      "exit": 0
+    },
+    "lockfileRestored": true
+  },
+  "mutationProbe": {
+    "location": "/tmp/b01-claude/registry-reaudit/",
+    "method": "replaced const CROSS_CHECK_SHA = /^[0-9a-f]{40}$/ with /.*/ in an uncommitted working-tree copy",
+    "result": "exactly 'rejects a non-40-hex cross-check sha without invoking git' failed (1 failed | 14 passed)",
+    "restore": "sha256 4edb87a2fecf5b81892df70dfca49a0b4333b892aa187bcc68e16a11be376c97 before and after; cmp against saved original passes (byte-exact)"
+  },
+  "skillsLoaded": [
+    "production-audit",
+    "production-guardrails",
+    "ai-native-agent",
+    "invrt-concise-code",
+    "verification-before-completion",
+    "code-review"
+  ],
+  "label": "SAME-HARNESS INTERNAL AUDIT"
+}
