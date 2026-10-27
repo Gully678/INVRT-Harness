@@ -1,6 +1,10 @@
 {
   "programme": "ONE-DAY NEW INVRT Code build, 2026-10-27",
-  "host": { "os": "macOS 26.7 (25G229)", "arch": "x86_64", "node": "26.12.1 candidate-local" },
+  "host": {
+    "os": "macOS 26.7 (25G229)",
+    "arch": "x86_64",
+    "node": "26.12.1 candidate-local"
+  },
   "desktop_macos": {
     "status": "BUILT + INSTALLED + LAUNCHED (local, unsigned)",
     "artifact": {
@@ -49,7 +53,7 @@
     ]
   },
   "ios": {
-    "status": "BUILT + SIMULATOR (base identity) ; INVRT-branded rebuild IN PROGRESS from integrated tree",
+    "status": "BUILT + INSTALLED + LAUNCHED on simulator from the INTEGRATED tree (INVRT-branded)",
     "base_build_evidence": "BUILD SUCCEEDED (Debug, iphonesimulator, Intel), installed+launched on iPhone 17 Pro sim, deep-link scheme registration proven, simulator Safari rendered the server pairing page; screenshots sha256 recorded in mobile lane evidence",
     "intel_exclusion": "GhosttyKit arm64-only simulator slice; @t3tools/mobile-terminal-native excluded via expo.autolinking.ios.exclude; designed JS FallbackTerminalSurface covers it",
     "not_done": [
@@ -59,7 +63,14 @@
       "real device",
       "push/deep-link journey",
       "signed release"
-    ]
+    ],
+    "rebuild": {
+      "scheme": "INVRTCodeDev",
+      "display_name": "INVRT Code Dev",
+      "build": "BUILD SUCCEEDED first attempt (actool workaround re-applied deliberately, inside gitignored generated output)",
+      "screenshot_sha256": "a1ae6c25416fe5e7187031f799376f5d7531dfccba1742cf67b3e6b7c5e5fa55",
+      "commit": "7f43725568c368c83d6f587f35ee957dfeec055a"
+    }
   },
   "android": {
     "status": "BLOCKED",

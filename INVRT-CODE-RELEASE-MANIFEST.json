@@ -58,10 +58,25 @@
       "dist_T3Code_grep": 0
     },
     "ios_simulator": {
-      "status": "rebuild from integrated tree IN PROGRESS at manifest time; base-built dev-client evidence in mobile lane",
-      "note": "final row completed in PLATFORM-EVIDENCE.json"
+      "status": "BUILT + INSTALLED + LAUNCHED on iPhone 17 Pro simulator (INVRT-branded, integrated tree)",
+      "display_name": "INVRT Code Dev",
+      "scheme": "INVRTCodeDev",
+      "bundle_id": "com.t3tools.t3code.dev (owner-decision exception preserved)",
+      "screenshot_sha256": "a1ae6c25416fe5e7187031f799376f5d7531dfccba1742cf67b3e6b7c5e5fa55",
+      "evidence": "oneday-evidence/IOS-REBUILD-EVIDENCE.md (commit 7f43725568c368c83d6f587f35ee957dfeec055a)",
+      "not_done": [
+        "Metro load (one human tap)",
+        "native pairing (owner token)",
+        "Clerk sign-in (no credentials)",
+        "real device",
+        "push/deep-link journey",
+        "signed release"
+      ]
     },
-    "android": { "status": "BLOCKED", "missing": ["Android SDK", "JDK", "adb"] },
+    "android": {
+      "status": "BLOCKED",
+      "missing": ["Android SDK", "JDK", "adb"]
+    },
     "windows": {
       "status": "attempted cross-package from macOS; see PLATFORM-EVIDENCE.json for the exact result; a Mac cross-build does NOT prove the Windows host journey (P02)"
     }
