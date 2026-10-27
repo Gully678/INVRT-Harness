@@ -1,0 +1,35 @@
+note: You are running `vp test` as a Vite+ built-in command. If you meant to run the test npm script, use `vpr test` instead.
+
+[1m[30m[46m RUN [49m[39m[22m [36mv5.0.5 [39m[90m/Users/mac/Repos/.worktrees/invrt-oneday-fix-adapter-20261027/packages/provider-zcode[39m
+
+ [31m❯[39m src/server/adapter.test.ts [2m([22m[2m6 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 8733[2mms[22m[39m
+   [32m✓[39m readThreadSnapshot app thread id fallback [2m(2)[22m
+     [32m✓[39m keeps the orchestrator-assigned app thread id when present[32m 4[2mms[22m[39m
+     [32m✓[39m derives a per-provider-thread id instead of one constant when appThreadId is null[32m 2[2mms[22m[39m
+   [32m✓[39m startTurn interaction policy (ZA-01) [2m(3)[22m
+     [33m[2m✓[22m[39m a plan interaction sends the native plan mode, never a build/edit/yolo mode[33m 1608[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps the default interaction mapping unchanged: full-access still sends yolo[33m 1565[2mms[22m[39m
+     [33m[2m✓[22m[39m a plan interaction holds for approval-required and auto-accept-edits runtime modes too[33m 3379[2mms[22m[39m
+   [31m❯[39m post-start context usage publication (ZA-03) [2m(1)[22m
+[31m     [31m×[31m publishes provider_thread.updated with the new context usage after thread start[39m[33m 2170[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/server/adapter.test.ts[2m > [22mpost-start context usage publication (ZA-03)[2m > [22mpublishes provider_thread.updated with the new context usage after thread start
+[31m[1mAssertionError[22m: expected 1 to be greater than or equal to 2[39m
+[36m [2m❯[22m src/server/adapter.test.ts:[2m206:36[22m[39m
+    [90m204|[39m       );
+    [90m205|[39m       // ensureThread published one; the post-start usage notification…
+    [90m206|[39m       expect(threadUpdates.length).toBeGreaterThanOrEqual(2);
+    [90m   |[39m                                    [31m^[39m
+    [90m207|[39m       const latest = threadUpdates[threadUpdates.length - 1]!.provider…
+    [90m208|[39m         contextUsage: { usedTokens: number; maxTokens: number } | null;
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m5 passed[39m[22m[90m (6)[39m
+[2m   Start at [22m 12:15:12
+[2m   Duration [22m 12.91s[2m (tests 70%, import 20%, transform 7%, setup 3%)[22m
+

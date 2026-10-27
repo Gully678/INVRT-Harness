@@ -1,0 +1,117 @@
+{
+  "id": "ZAC-FIX-EVIDENCE",
+  "date": "2026-10-27",
+  "builder": {
+    "harness": "ZCode",
+    "model": "builtin:zai-coding-plan/GLM-5.3-Flash"
+  },
+  "worktree": "/Users/mac/Repos/.worktrees/invrt-oneday-fix-adapter-20261027",
+  "branch": "invrt/oneday-fix-adapter-20261027",
+  "base_commit": "8a61a81827961c0c6e118e7237dd2e88ddaaf407",
+  "audit_source": "research/2026-10-27/ONE-DAY-RELEASE/AUDIT-CROSSHARNESS-CODEX-ADAPTER.md",
+  "entries": {
+    "ZA-01": {
+      "title": "plan interaction policy enforced before any effect in startTurn",
+      "files": [
+        "packages/provider-zcode/src/server/adapter.ts",
+        "packages/provider-zcode/src/server/adapter.test.ts",
+        "packages/provider-zcode/src/server/fakeServer.ts"
+      ],
+      "red_proof": "oneday-evidence/zac-fix-raw/ZA01-red-before-fix.txt",
+      "red_result": "2 failed: plan policy sent yolo on the unmodified tip",
+      "green_result": "plan sends native plan mode for all runtime modes; default full-access still yolo; exact session/send frames asserted"
+    },
+    "ZA-02": {
+      "title": "one shared command resolver for status, turns and usage",
+      "files": [
+        "packages/provider-zcode/src/server/status.ts",
+        "packages/provider-zcode/src/server/adapter.ts",
+        "packages/provider-zcode/src/server/usage.ts",
+        "packages/provider-zcode/src/server/status.test.ts",
+        "packages/provider-zcode/src/server/adapter.test.ts"
+      ],
+      "red_proof": "oneday-evidence/zac-fix-raw/ZA02-red-before-fix.txt",
+      "red_result": "10 failed: missing shared resolver seams plus adapter tilde-override execution defect",
+      "green_result": "decoded defaults and cleared values compose PATH then app bundle; explicit override fails without fallback; tilde expands via HOME; adapter openSession end-to-end through tilde override"
+    },
+    "ZA-03": {
+      "title": "post-start usage publishes provider_thread.updated on the event stream",
+      "files": [
+        "packages/provider-zcode/src/server/adapter.ts",
+        "packages/provider-zcode/src/server/adapter.test.ts"
+      ],
+      "red_proof": "oneday-evidence/zac-fix-raw/ZA03-red-before-fix.txt",
+      "red_result": "1 failed: only the ensureThread update, post-start usage published nothing",
+      "green_result": "usage-only notification after thread start publishes a second provider_thread.updated with usedTokens 400 maxTokens 1000 on runtime.events, deduplicated by change"
+    },
+    "ZA-04": {
+      "title": "unsupported usage-limit metadata attached to real snapshots",
+      "files": [
+        "packages/provider-zcode/src/server/status.ts",
+        "packages/provider-zcode/src/server/status.test.ts"
+      ],
+      "red_proof": "oneday-evidence/zac-fix-raw/ZA04-red-before-fix.txt",
+      "red_result": "3 failed: usageLimits undefined on checked-disabled, probe-not-found and initial snapshots",
+      "green_result": "all snapshot paths carry unavailable reason unsupported with the 5-hour and weekly message and empty windows; no fabricated numbers; ZA-07 strings untouched"
+    },
+    "ZA-05": {
+      "title": "explicit aborted/error outranks step-finish; failure never becomes completed",
+      "files": [
+        "packages/provider-zcode/src/server/eventMapping.ts",
+        "packages/provider-zcode/src/server/eventMapping.test.ts"
+      ],
+      "red_proof": "oneday-evidence/zac-fix-raw/ZA05-red-before-fix.txt",
+      "red_result": "5 failed on the fully unmodified tip, including mixed aborted+stop surfacing completed",
+      "green_result": "explicit finish outranks step reason; stop/length complete only without a disagreeing finish; step error fails; unknown reasons prove nothing"
+    },
+    "ZA-06": {
+      "title": "usage range selector receives a duration from the clock, not an epoch",
+      "files": [
+        "packages/provider-zcode/src/server/usage.ts",
+        "packages/provider-zcode/src/server/usage.test.ts",
+        "packages/provider-zcode/src/server/fakeServer.ts"
+      ],
+      "red_proof": "oneday-evidence/zac-fix-raw/ZA06-red-before-fix.txt",
+      "red_result": "2 failed: scans asked all for 7d and 30d windows (epoch divided as duration)",
+      "green_result": "recorded usage/stats params: 2d window asks 7d, 28d asks 30d, 400d asks all; retention isolation and dedupe tests stayed green"
+    }
+  },
+  "verification": {
+    "provider_zcode_suite_after": "73 passed (73), 7 files (baseline 46)",
+    "builtin_drivers": "2 passed (2)",
+    "typechecks_exit0_zero_errors": [
+      "provider-zcode",
+      "t3 (apps/server)",
+      "@t3tools/web",
+      "@t3tools/mobile"
+    ],
+    "pnpm_lock_churn": "none",
+    "final_outputs": [
+      "oneday-evidence/zac-fix-raw/FINAL-suite.txt",
+      "oneday-evidence/zac-fix-raw/FINAL-builtinDrivers.txt",
+      "oneday-evidence/zac-fix-raw/FINAL-typecheck-provider-zcode.txt",
+      "oneday-evidence/zac-fix-raw/FINAL-typecheck-t3.txt",
+      "oneday-evidence/zac-fix-raw/FINAL-typecheck-web.txt",
+      "oneday-evidence/zac-fix-raw/FINAL-typecheck-mobile.txt"
+    ]
+  },
+  "unaudited_scope": "live model-turn area unchanged and still UNAUDITED; ZA-01 changes mode selection before the send only; ZA-03 is post-start usage notification, not a live turn",
+  "overlap_note": "status.ts ZA-07 message strings left untouched for the sibling fix-platform builder",
+  "sha256": {
+    "AUDIT-CROSSHARNESS-CODEX-ADAPTER.md": "checked-at-read-time",
+    "raw_outputs": {
+      "ZA01-red-before-fix.txt": "ba0b25cd1d909af5a3b34b4d5a4ae70b93348336a411b40890045830237ca1c3",
+      "ZA02-red-before-fix.txt": "cb2ce853057562c70c3e477891a3ee137f7094c149b9fc2ee0cf8cd1dca626a4",
+      "ZA03-red-before-fix.txt": "73784da79cd9ebfafe64a1c4ff58004bd82577f53a5b27443c5b107d15b2dc92",
+      "ZA04-red-before-fix.txt": "d678343d3ee3920324eb4ebece4c0fea2007aaa9093ba500792c0c4f768d3224",
+      "ZA05-red-before-fix.txt": "6d85900ebb2e6c9b626e940247bd91daa6c897857ffe113a9cc1b64a17903c13",
+      "ZA06-red-before-fix.txt": "bbe14cdf058866553579fbd8f3d23c1d0f81ed7a39b16b480a2ae8cddbeef371",
+      "FINAL-suite.txt": "3a144ea7b080f2b7ff2c5048ca76778f7429611dbc1f725b94a0cfb00e4d0b7b",
+      "FINAL-builtinDrivers.txt": "5679b72a78d5bcff34e1490b17d64dd1b7a8e02ba0cc1c90b30d2078a6b75584",
+      "FINAL-typecheck-provider-zcode.txt": "56042dc3b6059470027c356ade8fabb09f3be2df10315519e25ca36437a65386",
+      "FINAL-typecheck-t3.txt": "06ef263417de39867478e317f8d6f7675c52fb90c5dac81296369b09a2679c23",
+      "FINAL-typecheck-web.txt": "7702abb29ceaf45212b7d3750301a8fabaa573a182a1e919d7d2d98af683ce5a",
+      "FINAL-typecheck-mobile.txt": "4b4f5c898d4c925e92296400a121f45439e40cf8987f04deb547253a449dae62"
+    }
+  }
+}

@@ -118,6 +118,103 @@ describe("mapSessionEventToTurnUpdates", () => {
     expect(terminal?.type === "turn.terminal" && terminal.failure?.code).toBe("aborted");
   });
 
+  // ZA-05 regression: an explicit aborted finish must outrank a step-finish reason, so a
+  // failed turn can never surface as completed with failure:null.
+  it("explicit aborted finish outranks a stop step-finish in a mixed payload", () => {
+    const events = mapSessionEventToTurnUpdates({
+      ...context,
+      payload: {
+        message: { info: { finish: "aborted" } },
+        parts: [
+          { type: "text", partId: "p1", text: "partial" },
+          { type: "step-finish", partId: "p2", reason: "stop", tokens: { total: 5 } },
+        ],
+      },
+    });
+    const terminals = events.filter((event) => event.type === "turn.terminal");
+    expect(terminals).toHaveLength(1);
+    const terminal = terminals[0];
+    expect(terminal?.status).toBe("failed");
+    expect(terminal?.type === "turn.terminal" && terminal.failure?.code).toBe("aborted");
+    expect(terminal?.type === "turn.terminal" && terminal.failure?.class === "provider_error").toBe(
+      true,
+    );
+  });
+
+  it("explicit error finish outranks a stop step-finish and carries the reason", () => {
+    const events = mapSessionEventToTurnUpdates({
+      ...context,
+      payload: {
+        message: { info: { finish: "error" } },
+        parts: [{ type: "step-finish", partId: "p1", reason: "stop" }],
+      },
+    });
+    const terminal = events.find((event) => event.type === "turn.terminal");
+    expect(terminal?.status).toBe("failed");
+    expect(terminal?.type === "turn.terminal" && terminal.failure?.code).toBe("error");
+  });
+
+  it("aborted finish with a tool-calls step still fails", () => {
+    const events = mapSessionEventToTurnUpdates({
+      ...context,
+      payload: {
+        message: { info: { finish: "aborted" } },
+        parts: [{ type: "step-finish", partId: "p1", reason: "tool-calls" }],
+      },
+    });
+    expect(
+      events.some((event) => event.type === "turn.terminal" && event.status === "failed"),
+    ).toBe(true);
+  });
+
+  it("explicit completed finish still completes with a stop step-finish", () => {
+    const events = mapSessionEventToTurnUpdates({
+      ...context,
+      payload: {
+        message: { info: { finish: "completed" } },
+        parts: [{ type: "step-finish", partId: "p1", reason: "stop" }],
+      },
+    });
+    expect(
+      events.some((event) => event.type === "turn.terminal" && event.status === "completed"),
+    ).toBe(true);
+  });
+
+  it("an unknown finish value is a failure, never a completion", () => {
+    const events = mapSessionEventToTurnUpdates({
+      ...context,
+      payload: {
+        message: { info: { finish: "some-future-finish" } },
+        parts: [{ type: "step-finish", partId: "p1", reason: "stop" }],
+      },
+    });
+    const terminal = events.find((event) => event.type === "turn.terminal");
+    expect(terminal?.status).toBe("failed");
+    expect(terminal?.type === "turn.terminal" && terminal.failure?.code).toBe("some-future-finish");
+  });
+
+  it("a step-finish error reason without an explicit finish fails the turn", () => {
+    const events = mapSessionEventToTurnUpdates({
+      ...context,
+      payload: {
+        parts: [{ type: "step-finish", partId: "p1", reason: "error" }],
+      },
+    });
+    const terminal = events.find((event) => event.type === "turn.terminal");
+    expect(terminal?.status).toBe("failed");
+    expect(terminal?.type === "turn.terminal" && terminal.failure?.code).toBe("error");
+  });
+
+  it("an unknown step reason without a finish does not prove completion", () => {
+    const events = mapSessionEventToTurnUpdates({
+      ...context,
+      payload: {
+        parts: [{ type: "step-finish", partId: "p1", reason: "something-unseen" }],
+      },
+    });
+    expect(events.filter((event) => event.type === "turn.terminal")).toHaveLength(0);
+  });
+
   it("returns no updates without active turn targets", () => {
     const events = mapSessionEventToTurnUpdates({
       ...context,

@@ -22,6 +22,10 @@ export interface FakeServerScript {
   sessionCreateSessionId?: string;
   /** session/event notifications emitted after session/send, one per line of delayMs. */
   turnEvents?: ReadonlyArray<Record<string, unknown>>;
+  /** Append every received session/send request frame as one JSON line to this file. */
+  sessionSendLog?: string;
+  /** Append every received usage/stats request frame as one JSON line to this file. */
+  usageStatsLog?: string;
   /** An unknown server-to-client request to verify the -32601 reply path. */
   probeUnknownServerRequest?: string;
   /** Diagnostic stderr written at startup: `head` marker first, then filler to `bytes`. */
@@ -59,8 +63,15 @@ process.stdin.on("data", (chunk) => {
   }
 });
 function send(obj) { process.stdout.write(JSON.stringify(obj) + "\\n"); }
+function record(name, frame) {
+  const log = name === "session/send" ? S.sessionSendLog : name === "usage/stats" ? S.usageStatsLog : undefined;
+  if (log) {
+    try { require("node:fs").appendFileSync(log, JSON.stringify(frame) + "\\n"); } catch {}
+  }
+}
 function handle(frame) {
   if (typeof frame.id !== "number" || typeof frame.method !== "string") return;
+  record(frame.method, frame);
   if (frame.method === "session/requestRuntimePreferences") {
     send({ id: frame.id, result: {
       nativeSearchEnhancementsEnabled: false,
@@ -82,6 +93,10 @@ function handle(frame) {
     }
     const sessionId = S.sessionCreateSessionId ?? ("sess_fake_" + (++nativeSessionCounter));
     send({ id: frame.id, result: { sessionId } });
+    return;
+  }
+  if (frame.method === "session/resume") {
+    send({ id: frame.id, result: { sessionId: frame.params?.sessionId } });
     return;
   }
   if (frame.method === "session/send") {

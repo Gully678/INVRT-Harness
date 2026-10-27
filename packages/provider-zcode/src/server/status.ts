@@ -16,7 +16,8 @@ import * as ChildProcess from "effect/process/ChildProcess";
 import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 import * as FileSystem from "effect/FileSystem";
 import { createModelCapabilities } from "@t3tools/shared/model";
-import { resolveSpawnCommand } from "@t3tools/shared/shell";
+import { resolveSpawnCommand, SpawnExecutableResolution } from "@t3tools/shared/shell";
+import * as HostProcess from "@t3tools/shared/HostProcess";
 
 import {
   buildServerProvider,
@@ -26,6 +27,8 @@ import {
   spawnAndCollect,
   type ServerProviderDraft,
 } from "@t3tools/provider-core/server/snapshotProbe";
+import { usageLimitsFromAvailability } from "./mapping.ts";
+import * as Schema from "effect/Schema";
 import type { RuntimeMode } from "@t3tools/contracts";
 
 export const ZCODE_DEFAULT_MODEL_SLUG = "zcode-default";
@@ -60,6 +63,84 @@ export function zcodeRuntimeModeToCliMode(
 
 export const ZCODE_APP_BUNDLE_CLI = "/Applications/ZCode.app/Contents/Resources/glm/zcode.cjs";
 
+/** The bare PATH command name makeBinaryPathSetting decodes empty settings to. */
+export const ZCODE_DEFAULT_CLI_NAME = "zcode";
+
+export interface ZcodeCommandCandidate {
+  readonly commandPath: string;
+  readonly source: "explicit" | "path" | "app-bundle";
+}
+
+export class ZcodeCommandNotFoundError extends Schema.TaggedError<ZcodeCommandNotFoundError>()(
+  "ZcodeCommandNotFoundError",
+  {
+    tried: Schema.Array(Schema.String),
+    detail: Schema.String,
+  },
+) {
+  override get message(): string {
+    return `ZCode CLI not found (tried: ${this.tried.join(", ")}). ${this.detail}`;
+  }
+}
+
+/**
+ * ZA-02: one shared candidate plan for every command resolution (status, turns, usage).
+ * An explicit override stands alone and never falls back. The decoded default name and
+ * cleared values compose the same chain: PATH first, then the macOS app bundle.
+ */
+export function zcodeCommandPlan(
+  settingsBinaryPath: string,
+  homeDir: string,
+  appBundleCli: string = ZCODE_APP_BUNDLE_CLI,
+): ReadonlyArray<ZcodeCommandCandidate> {
+  const configured = settingsBinaryPath.trim();
+  if (configured.length > 0 && configured !== ZCODE_DEFAULT_CLI_NAME) {
+    return [{ commandPath: expandTilde(configured, homeDir), source: "explicit" }];
+  }
+  return [
+    { commandPath: ZCODE_DEFAULT_CLI_NAME, source: "path" },
+    { commandPath: appBundleCli, source: "app-bundle" },
+  ];
+}
+
+/**
+ * Resolves the actual executable the turn and usage paths must spawn: the first plan
+ * candidate that exists as an executable (PATH scan or file check), with tilde already
+ * expanded. An explicit override that cannot resolve is an honest error, never a silent
+ * substitution.
+ */
+export const resolveZcodeExecutable = Effect.fn("ZcodeStatus.resolveZcodeExecutable")(function* (
+  settingsBinaryPath: string,
+  environment: NodeJS.ProcessEnv,
+  appBundleCli: string = ZCODE_APP_BUNDLE_CLI,
+): Effect.fn.Return<ZcodeCommandCandidate, ZcodeCommandNotFoundError> {
+  const home = environment.HOME ?? process.env.HOME ?? "";
+  const platform = yield* HostProcess.Platform;
+  const resolveExecutable = yield* SpawnExecutableResolution;
+  const tried: string[] = [];
+  for (const candidate of zcodeCommandPlan(settingsBinaryPath, home, appBundleCli)) {
+    const resolved = resolveExecutable(candidate.commandPath, platform, environment);
+    tried.push(resolved ?? candidate.commandPath);
+    if (resolved !== undefined) {
+      return { commandPath: resolved, source: candidate.source };
+    }
+  }
+  return yield* new ZcodeCommandNotFoundError({
+    tried,
+    detail:
+      settingsBinaryPath.trim().length > 0
+        ? `The configured binary path '${settingsBinaryPath.trim()}' did not resolve to an executable.`
+        : "No zcode command on PATH and no ZCode.app bundle script found.",
+  });
+});
+
+export function resolveZcodeCommandCandidates(
+  settingsBinaryPath: string,
+  homeDir: string,
+): readonly string[] {
+  return zcodeCommandPlan(settingsBinaryPath, homeDir).map((candidate) => candidate.commandPath);
+}
+
 const VERSION_PROBE_TIMEOUT_MS = 8_000;
 const EMPTY_CAPABILITIES: ModelCapabilities = createModelCapabilities({
   optionDescriptors: [],
@@ -91,17 +172,6 @@ function builtInZcodeModels(): ReadonlyArray<ServerProviderModel> {
       capabilities: EMPTY_CAPABILITIES,
     },
   ];
-}
-
-export function resolveZcodeCommandCandidates(
-  settingsBinaryPath: string,
-  homeDir: string,
-): readonly string[] {
-  const configured = settingsBinaryPath.trim();
-  const candidates = configured.length > 0 ? [configured] : ["zcode", ZCODE_APP_BUNDLE_CLI];
-  return candidates.map((candidate) =>
-    candidate === ZCODE_APP_BUNDLE_CLI ? candidate : expandTilde(candidate, homeDir),
-  );
 }
 
 function expandTilde(path: string, homeDir: string): string {
@@ -194,6 +264,8 @@ export const buildInitialZcodeProviderSnapshot = Effect.fn(
         version: null,
         status: "warning",
         auth: { status: "unknown" },
+        // ZA-04: the honest unsupported rate-limit metadata ships with every snapshot.
+        usageLimits: usageLimitsFromAvailability({ checkedAt }),
         message: "ZCode is disabled in T3 Code settings.",
       },
     });
@@ -208,6 +280,7 @@ export const buildInitialZcodeProviderSnapshot = Effect.fn(
       version: null,
       status: "warning",
       auth: { status: "unknown" },
+      usageLimits: usageLimitsFromAvailability({ checkedAt }),
       message: "Checking ZCode CLI availability...",
     },
   });
@@ -235,6 +308,7 @@ export const checkZcodeProviderStatus = Effect.fn("ZcodeStatus.checkZcodeProvide
           version: null,
           status: "warning",
           auth: { status: "unknown" },
+          usageLimits: usageLimitsFromAvailability({ checkedAt }),
           message: "ZCode is disabled in T3 Code settings.",
         },
       });
@@ -251,6 +325,7 @@ export const checkZcodeProviderStatus = Effect.fn("ZcodeStatus.checkZcodeProvide
           version: null,
           status: "warning",
           auth: { status: "unknown" },
+          usageLimits: usageLimitsFromAvailability({ checkedAt }),
           message:
             probe.message ??
             "ZCode CLI not found. Install ZCode.app or set the binary path in settings.",
@@ -267,6 +342,7 @@ export const checkZcodeProviderStatus = Effect.fn("ZcodeStatus.checkZcodeProvide
         version: probe.version,
         status: "warning",
         auth: { status: "unknown" },
+        usageLimits: usageLimitsFromAvailability({ checkedAt }),
         message:
           probe.message ??
           "ZCode CLI found. Model access requires a ZCode model provider config; model-configured sessions report errors explicitly.",

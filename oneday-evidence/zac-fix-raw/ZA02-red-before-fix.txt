@@ -1,0 +1,178 @@
+note: You are running `vp test` as a Vite+ built-in command. If you meant to run the test npm script, use `vpr test` instead.
+
+[1m[30m[46m RUN [49m[39m[22m [36mv5.0.5 [39m[90m/Users/mac/Repos/.worktrees/invrt-oneday-fix-adapter-20261027/packages/provider-zcode[39m
+
+ [31m❯[39m src/server/status.test.ts [2m([22m[2m9 tests[22m[2m | [22m[31m9 failed[39m[2m)[22m[32m 50[2mms[22m[39m
+   [31m❯[39m zcodeCommandPlan composition (ZA-02) [2m(5)[22m
+[31m     [31m×[31m an explicit override stands alone[39m[32m 6[2mms[22m[39m
+[31m     [31m×[31m an empty setting composes PATH then the macOS app bundle[39m[32m 1[2mms[22m[39m
+[31m     [31m×[31m the decoded default name composes the same fallback chain as a cleared value[39m[32m 1[2mms[22m[39m
+[31m     [31m×[31m keeps the documented candidates view for the decoded default[39m[32m 7[2mms[22m[39m
+[31m     [31m×[31m expands a tilde home prefix in explicit overrides[39m[32m 1[2mms[22m[39m
+   [31m❯[39m resolveZcodeExecutable discovery (ZA-02) [2m(4)[22m
+[31m     [31m×[31m resolves the app bundle when PATH has no zcode[39m[32m 7[2mms[22m[39m
+[31m     [31m×[31m is an honest error when PATH has no zcode and no bundle exists[39m[32m 5[2mms[22m[39m
+[31m     [31m×[31m an explicit override that cannot resolve errors instead of falling back silently[39m[32m 11[2mms[22m[39m
+[31m     [31m×[31m expands a tilde override against the environment HOME[39m[32m 8[2mms[22m[39m
+ [31m❯[39m src/server/adapter.test.ts [2m([22m[2m7 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 6581[2mms[22m[39m
+   [32m✓[39m readThreadSnapshot app thread id fallback [2m(2)[22m
+     [32m✓[39m keeps the orchestrator-assigned app thread id when present[32m 3[2mms[22m[39m
+     [32m✓[39m derives a per-provider-thread id instead of one constant when appThreadId is null[32m 2[2mms[22m[39m
+   [32m✓[39m startTurn interaction policy (ZA-01) [2m(3)[22m
+     [33m[2m✓[22m[39m a plan interaction sends the native plan mode, never a build/edit/yolo mode[33m 2293[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps the default interaction mapping unchanged: full-access still sends yolo[33m 936[2mms[22m[39m
+     [33m[2m✓[22m[39m a plan interaction holds for approval-required and auto-accept-edits runtime modes too[33m 2041[2mms[22m[39m
+   [31m❯[39m adapter command resolution (ZA-02) [2m(1)[22m
+[31m     [31m×[31m openSession resolves a tilde override through the shared resolver[39m[32m 18[2mms[22m[39m
+   [32m✓[39m post-start context usage publication (ZA-03) [2m(1)[22m
+     [33m[2m✓[22m[39m publishes provider_thread.updated with the new context usage after thread start[33m 1285[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 10 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/server/adapter.test.ts[2m > [22madapter command resolution (ZA-02)[2m > [22mopenSession resolves a tilde override through the shared resolver
+[31m[1mProviderAdapterOpenSessionError[22m: Failed to open zcode provider session provider-session:provider-instance:zcode:shared.[39m
+[36m [2m❯[22m catch src/server/adapter.ts:[2m388:11[22m[39m
+    [90m386|[39m         },
+    [90m387|[39m         catch: (cause) =>
+    [90m388|[39m           new ProviderAdapter.ProviderAdapterOpenSessionError({
+    [90m   |[39m           [31m^[39m
+    [90m389|[39m             driver: ZCODE_PROVIDER,
+    [90m390|[39m             providerSessionId,
+[90m [2m❯[22m ../../node_modules/.pnpm/effect@4.0.5/node_modules/effect/src/internal/effect.ts:[2m1114:42[22m[39m
+[90m [2m❯[22m ~effect/Utils/internal ../../node_modules/.pnpm/effect@4.0.5/node_modules/effect/src/Utils.ts:[2m198:14[22m[39m
+[90m [2m❯[22m PrimitiveImpl.~effect/Effect/args ../../node_modules/.pnpm/effect@4.0.5/node_modules/effect/src/internal/effect.ts:[2m1114:23[22m[39m
+[90m [2m❯[22m ~effect/Effect/evaluate ../../node_modules/.pnpm/effect@4.0.5/node_modules/effect/src/internal/effect.ts:[2m981:22[22m[39m
+[90m [2m❯[22m FiberImpl.runLoop ../../node_modules/.pnpm/effect@4.0.5/node_modules/effect/src/internal/effect.ts:[2m654:41[22m[39m
+[90m [2m❯[22m FiberImpl.evaluate ../../node_modules/.pnpm/effect@4.0.5/node_modules/effect/src/internal/effect.ts:[2m595:23[22m[39m
+[90m [2m❯[22m FiberImpl.evaluate ../../node_modules/.pnpm/effect@4.0.5/node_modules/effect/src/internal/effect.ts:[2m589:27[22m[39m
+[90m [2m❯[22m ../../node_modules/.pnpm/effect@4.0.5/node_modules/effect/src/internal/effect.ts:[2m1159:17[22m[39m
+
+[31m[1mCaused by: ZcodeProtocolClosedError[22m: ZCode app-server closed: spawn failed: Error: spawn ~/fakebin/zcode ENOENT[39m
+[36m [2m❯[22m settleClosed src/server/protocol.ts:[2m119:25[22m[39m
+[90m [2m❯[22m ChildProcess.<anonymous> src/server/protocol.ts:[2m130:32[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/10]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/server/status.test.ts[2m > [22mzcodeCommandPlan composition (ZA-02)[2m > [22man explicit override stands alone
+[31m[1mTypeError[22m: zcodeCommandPlan is not a function[39m
+[36m [2m❯[22m src/server/status.test.ts:[2m19:12[22m[39m
+    [90m 17|[39m describe("zcodeCommandPlan composition (ZA-02)", () => {
+    [90m 18|[39m   it("an explicit override stands alone", () => {
+    [90m 19|[39m     expect(zcodeCommandPlan("/custom/zcode.cjs", "/home/u")).toEqual([
+    [90m   |[39m            [31m^[39m
+    [90m 20|[39m       { commandPath: "/custom/zcode.cjs", source: "explicit" },
+    [90m 21|[39m     ]);
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/10]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/server/status.test.ts[2m > [22mzcodeCommandPlan composition (ZA-02)[2m > [22man empty setting composes PATH then the macOS app bundle
+[31m[1mTypeError[22m: zcodeCommandPlan is not a function[39m
+[36m [2m❯[22m src/server/status.test.ts:[2m25:12[22m[39m
+    [90m 23|[39m
+    [90m 24|[39m   it("an empty setting composes PATH then the macOS app bundle", () =>…
+    [90m 25|[39m     expect(zcodeCommandPlan("", "/home/u")).toEqual([
+    [90m   |[39m            [31m^[39m
+    [90m 26|[39m       { commandPath: "zcode", source: "path" },
+    [90m 27|[39m       { commandPath: ZCODE_APP_BUNDLE_CLI, source: "app-bundle" },
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/10]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/server/status.test.ts[2m > [22mzcodeCommandPlan composition (ZA-02)[2m > [22mthe decoded default name composes the same fallback chain as a cleared value
+[31m[1mTypeError[22m: zcodeCommandPlan is not a function[39m
+[36m [2m❯[22m src/server/status.test.ts:[2m35:12[22m[39m
+    [90m 33|[39m     // "zcode", and the old candidates function treated that as an exp…
+    [90m 34|[39m     // the app-bundle fallback was unreachable through normal decoded …
+    [90m 35|[39m     expect(zcodeCommandPlan("zcode", "/home/u")).toEqual([
+    [90m   |[39m            [31m^[39m
+    [90m 36|[39m       { commandPath: "zcode", source: "path" },
+    [90m 37|[39m       { commandPath: ZCODE_APP_BUNDLE_CLI, source: "app-bundle" },
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/10]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/server/status.test.ts[2m > [22mzcodeCommandPlan composition (ZA-02)[2m > [22mkeeps the documented candidates view for the decoded default
+[31m[1mAssertionError[22m: expected [ 'zcode' ] to deeply equal [ 'zcode', …(1) ][39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[2m  [[22m
+[2m    "zcode",[22m
+[32m-   "/Applications/ZCode.app/Contents/Resources/glm/zcode.cjs",[39m
+[2m  ][22m
+
+[36m [2m❯[22m src/server/status.test.ts:[2m42:63[22m[39m
+    [90m 40|[39m
+    [90m 41|[39m   it("keeps the documented candidates view for the decoded default", (…
+    [90m 42|[39m     expect(resolveZcodeCommandCandidates("zcode", "/home/u")).toEqual([
+    [90m   |[39m                                                               [31m^[39m
+    [90m 43|[39m       "zcode",
+    [90m 44|[39m       ZCODE_APP_BUNDLE_CLI,
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/10]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/server/status.test.ts[2m > [22mzcodeCommandPlan composition (ZA-02)[2m > [22mexpands a tilde home prefix in explicit overrides
+[31m[1mTypeError[22m: zcodeCommandPlan is not a function[39m
+[36m [2m❯[22m src/server/status.test.ts:[2m49:12[22m[39m
+    [90m 47|[39m
+    [90m 48|[39m   it("expands a tilde home prefix in explicit overrides", () => {
+    [90m 49|[39m     expect(zcodeCommandPlan("~/bin/zcode", "/home/u")).toEqual([
+    [90m   |[39m            [31m^[39m
+    [90m 50|[39m       { commandPath: "/home/u/bin/zcode", source: "explicit" },
+    [90m 51|[39m     ]);
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/10]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/server/status.test.ts[2m > [22mresolveZcodeExecutable discovery (ZA-02)[2m > [22mresolves the app bundle when PATH has no zcode
+[31m[1mTypeError[22m: resolveZcodeExecutable is not a function[39m
+[36m [2m❯[22m src/server/status.test.ts:[2m68:9[22m[39m
+    [90m 66|[39m       await executableFile(bundle);
+    [90m 67|[39m       const resolved = await Effect.runPromise(
+    [90m 68|[39m         resolveZcodeExecutable("", { ...process.env, PATH: "" }, bundl…
+    [90m   |[39m         [31m^[39m
+    [90m 69|[39m       );
+    [90m 70|[39m       expect(resolved.commandPath).toBe(bundle);
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/10]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/server/status.test.ts[2m > [22mresolveZcodeExecutable discovery (ZA-02)[2m > [22mis an honest error when PATH has no zcode and no bundle exists
+[31m[1mTypeError[22m: resolveZcodeExecutable is not a function[39m
+[36m [2m❯[22m src/server/status.test.ts:[2m82:9[22m[39m
+    [90m 80|[39m       const missingBundle = join(dir, "missing", "zcode.cjs");
+    [90m 81|[39m       const error = await Effect.runPromiseExit(
+    [90m 82|[39m         resolveZcodeExecutable("", { ...process.env, PATH: "" }, missi…
+    [90m   |[39m         [31m^[39m
+    [90m 83|[39m       );
+    [90m 84|[39m       expect(error._tag).toBe("Failure");
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/10]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/server/status.test.ts[2m > [22mresolveZcodeExecutable discovery (ZA-02)[2m > [22man explicit override that cannot resolve errors instead of falling back silently
+[31m[1mTypeError[22m: resolveZcodeExecutable is not a function[39m
+[36m [2m❯[22m src/server/status.test.ts:[2m103:9[22m[39m
+    [90m101|[39m       await executableFile(bundle);
+    [90m102|[39m       const error = await Effect.runPromiseExit(
+    [90m103|[39m         resolveZcodeExecutable(
+    [90m   |[39m         [31m^[39m
+    [90m104|[39m           "/nonexistent/zcode-binary",
+    [90m105|[39m           { ...process.env, PATH: "" },
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/10]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/server/status.test.ts[2m > [22mresolveZcodeExecutable discovery (ZA-02)[2m > [22mexpands a tilde override against the environment HOME
+[31m[1mTypeError[22m: resolveZcodeExecutable is not a function[39m
+[36m [2m❯[22m src/server/status.test.ts:[2m126:9[22m[39m
+    [90m124|[39m       await executableFile(homeBin);
+    [90m125|[39m       const resolved = await Effect.runPromise(
+    [90m126|[39m         resolveZcodeExecutable(
+    [90m   |[39m         [31m^[39m
+    [90m127|[39m           "~/fakebin/zcode",
+    [90m128|[39m           { ...process.env, HOME: dir },
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/10]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m2 failed[39m[22m[90m (2)[39m
+[2m      Tests [22m [1m[31m10 failed[39m[22m[2m | [22m[1m[32m6 passed[39m[22m[90m (16)[39m
+[2m   Start at [22m 12:22:25
+[2m   Duration [22m 8.59s[2m (tests 68%, import 20%, transform 7%, setup 4%)[22m
+

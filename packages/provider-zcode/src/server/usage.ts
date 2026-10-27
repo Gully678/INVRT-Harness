@@ -6,19 +6,19 @@
  * process. Records are aggregate per day; the protocol provides no per-request records.
  */
 import type { ZCodeSettings } from "../settings.ts";
+import * as Clock from "effect/Clock";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import { UsageReadError } from "@t3tools/contracts";
 
 import type {
-  ProviderUsageInstance,
   ProviderUsageScan,
   ProviderUsageScanInput,
 } from "@t3tools/provider-core/server/usage";
 import { usageStatsToRecords } from "./mapping.ts";
 import type { ZcodeUsageStatsResult } from "./protocolTypes.ts";
 import { appServerCommand, startZcodeProtocolClient } from "./protocol.ts";
-import { ZCODE_APP_BUNDLE_CLI } from "./status.ts";
+import { resolveZcodeExecutable } from "./status.ts";
 
 const USAGE_STATS_TIMEOUT_MS = 45_000;
 
@@ -69,8 +69,33 @@ export const zcodeUsageScan = Effect.fn("ZcodeUsage.scan")(function* (
   const scans: ProviderUsageScan[] = [];
   for (const instance of input.instances) {
     if (!instance.configured) continue;
-    const commandPath = resolveCommandPath(instance);
-    const range = rangeForWindowMs(Math.max(input.windowStartMs, input.retentionCutoffMs));
+    // ZA-02: the usage path uses the same shared resolver as status and turns, so an
+    // unreachable command fails this instance honestly instead of being substituted.
+    const resolved = yield* resolveZcodeExecutable(
+      instance.config?.binaryPath ?? "",
+      instance.environment,
+    ).pipe(
+      Effect.catchTag("ZcodeCommandNotFoundError", (notFound) =>
+        Effect.succeed({ error: notFound }),
+      ),
+    );
+    if ("error" in resolved) {
+      scans.push({
+        dir: "zcode://usage-stats",
+        status: "failed",
+        message: `ZCode usage scan failed for instance ${instance.instanceId}: ${resolved.error.message}.`,
+        files: null,
+      });
+      continue;
+    }
+    const commandPath = resolved.commandPath;
+    // ZA-06: the protocol selector takes a duration, not an epoch timestamp. The needed
+    // history depth is the age of the retained window floor (the same max() the usage
+    // service retains on), measured from now; a floor in the future means the shortest
+    // bucket.
+    const nowMs = yield* Clock.currentTimeMillis;
+    const retainedFloorMs = Math.max(input.windowStartMs, input.retentionCutoffMs);
+    const range = rangeForWindowMs(Math.max(0, nowMs - retainedFloorMs));
     const scanned = yield* fetchZcodeUsageStats({
       commandPath,
       env: instance.environment,
@@ -105,11 +130,6 @@ export const zcodeUsageScan = Effect.fn("ZcodeUsage.scan")(function* (
   }
   return scans;
 });
-
-function resolveCommandPath(instance: ProviderUsageInstance<ZCodeSettings>): string {
-  const configured = instance.config?.binaryPath?.trim() ?? "";
-  return configured.length > 0 ? configured : ZCODE_APP_BUNDLE_CLI;
-}
 
 export const zcodeUsageReader = {
   kind: "scan",
