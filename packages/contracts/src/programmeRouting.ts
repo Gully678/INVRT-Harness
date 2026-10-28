@@ -180,11 +180,20 @@ export interface RoutingAuthorityPort {
   resolveCapabilitySnapshot(
     input: DeviceBinding & { readonly ref: string },
   ): PolicyCapabilitySnapshot | null;
+  /** Current task assignment resolved from authenticated owning-service state for this request, never a body record or role claim. */
+  resolveAdmissionAssignment(): PolicyAdmissionAssignment | null;
   resolveContinuationLease(taskId: string, scope: RoutingScope): PolicyContinuationLease | null;
 }
 export interface DeviceBinding extends RoutingScope {
   readonly environmentId: EnvironmentId;
   readonly incarnationId: string;
+}
+export interface PolicyAdmissionAssignment extends DeviceBinding {
+  readonly taskId: string;
+  readonly principalId: PrincipalId;
+  readonly role: string;
+  readonly policyRef: PolicyRevisionRef;
+  readonly expiresAt: DateTime.Utc;
 }
 export const policyReference = (policy: RoutingPolicy): PolicyRevisionRef => ({
   policyId: policy.policyId,
@@ -586,6 +595,21 @@ export const resolveManagedRoute = (input: ResolveManagedRouteInput): ResolvedMa
     };
   }
   const policy = requiredPolicy(input, port, input.now);
+  if (input.taskId === undefined) unavailable("Managed admission requires a task binding");
+  const assignment =
+    port.resolveAdmissionAssignment?.() ??
+    unavailable("Authoritative admission assignment is unavailable");
+  if (
+    !sameScope(assignment, input) ||
+    assignment.taskId !== input.taskId ||
+    assignment.principalId !== input.principalId ||
+    assignment.environmentId !== input.environmentId ||
+    assignment.incarnationId !== input.incarnationId ||
+    assignment.role !== input.role ||
+    !sameRef(assignment.policyRef, policyReference(policy)) ||
+    DateTime.toEpochMillis(assignment.expiresAt) <= DateTime.toEpochMillis(input.now)
+  )
+    deny("Admission assignment is expired or outside this task, actor, role or policy binding");
   const device = deviceRecord(input, port);
   if (
     device.state !== "current" ||

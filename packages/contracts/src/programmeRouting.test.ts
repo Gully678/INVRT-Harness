@@ -168,7 +168,18 @@ const fixture = () => {
     expiresAt: FUTURE,
     revocationState: "clear" as const,
   };
+  const assignment = {
+    taskId: "task-a",
+    principalId: PRINCIPAL,
+    ...scope,
+    environmentId: ENV,
+    incarnationId: "incarnation-a",
+    role: "builder",
+    policyRef: policyReference(current),
+    expiresAt: FUTURE,
+  };
   const port: RoutingAuthorityPort = {
+    resolveAdmissionAssignment: () => assignment,
     resolveAuthenticatedActor: () => PRINCIPAL,
     resolvePrincipalAuthority: () => ({ principal, membership }),
     resolveRequiredPolicy: () => current,
@@ -180,6 +191,7 @@ const fixture = () => {
     resolveContinuationLease: () => lease,
   };
   const request = {
+    taskId: "task-a",
     principalId: PRINCIPAL,
     ...scope,
     environmentId: ENV,
@@ -189,7 +201,7 @@ const fixture = () => {
     now: NOW,
     port,
   };
-  return { current, principal, membership, device, snapshot, lease, port, request };
+  return { current, principal, membership, device, snapshot, lease, assignment, port, request };
 };
 const publish = (
   candidate: RoutingPolicy,
@@ -843,6 +855,11 @@ describe("request-bound routing authority", () => {
           ...routingScope,
           policyRef: policyReference(current),
         }),
+        resolveAdmissionAssignment: () => ({
+          ...f.assignment,
+          ...routingScope,
+          policyRef: policyReference(current),
+        }),
       };
       const request = { ...f.request, ...routingScope, port };
       const acknowledgement = {
@@ -1017,5 +1034,183 @@ describe("acknowledgement timestamp isolation", () => {
     Reflect.set(f.device.requiredPolicyRef, "revision", 99);
     expect(encodeDevice(ack)).toEqual(before);
     expect(ack.revision).toBe(2);
+  });
+});
+
+describe("trusted task assignment admission", () => {
+  it("denies a reviewer assignment claiming builder while the assigned builder is admitted", () => {
+    const f = fixture();
+    const member = { ...f.membership, organisationRole: "member" as const, projectGrants: [] };
+    const reviewerAssignment = { ...f.assignment, role: "reviewer" };
+    const port = {
+      ...f.port,
+      resolvePrincipalAuthority: () => ({ principal: f.principal, membership: member }),
+    };
+    expect(resolveManagedRoute({ ...f.request, port }).route.routeId).toBe("route-a");
+    const request = {
+      ...f.request,
+      assignment: f.assignment,
+      port: { ...port, resolveAdmissionAssignment: () => reviewerAssignment },
+    };
+    const before = structuredClone({
+      assignment: f.assignment,
+      reviewerAssignment,
+      member,
+      current: f.current,
+      device: f.device,
+      snapshot: f.snapshot,
+    });
+    tagged(() => resolveManagedRoute(request), "ProgrammePolicyDeniedError");
+    expect(request.role).toBe("builder");
+    expect(request.taskId).toBe("task-a");
+    expect({
+      assignment: f.assignment,
+      reviewerAssignment,
+      member,
+      current: f.current,
+      device: f.device,
+      snapshot: f.snapshot,
+    }).toEqual(before);
+  });
+  it.each(["null resolver result", "missing resolver", "missing task"])(
+    "fails closed for %s even with a body assignment",
+    (missing) => {
+      const f = fixture();
+      const port = {
+        ...f.port,
+        resolveAdmissionAssignment: () =>
+          missing === "null resolver result" ? null : f.assignment,
+      };
+      if (missing === "missing resolver")
+        Reflect.deleteProperty(port, "resolveAdmissionAssignment");
+      const request = {
+        ...f.request,
+        assignment: f.assignment,
+        port,
+      };
+      if (missing === "missing task") Reflect.deleteProperty(request, "taskId");
+      const before = structuredClone({
+        assignment: f.assignment,
+        current: f.current,
+        device: f.device,
+      });
+      tagged(() => resolveManagedRoute(request), "ProgrammeCapabilityUnavailableError");
+      expect({ assignment: f.assignment, current: f.current, device: f.device }).toEqual(before);
+    },
+  );
+  it.each([
+    "task",
+    "principal",
+    "scope",
+    "org",
+    "project",
+    "solo owner",
+    "environment",
+    "incarnation",
+    "role",
+    "expired",
+    "policy id",
+    "policy revision",
+    "policy digest",
+  ])("denies an assignment with a mismatched or stale %s", (field) => {
+    const f = fixture();
+    const assignment = {
+      ...f.assignment,
+      ...(field === "task" ? { taskId: "other-task" } : {}),
+      ...(field === "principal" ? { principalId: toPrincipalId("other-principal") } : {}),
+      ...(field === "scope" ? { scope: "project" as const, projectId: PROJECT } : {}),
+      ...(field === "org" ? { orgId: toOrgId("other-org") } : {}),
+      ...(field === "project" ? { projectId: toProjectId("other-project") } : {}),
+      ...(field === "solo owner" ? { ownerPrincipalId: toPrincipalId("other-owner") } : {}),
+      ...(field === "environment" ? { environmentId: toEnvironmentId("other-environment") } : {}),
+      ...(field === "incarnation" ? { incarnationId: "other-incarnation" } : {}),
+      ...(field === "role" ? { role: "reviewer" } : {}),
+      ...(field === "expired" ? { expiresAt: NOW } : {}),
+      policyRef: {
+        ...f.assignment.policyRef,
+        ...(field === "policy id"
+          ? { policyId: policy({ policyId: "other-policy" }).policyId }
+          : {}),
+        ...(field === "policy revision" ? { revision: 2 } : {}),
+        ...(field === "policy digest" ? { digest: OTHER_HASH } : {}),
+      },
+    };
+    const request = {
+      ...f.request,
+      port: { ...f.port, resolveAdmissionAssignment: () => assignment },
+    };
+    const before = structuredClone({
+      assignment,
+      current: f.current,
+      device: f.device,
+      snapshot: f.snapshot,
+    });
+    tagged(() => resolveManagedRoute(request), "ProgrammePolicyDeniedError");
+    expect({ assignment, current: f.current, device: f.device, snapshot: f.snapshot }).toEqual(
+      before,
+    );
+  });
+  it.each([scope, projectScope, soloScope])(
+    "admits a trusted user-defined role in $scope scope with a request-bound lookup",
+    (routingScope) => {
+      const f = fixture();
+      const parent = policy({
+        roleRules: [{ role: "user-defined-reviewer", routeIds: ["route-a"] }],
+      });
+      const current = policy({
+        ...routingScope,
+        roleRules: parent.roleRules,
+        parentPolicyRef: routingScope.scope === "project" ? policyReference(parent) : null,
+      });
+      const assignment = {
+        ...f.assignment,
+        ...routingScope,
+        role: "user-defined-reviewer",
+        policyRef: policyReference(current),
+      };
+      const lookupArguments: ReadonlyArray<unknown>[] = [];
+      const port = {
+        ...f.port,
+        resolveAdmissionAssignment: (...args: unknown[]) => {
+          lookupArguments.push(args);
+          return assignment;
+        },
+        resolveRequiredPolicy: (s: { scope: string }) =>
+          routingScope.scope === "project" && s.scope === "org" ? parent : current,
+        resolveDeviceState: () => ({
+          ...f.device,
+          ...routingScope,
+          requiredPolicyRef: policyReference(current),
+          acknowledgedDigest: current.digest,
+        }),
+        resolveCapabilitySnapshot: () => ({ ...f.snapshot, policyRef: policyReference(current) }),
+      };
+      const request = { ...f.request, ...routingScope, role: assignment.role, port };
+      const before = structuredClone({
+        assignment,
+        current,
+        device: f.device,
+        snapshot: f.snapshot,
+      });
+      expect(resolveManagedRoute(request).policyRef).toEqual(policyReference(current));
+      expect(lookupArguments).toEqual([[]]);
+      expect({ assignment, current, device: f.device, snapshot: f.snapshot }).toEqual(before);
+    },
+  );
+  it("keeps approved offline continuation independent of new assignment availability", () => {
+    const f = fixture();
+    expect(
+      resolveManagedRoute({
+        ...f.request,
+        mode: "continue",
+        port: {
+          ...f.port,
+          resolveRequiredPolicy: () => null,
+          resolveAdmissionAssignment: () => {
+            throw new Error("New admission lookup must not run");
+          },
+        },
+      }).policyRef,
+    ).toEqual(policyReference(f.current));
   });
 });
