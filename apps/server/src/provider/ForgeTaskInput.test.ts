@@ -559,4 +559,106 @@ describe("quarantined FORGE fixture loader", () => {
       ]).toContain(result.code);
     },
   );
+  it("rejects a router response that omits the explicitly requested task type", async () => {
+    await using fixture = await setup();
+    await fixture.changeManifest((manifest) => {
+      manifest.selection.taskTypes = ["audit"];
+    });
+    fixture.ports.runRouter = async () => ({
+      status: "exited",
+      exitCode: 0,
+      stdout: Buffer.from(
+        JSON.stringify({
+          task_types: ["audit"],
+          required: fixtureManifest.selection.routerRequired,
+          recommended: [],
+        }),
+      ),
+      stderr: new Uint8Array(),
+    });
+    const result = await resolveForgeTaskInput(fixture.input);
+    expect(result.status).toBe("unavailable");
+    expect(() => buildCodexAdditionalContext({ model: "fixture" }, false, result)).toThrow();
+    expect(() => projectCodexForgeFixtureForTest({ model: "fixture" }, false, result)).toThrow();
+  });
+
+  it("retains explicit types while permitting additional triggered types", async () => {
+    await using fixture = await setup();
+    fixture.input.task.prompt = "Add an endpoint for an AI agent.";
+    const taskDigest = "6e77fa791dd1a107a2655361b07a1feb5db6b64feb4e52ac3c46a8c4366cfa08";
+    expect(
+      canonicalForgeTaskDigest({
+        schemaVersion: 1,
+        binding: fixture.input.binding,
+        task: fixture.input.task,
+      }),
+    ).toBe(taskDigest);
+    fixture.current.taskRecordSha256 = taskDigest;
+    await fixture.changeManifest((manifest) => {
+      manifest.selection.taskRecordSha256 = taskDigest;
+      manifest.selection.taskTypes = ["agents_llm", "backend_api"];
+    }, "2d59975f0306422f7abd275e1eaddf6744a786aae021d3782aa70c9eef047bc8");
+    fixture.ports.runRouter = async () => ({
+      status: "exited",
+      exitCode: 0,
+      stdout: Buffer.from(
+        JSON.stringify({
+          task_types: ["agents_llm", "backend_api"],
+          required: fixtureManifest.selection.routerRequired,
+          recommended: [],
+        }),
+      ),
+      stderr: new Uint8Array(),
+    });
+    const result = await resolveForgeTaskInput(fixture.input);
+    expect(result.status).toBe("ready");
+    if (result.status !== "ready") throw new Error(result.code);
+    expect(result.taskTypes).toEqual(["agents_llm", "backend_api"]);
+    expect(() => buildCodexAdditionalContext({ model: "fixture" }, false, result)).toThrow(
+      "fixture-input-forbidden",
+    );
+  });
+
+  it.each(["explicit requirement", "flag"])(
+    "binds a changed %s to a fresh task selection",
+    async (field) => {
+      await using fixture = await setup();
+      const task =
+        field === "flag"
+          ? { ...fixture.input.task, flags: { ...fixture.input.task.flags, review: true } }
+          : { ...fixture.input.task, explicitRequired: ["api-designer"] };
+      expect(await resolveForgeTaskInput({ ...fixture.input, task })).toEqual({
+        status: "unavailable",
+        code: "task-changed",
+      });
+      expect(fixture.calls).toHaveLength(0);
+    },
+  );
+
+  it("preserves every enabled flag in the literal router request", async () => {
+    await using fixture = await setup();
+    fixture.input.task.flags = { build: false, review: true, llm: true, done: true };
+    const taskDigest = canonicalForgeTaskDigest({
+      schemaVersion: 1,
+      binding: fixture.input.binding,
+      task: fixture.input.task,
+    });
+    fixture.current.taskRecordSha256 = taskDigest;
+    await fixture.changeManifest((manifest) => {
+      manifest.selection.taskRecordSha256 = taskDigest;
+    });
+    fixture.ports.runRouter = async (request) => {
+      fixture.calls.push(request);
+      expect(request.args).toContain("--review");
+      expect(request.args).toContain("--llm");
+      expect(request.args).toContain("--done");
+      expect(request.args).not.toContain("--build");
+      return { status: "timeout" };
+    };
+    expect(await resolveForgeTaskInput(fixture.input)).toEqual({
+      status: "unavailable",
+      code: "router-timeout",
+    });
+    expect(fixture.calls).toHaveLength(1);
+  });
 });

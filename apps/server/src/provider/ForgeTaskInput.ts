@@ -788,6 +788,9 @@ export async function resolveForgeTaskInput(input: unknown): Promise<ForgeTaskIn
     )
       fail("router-output-invalid");
     if (route.data.task_types.length === 0) fail("routing-unmatched");
+    // The pinned router unions explicit and triggered types; triggered rows may extend this set.
+    if (task.taskTypes.some((type) => !route.data.task_types.includes(type)))
+      fail("router-output-invalid");
     if (
       !equal(route.data.task_types, manifest.selection.taskTypes) ||
       !equal(route.data.required, manifest.selection.routerRequired)
