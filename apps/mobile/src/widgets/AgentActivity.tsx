@@ -227,7 +227,12 @@ export function AgentActivity(
   // inherits.
   const renderLogo = (height: number, color: Foreground, modifiers: typeof linkModifiers = []) => (
     <HStack
-      modifiers={[frame({ width: height * 1.5, height }), foregroundStyle(color), ...modifiers]}
+      modifiers={[
+        frame({ width: height * (823.94 / 685.18), height }),
+        foregroundStyle(color),
+        accessibilityLabel("INVRT Code"),
+        ...modifiers,
+      ]}
     >
       <Image assetName="T3Mark" modifiers={[resizable()]} />
     </HStack>
@@ -354,7 +359,10 @@ export function AgentActivity(
       </Text>
     ),
     minimal: heroRow
-      ? renderGlyph(phaseSymbol(heroRow.phase), 13, phaseTint(heroRow.phase), linkModifiers)
+      ? renderGlyph(phaseSymbol(heroRow.phase), 13, phaseTint(heroRow.phase), [
+          accessibilityLabel(heroRow.status),
+          ...linkModifiers,
+        ])
       : renderLogo(11, tint, linkModifiers),
     expandedLeading: (
       <HStack spacing={5} alignment="center" modifiers={[padding({ leading: 4, vertical: 4 })]}>

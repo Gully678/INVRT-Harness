@@ -1,9 +1,10 @@
+import { InvrtLockup } from "../InvrtLockup";
 import { Alert, AlertDescription } from "../ui/alert";
 import type { AuthSessionState } from "@t3tools/contracts";
 import { squashAtomCommandFailure } from "@t3tools/client-runtime/state/runtime";
 import React, { startTransition, useEffect, useEffectEvent, useRef, useState } from "react";
 
-import { APP_DISPLAY_NAME } from "../../branding";
+import { APP_STAGE_LABEL, APP_DISPLAY_NAME } from "../../branding";
 import { connectPairing } from "../../connection/onboarding";
 import {
   peekPairingTokenFromUrl,
@@ -20,7 +21,7 @@ export function PairingPendingSurface() {
   return (
     <StandalonePage tone="pairing">
       <StandalonePageHeader
-        eyebrow={APP_DISPLAY_NAME}
+        eyebrow={<InvrtLockup cap={14} title={APP_DISPLAY_NAME} stageLabel={APP_STAGE_LABEL} />}
         title="Pairing with this environment"
         description="Validating the pairing link and preparing your session."
       />
@@ -86,7 +87,7 @@ export function PairingRouteSurface({
   return (
     <StandalonePage tone="pairing">
       <StandalonePageHeader
-        eyebrow={APP_DISPLAY_NAME}
+        eyebrow={<InvrtLockup cap={14} title={APP_DISPLAY_NAME} stageLabel={APP_STAGE_LABEL} />}
         title="Pair with this environment"
         description={describeAuthGate(auth.bootstrapMethods)}
       />
@@ -210,7 +211,7 @@ export function HostedPairingRouteSurface() {
   return (
     <StandalonePage tone="pairing">
       <StandalonePageHeader
-        eyebrow={APP_DISPLAY_NAME}
+        eyebrow={<InvrtLockup cap={14} title={APP_DISPLAY_NAME} stageLabel={APP_STAGE_LABEL} />}
         title={
           status === "paired"
             ? "Backend paired"

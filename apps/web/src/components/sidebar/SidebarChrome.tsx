@@ -7,6 +7,7 @@ import { useEnvironmentIdentificationMode } from "../../hooks/useSettings";
 import { cn } from "../../lib/utils";
 import { usePullRequestsSupported } from "../../state/environments";
 import { InvrtMark } from "../InvrtMark";
+import { InvrtLockup } from "../InvrtLockup";
 import {
   resolveEnvironmentIdentificationPillLabel,
   resolveSidebarStageBackdropVariant,
@@ -102,31 +103,32 @@ export function SidebarBrandWidthProbe({
 
 function SidebarBrand({ onBackdrop }: { onBackdrop: boolean }) {
   return (
-    <Link
-      aria-label="Go to threads"
-      className={cn(
-        "relative z-10 ml-[var(--workspace-titlebar-content-left)] hidden h-7 w-fit min-w-0 shrink-0 items-center overflow-hidden rounded-md outline-hidden ring-ring focus-visible:ring-2 focus-visible:ring-inset md:flex",
-        onBackdrop ? "text-white" : "text-foreground",
-      )}
-      to="/"
-    >
-      <SidebarBrandMark onBackdrop={onBackdrop} />
-    </Link>
+    <>
+      <span
+        className={cn("inline-flex p-1.5 md:hidden", onBackdrop ? "text-white" : "text-foreground")}
+        role="img"
+        aria-label="INVRT Code"
+      >
+        <InvrtMark aria-hidden className="h-4 w-auto" />
+      </span>
+      <Link
+        aria-label="INVRT Code, go to threads"
+        className={cn(
+          "relative z-10 ml-[var(--workspace-titlebar-content-left)] hidden h-7 w-fit min-w-0 shrink-0 items-center overflow-hidden rounded-md outline-hidden ring-ring focus-visible:ring-2 focus-visible:ring-inset md:flex",
+          onBackdrop ? "text-white" : "text-foreground",
+        )}
+        to="/"
+      >
+        <SidebarBrandMark onBackdrop={onBackdrop} />
+      </Link>
+    </>
   );
 }
 
 function SidebarBrandMark({ onBackdrop }: { onBackdrop: boolean }) {
   return (
-    <span className="inline-flex min-w-0 items-baseline gap-1 text-sm font-medium tracking-tight">
-      <InvrtMark aria-label="INVRT" className="h-[1cap] w-auto shrink-0" />
-      <span
-        className={cn(
-          "truncate [text-box:trim-both_cap_alphabetic] supports-[text-box:trim-both_cap_alphabetic]:py-1",
-          onBackdrop ? "text-white/70" : "text-muted-foreground",
-        )}
-      >
-        Code
-      </span>
+    <span className={onBackdrop ? "text-white" : "text-foreground"}>
+      <InvrtLockup cap={11} />
     </span>
   );
 }

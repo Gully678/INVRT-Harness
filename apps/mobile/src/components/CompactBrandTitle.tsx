@@ -2,9 +2,10 @@ import { NATIVE_WORKSPACE_COLUMNS_SUPPORTED } from "../native/NativeWorkspaceCol
 import Constants from "expo-constants";
 import type { NativeStackNavigationOptions } from "@react-navigation/native-stack";
 import { useState } from "react";
-import { Platform, View } from "react-native";
+import { Platform, useWindowDimensions, View } from "react-native";
 
-import { InvrtWordmark } from "./InvrtMark";
+import { InvrtLockup } from "./InvrtLockup";
+import { InvrtMark } from "./InvrtMark";
 import { AppText as Text } from "./ui/AppText";
 import { IPAD_HOME_TITLE_OFFSET } from "../lib/layoutMetrics";
 import { resolveMobileStageLabel } from "../lib/mobileBranding";
@@ -26,11 +27,15 @@ export function CompactBrandTitle(
   const stageLabel = resolveMobileStageLabel(Constants.expoConfig?.extra?.appVariant);
   const titleOffset = brandTitleOffset();
   const { scale } = useAndroidControlSizing();
+  const { fontScale } = useWindowDimensions();
+  const cap = 14 * scale * (props.allowFontScaling ? fontScale : 1);
   const [availableWidth, setAvailableWidth] = useState<number | null>(null);
   // Measured only while the badge shows, so hiding it does not make it look like it fits.
   const [fullWidth, setFullWidth] = useState<number | null>(null);
+  const compact = props.fit && availableWidth !== null && availableWidth < cap * 9.523;
   const showStage =
-    !props.fit || availableWidth === null || fullWidth === null || fullWidth <= availableWidth;
+    !compact &&
+    (!props.fit || availableWidth === null || fullWidth === null || fullWidth <= availableWidth);
 
   const title = (
     <View
@@ -48,14 +53,13 @@ export function CompactBrandTitle(
         props.fit && { flexShrink: 0 },
       ]}
     >
-      <InvrtWordmark height={22 * scale} colorClassName="text-foreground-muted" />
-      <Text
-        allowFontScaling={props.allowFontScaling}
-        className="font-t3-medium text-foreground-muted"
-        style={{ fontSize: 21 * scale, letterSpacing: -0.5 * scale }}
-      >
-        Code
-      </Text>
+      {compact ? (
+        <View style={{ padding: cap * 0.5 }}>
+          <InvrtMark height={cap * 1.21} colorClassName="text-foreground" />
+        </View>
+      ) : (
+        <InvrtLockup cap={cap} />
+      )}
       {showStage ? (
         <View
           className="rounded-full bg-subtle px-1.5 py-0.5"

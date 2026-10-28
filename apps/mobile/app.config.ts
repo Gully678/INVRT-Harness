@@ -305,7 +305,12 @@ const config: ExpoConfig = {
       "expo-font",
       {
         ios: {
-          fonts: [dmSansFonts.regular, dmSansFonts.medium, dmSansFonts.bold],
+          fonts: [
+            dmSansFonts.regular,
+            dmSansFonts.medium,
+            dmSansFonts.bold,
+            "./assets/fonts/Inter_18pt-SemiBold.ttf",
+          ],
         },
         android: {
           fonts: [
@@ -320,6 +325,10 @@ const config: ExpoConfig = {
             {
               fontFamily: "DMSans-Bold",
               fontDefinitions: [{ path: dmSansFonts.bold, weight: 700 }],
+            },
+            {
+              fontFamily: "Inter18pt-SemiBold",
+              fontDefinitions: [{ path: "./assets/fonts/Inter_18pt-SemiBold.ttf", weight: 600 }],
             },
           ],
         },

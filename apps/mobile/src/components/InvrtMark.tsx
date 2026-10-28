@@ -14,7 +14,7 @@ export function InvrtMark(props: {
   const aspectRatio = 823.94 / 685.18;
   return (
     <Svg
-      accessibilityLabel="INVRT"
+      accessible={false}
       height={props.height}
       width={props.height * aspectRatio}
       viewBox="0 0 823.94 685.18"
@@ -39,7 +39,7 @@ export function InvrtWordmark(props: {
   const aspectRatio = 329.61 / 84.39;
   return (
     <Svg
-      accessibilityLabel="INVRT"
+      accessible={false}
       height={props.height}
       width={props.height * aspectRatio}
       viewBox="34.99 24.15 329.61 84.39"
