@@ -110,6 +110,19 @@ const tagged = (run: () => unknown, tag: string) => {
   expect(thrown).toBeDefined();
   expect(thrown).toHaveProperty("_tag", tag);
 };
+const captureError = (run: () => unknown): unknown => {
+  try {
+    run();
+  } catch (error) {
+    return error;
+  }
+  return undefined;
+};
+const withEpochMilliseconds = (timestamp: DateTime.Utc, epochMilliseconds: number) => {
+  const copy = DateTime.toUtc(timestamp);
+  Reflect.set(copy, "epochMilliseconds", epochMilliseconds);
+  return copy;
+};
 const fixture = () => {
   const current = policy();
   const principal = decodeWire(Principal)({
@@ -700,6 +713,264 @@ describe("managed admission and device acknowledgement", () => {
       "ProgrammePolicyDeniedError",
     );
   });
+});
+
+describe("finite security timestamps", () => {
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+    "denies a non-finite admission decision time (%s) before resolving authority",
+    (epochMilliseconds) => {
+      const f = fixture();
+      let actorResolutions = 0;
+      const request = {
+        ...f.request,
+        now: withEpochMilliseconds(f.request.now, epochMilliseconds),
+        port: {
+          ...f.port,
+          resolveAuthenticatedActor: () => {
+            actorResolutions += 1;
+            return PRINCIPAL;
+          },
+        },
+      };
+
+      expect(captureError(() => resolveManagedRoute(request))).toMatchObject({
+        _tag: "ProgrammePolicyDeniedError",
+        message: "Routing decision time must be finite",
+      });
+      expect(actorResolutions).toBe(0);
+    },
+  );
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+    "denies a non-finite publication decision time (%s) before resolving authority",
+    (epochMilliseconds) => {
+      const f = fixture();
+      let actorResolutions = 0;
+      const port = {
+        ...f.port,
+        resolveAuthenticatedActor: () => {
+          actorResolutions += 1;
+          return PRINCIPAL;
+        },
+      };
+
+      expect(
+        captureError(() =>
+          publishRoutingPolicy({
+            policy: next(f.current),
+            expectedRevision: 1,
+            now: withEpochMilliseconds(f.request.now, epochMilliseconds),
+            port,
+          }),
+        ),
+      ).toMatchObject({
+        _tag: "ProgrammePolicyDeniedError",
+        message: "Routing decision time must be finite",
+      });
+      expect(actorResolutions).toBe(0);
+    },
+  );
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+    "denies a non-finite acknowledgement decision time (%s) before resolving authority",
+    (epochMilliseconds) => {
+      const f = fixture();
+      let actorResolutions = 0;
+      const port = {
+        ...f.port,
+        resolveAuthenticatedActor: () => {
+          actorResolutions += 1;
+          return PRINCIPAL;
+        },
+      };
+      const input = {
+        ...f.request,
+        expectedRevision: 1,
+        appliedPolicyRef: policyReference(f.current),
+        capabilitySnapshotRef: "snapshot-a",
+        resolvedRoutesHash: HASH,
+        now: withEpochMilliseconds(f.request.now, epochMilliseconds),
+        port,
+      };
+
+      expect(captureError(() => acknowledgePolicyDevice(input))).toMatchObject({
+        _tag: "ProgrammePolicyDeniedError",
+        message: "Routing decision time must be finite",
+      });
+      expect(actorResolutions).toBe(0);
+    },
+  );
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+    "denies a non-finite trusted assignment expiry (%s) without changing authority records",
+    (epochMilliseconds) => {
+      const f = fixture();
+      const assignment = {
+        ...f.assignment,
+        expiresAt: withEpochMilliseconds(f.assignment.expiresAt, epochMilliseconds),
+      };
+      const before = structuredClone({ assignment, current: f.current, device: f.device });
+      const request = {
+        ...f.request,
+        port: { ...f.port, resolveAdmissionAssignment: () => assignment },
+      };
+
+      expect(captureError(() => resolveManagedRoute(request))).toMatchObject({
+        _tag: "ProgrammePolicyDeniedError",
+        message: "Admission assignment expiry must be finite",
+      });
+      expect({ assignment, current: f.current, device: f.device }).toEqual(before);
+    },
+  );
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+    "denies a non-finite required-policy effective time (%s)",
+    (epochMilliseconds) => {
+      const f = fixture();
+      const current = {
+        ...f.current,
+        effectiveAt: withEpochMilliseconds(f.current.effectiveAt, epochMilliseconds),
+      };
+      const port = {
+        ...f.port,
+        resolveRequiredPolicy: () => current,
+        attestPolicyDigest: (candidate: RoutingPolicy) => candidate.digest,
+      };
+
+      expect(captureError(() => resolveManagedRoute({ ...f.request, port }))).toMatchObject({
+        _tag: "ProgrammePolicyDeniedError",
+        message: "Routing policy effective time must be finite",
+      });
+    },
+  );
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+    "denies a non-finite device observation time (%s)",
+    (epochMilliseconds) => {
+      const f = fixture();
+      const device = {
+        ...f.device,
+        observedAt: withEpochMilliseconds(f.device.observedAt, epochMilliseconds),
+      };
+      const port = { ...f.port, resolveDeviceState: () => device };
+
+      expect(captureError(() => resolveManagedRoute({ ...f.request, port }))).toMatchObject({
+        _tag: "ProgrammePolicyDeniedError",
+        message: "Device observation time must be finite",
+      });
+    },
+  );
+
+  it.each(["observedAt", "expiresAt"] as const)(
+    "denies a non-finite capability snapshot %s",
+    (field) => {
+      const f = fixture();
+      for (const epochMilliseconds of [
+        Number.NaN,
+        Number.POSITIVE_INFINITY,
+        Number.NEGATIVE_INFINITY,
+      ]) {
+        const snapshot = {
+          ...f.snapshot,
+          [field]: withEpochMilliseconds(f.snapshot[field], epochMilliseconds),
+        };
+        const port = { ...f.port, resolveCapabilitySnapshot: () => snapshot };
+
+        expect(captureError(() => resolveManagedRoute({ ...f.request, port }))).toMatchObject({
+          _tag: "ProgrammeCapabilityUnavailableError",
+          message: "Capability snapshot timestamps must be finite",
+        });
+      }
+    },
+  );
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+    "denies a non-finite delegated exception expiry (%s)",
+    (epochMilliseconds) => {
+      const f = fixture();
+      const parent = policy({ delegatedExceptionRefs: ["exception-a"] });
+      const wide = policy({
+        ...projectScope,
+        policyId: "project-policy",
+        parentPolicyRef: policyReference(parent),
+        permittedModels: ["another-model"],
+        routes: [
+          {
+            routeId: "route-a",
+            providerInstanceRef: "native-instance",
+            model: "another-model",
+            effort: "high",
+          },
+        ],
+        delegatedExceptionRef: "exception-a",
+      });
+      const port: RoutingAuthorityPort = {
+        ...f.port,
+        resolveRequiredPolicy: (scope) => (scope.scope === "org" ? parent : null),
+        resolveDelegatedException: () => ({
+          ref: "exception-a",
+          parentPolicyRef: policyReference(parent),
+          projectId: PROJECT,
+          policyDigest: wide.digest,
+          expiresAt: withEpochMilliseconds(FUTURE, epochMilliseconds),
+        }),
+      };
+
+      expect(
+        captureError(() =>
+          publishRoutingPolicy({ policy: wide, expectedRevision: 0, now: NOW, port }),
+        ),
+      ).toMatchObject({
+        _tag: "ProgrammePolicyDeniedError",
+        message: "Delegated policy exception expiry must be finite",
+      });
+    },
+  );
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+    "denies a non-finite continuation lease expiry (%s)",
+    (epochMilliseconds) => {
+      const f = fixture();
+      const lease = {
+        ...f.lease,
+        expiresAt: withEpochMilliseconds(f.lease.expiresAt, epochMilliseconds),
+      };
+      const input = {
+        ...f.request,
+        mode: "continue" as const,
+        port: { ...f.port, resolveContinuationLease: () => lease },
+      };
+
+      expect(captureError(() => resolveManagedRoute(input))).toMatchObject({
+        _tag: "ProgrammePolicyDeniedError",
+        message: "Original continuation lease expiry must be finite",
+      });
+    },
+  );
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+    "denies a non-finite candidate policy effective time (%s)",
+    (epochMilliseconds) => {
+      const f = fixture();
+      const candidate = {
+        ...next(f.current),
+        effectiveAt: withEpochMilliseconds(f.current.effectiveAt, epochMilliseconds),
+      };
+      const port = {
+        ...f.port,
+        attestPolicyDigest: (policy: RoutingPolicy) => policy.digest,
+      };
+
+      expect(
+        captureError(() =>
+          publishRoutingPolicy({ policy: candidate, expectedRevision: 1, now: NOW, port }),
+        ),
+      ).toMatchObject({
+        _tag: "ProgrammePolicyDeniedError",
+        message: "Routing policy effective time must be finite",
+      });
+    },
+  );
 });
 
 describe("additional policy boundary probes", () => {

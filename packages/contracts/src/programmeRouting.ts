@@ -239,6 +239,8 @@ const sameRef = (a: PolicyRevisionRef | null, b: PolicyRevisionRef): boolean =>
 function deny(message: string): never {
   throw new ProgrammePolicyDeniedError({ message });
 }
+const isFiniteTimestamp = (timestamp: DateTime.Utc): boolean =>
+  Number.isFinite(DateTime.toEpochMillis(timestamp));
 function unavailable(message: string): never {
   throw new ProgrammeCapabilityUnavailableError({ message });
 }
@@ -263,6 +265,7 @@ const checkRevision = (expected: number, actual: number): void => {
 const verifiedPolicy = (policy: RoutingPolicy, port: RoutingAuthorityPort): RoutingPolicy => {
   if (!isRoutingPolicy(policy))
     throw new ProgrammeInvalidRequestError({ message: "Routing policy is invalid" });
+  if (!isFiniteTimestamp(policy.effectiveAt)) deny("Routing policy effective time must be finite");
   const attested = port.attestPolicyDigest(policy);
   if (attested === null) unavailable("Policy content digest cannot be attested");
   if (attested !== policy.digest) deny("Policy digest does not bind its content");
@@ -414,6 +417,8 @@ const checkParent = (
   if (ref === null || !parent.delegatedExceptionRefs.includes(ref))
     deny("Project policy widens organisation rules without delegation");
   const exception = port.resolveDelegatedException(ref, policy);
+  if (exception !== null && !isFiniteTimestamp(exception.expiresAt))
+    deny("Delegated policy exception expiry must be finite");
   if (
     exception === null ||
     exception.ref !== ref ||
@@ -426,6 +431,7 @@ const checkParent = (
 };
 /** Returns a publication decision only. The owning service must atomically CAS/persist the unchanged revision and digest. */
 export const publishRoutingPolicy = (input: PublishRoutingPolicyInput): RoutingPolicy => {
+  if (!isFiniteTimestamp(input.now)) deny("Routing decision time must be finite");
   const port = trustedPort(input.port);
   const policy = verifiedPolicy(input.policy, port);
   checkPrincipal(port, policy.issuerPrincipalId, policy, true);
@@ -502,6 +508,8 @@ const capability = (
   const snapshot =
     port.resolveCapabilitySnapshot({ ...input, ref }) ??
     unavailable("Capability snapshot is unavailable");
+  if (!isFiniteTimestamp(snapshot.observedAt) || !isFiniteTimestamp(snapshot.expiresAt))
+    unavailable("Capability snapshot timestamps must be finite");
   if (
     snapshot.ref !== ref ||
     snapshot.environmentId !== input.environmentId ||
@@ -532,12 +540,15 @@ const selectedRoute = (
   return route;
 };
 export const resolveManagedRoute = (input: ResolveManagedRouteInput): ResolvedManagedRoute => {
+  if (!isFiniteTimestamp(input.now)) deny("Routing decision time must be finite");
   const port = trustedPort(input.port);
   checkPrincipal(port, input.principalId, input, false);
   if (input.mode === "continue") {
     const lease =
       input.taskId === undefined ? null : port.resolveContinuationLease(input.taskId, input);
     if (lease === null) unavailable("Original continuation lease is unavailable");
+    if (!isFiniteTimestamp(lease.expiresAt))
+      deny("Original continuation lease expiry must be finite");
     if (
       !sameScope(lease, input) ||
       lease.taskId !== input.taskId ||
@@ -599,6 +610,7 @@ export const resolveManagedRoute = (input: ResolveManagedRouteInput): ResolvedMa
   const assignment =
     port.resolveAdmissionAssignment?.() ??
     unavailable("Authoritative admission assignment is unavailable");
+  if (!isFiniteTimestamp(assignment.expiresAt)) deny("Admission assignment expiry must be finite");
   if (
     !sameScope(assignment, input) ||
     assignment.taskId !== input.taskId ||
@@ -611,6 +623,7 @@ export const resolveManagedRoute = (input: ResolveManagedRouteInput): ResolvedMa
   )
     deny("Admission assignment is expired or outside this task, actor, role or policy binding");
   const device = deviceRecord(input, port);
+  if (!isFiniteTimestamp(device.observedAt)) deny("Device observation time must be finite");
   if (
     device.state !== "current" ||
     !sameRef(device.requiredPolicyRef, policyReference(policy)) ||
@@ -634,6 +647,7 @@ export const resolveManagedRoute = (input: ResolveManagedRouteInput): ResolvedMa
   };
 };
 export const acknowledgePolicyDevice = (input: AcknowledgePolicyDeviceInput): PolicyDeviceState => {
+  if (!isFiniteTimestamp(input.now)) deny("Routing decision time must be finite");
   const port = trustedPort(input.port);
   checkPrincipal(port, input.principalId, input, false);
   const policy = requiredPolicy(input, port, input.now);
