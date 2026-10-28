@@ -91,3 +91,51 @@ describe("validateRegistry", () => {
     expect(() => validateRegistry({ ...registry, schemaVersion: 2 })).toThrow(/schemaVersion/);
   });
 });
+
+const validSha = "a".repeat(40);
+const malformedCrossChecks: unknown[] = [
+  null,
+  [],
+  ...["reachable", "ancestors", "commitSubjectsBind", "evidenceFiles"].flatMap((field) =>
+    [null, {}, "bad", [null], [42]].map((value) => ({ [field]: value })),
+  ),
+  { reachable: ["--output=/tmp/not-written"] },
+  { ancestors: [{}] },
+  { ancestors: [{ ancestor: validSha }] },
+  { ancestors: [{ ancestor: validSha, of: false }] },
+  { commitSubjectsBind: [{ sha: validSha }] },
+  { commitSubjectsBind: [{ sha: validSha, contains: 42 }] },
+  { evidenceFiles: [{}] },
+  { evidenceFiles: [{ path: "x", contains: null }] },
+  { evidenceFiles: [{ path: "x", contains: [42] }] },
+];
+
+describe("runtime registry boundary", () => {
+  it.each(malformedCrossChecks)("rejects malformed nested git cross-check %#", (gitCrossCheck) => {
+    const data = withEntry(loadRegistry(), (entry) => {
+      entry.gitCrossCheck = gitCrossCheck;
+    });
+    expect(() => validateRegistry(data)).toThrow(RegistryValidationError);
+  });
+
+  it.each(["packsRecords", "changedBodies", "missingPaths"])(
+    "rejects supplied invalid %s",
+    (field) => {
+      for (const value of [-1, 1.5, "1", null]) {
+        expect(() =>
+          validateRegistry(
+            withEntry(loadRegistry(), (entry) => {
+              entry[field] = value;
+            }),
+          ),
+        ).toThrow(RegistryValidationError);
+      }
+    },
+  );
+
+  it("rejects invalid review reference values", () => {
+    expect(() => validateRegistry({ ...loadRegistry(), reviewRefs: { bad: 42 } })).toThrow(
+      RegistryValidationError,
+    );
+  });
+});

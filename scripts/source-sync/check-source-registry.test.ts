@@ -4,19 +4,20 @@ import * as NodeFSP from "node:fs/promises";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it, onTestFinished } from "vite-plus/test";
 
 import {
   checkRegistryOffline,
   type CheckFinding,
   type GitRunner,
 } from "./check-source-registry.ts";
-import { loadRegistry, type SourceRegistry } from "./registry.ts";
+import { defaultCoveragePath, loadRegistry, type SourceRegistry } from "./registry.ts";
 
 const SCRIPT = NodePath.join(import.meta.dirname, "check-source-registry.ts");
 
 async function tempCopy(name: string, data: string): Promise<string> {
   const dir = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "source-sync-check-"));
+  onTestFinished(() => NodeFSP.rm(dir, { recursive: true, force: true }));
   const file = NodePath.join(dir, name);
   await NodeFSP.writeFile(file, data);
   return file;
@@ -152,5 +153,85 @@ describe("check CLI", () => {
     expect(fail.status).not.toBe(0);
     expect(`${fail.stdout}${fail.stderr}`).toContain("rea");
     expect(`${fail.stdout}${fail.stderr}`).toContain("adoptionStatus");
+  });
+});
+
+const invalidCrossChecks: unknown[] = [
+  null,
+  [],
+  ...["reachable", "ancestors", "commitSubjectsBind", "evidenceFiles"].flatMap((field) =>
+    [null, {}, "bad", [null], [42], [{}]].map((value) => ({ [field]: value })),
+  ),
+  { ancestors: [{ ancestor: "a".repeat(40) }] },
+  { commitSubjectsBind: [{ sha: "a".repeat(40), contains: 42 }] },
+  { evidenceFiles: [{ path: "x", contains: [42] }] },
+];
+
+describe("untrusted offline inputs", () => {
+  it.each(invalidCrossChecks)(
+    "rejects nested runtime corruption before any git call %#",
+    async (gitCrossCheck) => {
+      const registry = loadRegistry();
+      const file = await tempCopy(
+        "registry.json",
+        JSON.stringify({
+          ...registry,
+          sources: registry.sources.map((entry, index) =>
+            index === 0 ? { ...entry, gitCrossCheck } : entry,
+          ),
+        }),
+      );
+      const calls: ReadonlyArray<string>[] = [];
+      const report = checkRegistryOffline({
+        registryPath: file,
+        runGit: (args) => {
+          calls.push(args);
+          return { ok: true, stdout: "" };
+        },
+      });
+      expect(
+        report.findings.some((finding) =>
+          ["registry-invalid", "malformed-cross-check-sha"].includes(finding.code),
+        ),
+      ).toBe(true);
+      expect(report.gitCrossChecksRun).toBe(0);
+      expect(calls).toEqual([]);
+    },
+  );
+
+  it.each([undefined, null, {}, [], [null], Array.from({ length: 78 }, () => ({}))])(
+    "requires shaped coverage rows %#",
+    async (rows) => {
+      const coverage = JSON.parse(await NodeFSP.readFile(defaultCoveragePath(), "utf8"));
+      coverage.rows = rows;
+      const file = await tempCopy("coverage.json", JSON.stringify(coverage));
+      const report = checkRegistryOffline({ coveragePath: file });
+      expect(report.findings.some((finding) => finding.code.startsWith("coverage-rows-"))).toBe(
+        true,
+      );
+      const result = NodeChildProcess.spawnSync(process.execPath, [SCRIPT, "--coverage", file], {
+        encoding: "utf8",
+      });
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("coverage-rows-");
+    },
+  );
+
+  it("rejects short, long and malformed individual evidence rows", async () => {
+    const coverage = JSON.parse(await NodeFSP.readFile(defaultCoveragePath(), "utf8"));
+    const row = coverage.rows[0];
+    for (const rows of [
+      coverage.rows.slice(1),
+      [...coverage.rows, row],
+      [{ ...row, current_pin: "bad" }, ...coverage.rows.slice(1)],
+      [{ ...row, full_current_body_read: false }, ...coverage.rows.slice(1)],
+    ]) {
+      const report = checkRegistryOffline({
+        coveragePath: await tempCopy("coverage.json", JSON.stringify({ ...coverage, rows })),
+      });
+      expect(report.findings.some((finding) => finding.code.startsWith("coverage-rows-"))).toBe(
+        true,
+      );
+    }
   });
 });
