@@ -1,3 +1,4 @@
+import { formatAppDisplayName } from "../branding.logic";
 import { InvrtMark, InvrtWordmark } from "./InvrtMark";
 
 // Ratios and cap-band alignment come from the approved Lockup.jsx master.
@@ -5,11 +6,14 @@ export function InvrtLockup({
   cap = 14,
   title = "INVRT Code",
   className,
+  stageLabel,
 }: {
   readonly cap?: number;
   readonly title?: string;
   readonly className?: string;
+  readonly stageLabel?: string;
 }) {
+  const channelCue = stageLabel ? formatAppDisplayName({ baseName: "", stageLabel }).trim() : "";
   return (
     <span
       role="img"
@@ -64,6 +68,7 @@ export function InvrtLockup({
         }}
       >
         Code
+        {channelCue ? <span> {channelCue}</span> : null}
       </span>
     </span>
   );

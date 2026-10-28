@@ -10,7 +10,7 @@ import { useLocation } from "@tanstack/react-router";
 import * as Schema from "effect/Schema";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
-import { APP_DISPLAY_NAME, DESKTOP_DOWNLOAD_URL } from "~/branding";
+import { APP_STAGE_LABEL, APP_DISPLAY_NAME, DESKTOP_DOWNLOAD_URL } from "~/branding";
 import { useLocalStorage } from "~/hooks/useLocalStorage";
 import { isHostedStaticApp } from "~/hostedPairing";
 import { useEnvironments } from "~/state/environments";
@@ -115,7 +115,7 @@ function HostedPromptLinkLanding({
     return (
       <StandalonePage tone="error">
         <StandalonePageHeader
-          eyebrow={<InvrtLockup cap={14} title={APP_DISPLAY_NAME} />}
+          eyebrow={<InvrtLockup cap={14} title={APP_DISPLAY_NAME} stageLabel={APP_STAGE_LABEL} />}
           title="Could not open the link"
           description={summary.error}
         />
@@ -127,7 +127,7 @@ function HostedPromptLinkLanding({
   return (
     <StandalonePage tone="brand">
       <StandalonePageHeader
-        eyebrow={<InvrtLockup cap={14} title={APP_DISPLAY_NAME} />}
+        eyebrow={<InvrtLockup cap={14} title={APP_DISPLAY_NAME} stageLabel={APP_STAGE_LABEL} />}
         title="Open this prompt"
         description="It opens as a draft. Nothing runs until you press Send."
       />

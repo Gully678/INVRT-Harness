@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { APP_DISPLAY_NAME, APP_STAGE_LABEL } from "../../branding";
+import { APP_BASE_NAME, APP_STAGE_LABEL } from "../../branding";
 import { resolveSidebarStageBackdropVariant, StageBackdropArt } from "../SidebarStageBackdrop";
 import { InvrtLockup } from "../InvrtLockup";
 import { StandalonePage } from "../ui/standalone-page";
@@ -26,7 +26,7 @@ export function AuthSurfaceShell({ children }: { readonly children: ReactNode })
           <div className="absolute inset-0 bg-[linear-gradient(to_bottom,transparent_20%,rgba(7,18,55,0.46)_100%)]" />
           <div className="relative h-full p-5 sm:p-6">
             <div className="flex items-center gap-2">
-              <InvrtLockup cap={16} title={APP_DISPLAY_NAME} />
+              <InvrtLockup cap={16} title={APP_BASE_NAME} />
               <span className="text-xs font-semibold">{APP_STAGE_LABEL}</span>
             </div>
           </div>

@@ -14,7 +14,7 @@ import {
 import { Check, Copy } from "lucide";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 
-import { APP_DISPLAY_NAME, APP_VERSION } from "../branding";
+import { APP_STAGE_LABEL, APP_DISPLAY_NAME, APP_VERSION } from "../branding";
 import { AppSidebarLayout } from "../components/AppSidebarLayout";
 import { CommandPalette } from "../components/CommandPalette";
 import { CustomSnoozeDialogHost } from "../components/CustomSnoozeDialog";
@@ -229,7 +229,7 @@ function RootRouteErrorView({ error }: ErrorComponentProps) {
   return (
     <StandalonePage tone="error">
       <StandalonePageHeader
-        eyebrow={<InvrtLockup cap={14} title={APP_DISPLAY_NAME} />}
+        eyebrow={<InvrtLockup cap={14} title={APP_DISPLAY_NAME} stageLabel={APP_STAGE_LABEL} />}
         title="Something went wrong."
         description={message}
       />
