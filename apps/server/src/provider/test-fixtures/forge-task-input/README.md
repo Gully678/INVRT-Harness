@@ -1,0 +1,9 @@
+# Quarantined synthetic component fixtures
+
+TEST ONLY. No runtime, native, production or content admission.
+
+The four FIXTURE JSON files are exact reviewed packet bytes from forge-task-input/PACKET.md SHA256 f5fd230cdc3ff930126340165c9637783ed7fdf75dc52b2d5c61b0ca300f7d09, final bounded documentary review da4bd048ba2c671dc3878a2837eefff4d5651817c9c81eb7a039aa4073285566. PENDING review labels inside frozen fixture bytes are retained; the later review accepts constants only for synthetic component tests. Synthetic content licence: TEST-ONLY, author INVRT packet fixture.
+
+Four inert router/metadata byte files preserve the exact frozen FORGE snapshot recorded in INERT-SOURCE-MANIFEST.json and FIXTURE-MANIFEST.json. Origin is the privately owned INVRT monti-forge runtime snapshot561aaa0d2e1a5af53d0888b4a1dd2f12bb75f332e8ecf2ccfd9911d9a51ef722. Origin paths and SHA256 identify bytes; they do not admit them to execute. The byte origin is the private INVRT-owned runtime snapshot. The snapshot contains no root licence file; upstream router licence was not independently requalified by this component. Metadata preserves its catalogue pack/licence-origin columns exactly. This private fixture copy makes no relicensing, publication or upstream licence-admission claim. No body/reference implementation has been copied. Existing repository notices remain.
+
+Tests materialise these exact inert bytes only in an owned temporary root, add795 empty labelled regular SKILL.md presence stubs, and use a LABELLED-TEST-FIXTURE process response. Those stubs prove path handling only, not full body content, migration or routing acceptance. Synthetic runtime digest is NOTQUALIFIED_DO_NOT_EXECUTE. Tests never spawn Python or another process through this loader. The real router/import/stdlib runtime remains held.

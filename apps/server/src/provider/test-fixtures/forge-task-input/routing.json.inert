@@ -1,0 +1,1770 @@
+{
+  "schema_version": 1,
+  "task_types": {
+    "strategy_and_coterai": {
+      "family": "Strategy and Coterai",
+      "triggers": [
+        "strategy",
+        "pricing",
+        "offer",
+        "offers",
+        "negotiation",
+        "proposal",
+        "go-to-market",
+        "strategic decision",
+        "pricing decision",
+        "business decision"
+      ],
+      "required": [
+        "coterai-council",
+        "pricing",
+        "offers",
+        "strategic-planning"
+      ],
+      "recommended": [
+        "advisor-bezos",
+        "advisor-brunson",
+        "advisor-buffett",
+        "advisor-burnett",
+        "advisor-duarte",
+        "advisor-gary-vee",
+        "advisor-gurley",
+        "advisor-hormozi",
+        "advisor-jobs",
+        "advisor-kern",
+        "advisor-musk",
+        "advisor-ogilvy",
+        "advisor-robbins",
+        "advisor-voss"
+      ]
+    },
+    "finance": {
+      "family": "Finance",
+      "triggers": [
+        "finance",
+        "modelling",
+        "financial forecast",
+        "cash flow forecast",
+        "cash flow"
+      ],
+      "required": [
+        "financial-analyst",
+        "cfo-advisor",
+        "check-model"
+      ],
+      "recommended": [
+        "3-statements",
+        "audit-support",
+        "business-investment-advisor",
+        "buyer-list",
+        "capital-structure-optimizer",
+        "cash-flow-forecaster",
+        "catalyst-calendar",
+        "cim-builder",
+        "client-report",
+        "client-review",
+        "close-management",
+        "comps-analysis",
+        "cost-of-capital-estimator",
+        "cs-financial-analyst",
+        "datapack-builder",
+        "dcf-model",
+        "dd-checklist",
+        "dd-meeting-prep",
+        "deal-screening",
+        "deal-sourcing",
+        "deal-tracker",
+        "dividend-buyback-analyzer",
+        "earnings-analysis",
+        "earnings-preview",
+        "finance-lead",
+        "finance-skills",
+        "financial-health",
+        "financial-plan",
+        "financial-statement-analyzer",
+        "financial-statements",
+        "financial-unit-economics",
+        "ic-memo",
+        "idea-generation",
+        "initiating-coverage",
+        "intrinsic-valuation-dcf",
+        "investment-proposal",
+        "journal-entry",
+        "journal-entry-prep",
+        "lbo-model",
+        "merger-model",
+        "model-update",
+        "morning-note",
+        "pitch-deck",
+        "portfolio-monitoring",
+        "portfolio-rebalance",
+        "process-letter",
+        "project-investment-analyzer",
+        "reconciliation",
+        "relative-valuation-multiples",
+        "research-finance",
+        "returns-analysis",
+        "sector-overview",
+        "sox-testing",
+        "special-situations-valuation",
+        "strip-profile",
+        "tax-loss-harvesting",
+        "teaser",
+        "thesis-tracker",
+        "unit-economics",
+        "valuation-reconciler",
+        "value-creation-plan",
+        "variance-analysis"
+      ]
+    },
+    "ads": {
+      "family": "Ads",
+      "triggers": [
+        "ads management",
+        "paid media",
+        "ad set",
+        "ads",
+        "paid ads",
+        "ad campaign",
+        "advertising",
+        "ppc",
+        "ads account",
+        "ad account"
+      ],
+      "required": [
+        "ad-campaign-architect",
+        "ad-budget-pacing-monitor",
+        "invrt-marketing-quality-gates",
+        "coterai-council"
+      ],
+      "recommended": [
+        "ab-test-designer",
+        "ad-copy-performance-ranker",
+        "ad-creative-brief-generator",
+        "ad-creative-fatigue-detector",
+        "ad-landing-page-match-scorer",
+        "ad-launch-pipeline",
+        "ad-optimisation-rules",
+        "ad-template-librarian",
+        "ads-copy-and-creative",
+        "attribution-model-auditor",
+        "audience-overlap-analyzer",
+        "audience-overlap-mapper",
+        "bid-strategy-auditor",
+        "brand-voice",
+        "budget-allocation-optimizer",
+        "creative-fatigue-detector",
+        "creative-testing-roadmap",
+        "cross-channel-attribution-analyst",
+        "cross-platform-budget-allocator",
+        "ecommerce-ads-playbook",
+        "email-sequence-builder",
+        "facebook-ads-account-auditor",
+        "facebook-ads-audience-builder",
+        "facebook-ads-budget-allocator",
+        "facebook-ads-campaign-structure",
+        "facebook-ads-creative-tester",
+        "facebook-ads-launch-checklist",
+        "facebook-ads-monthly-report",
+        "facebook-ads-scaling-roadmap",
+        "funnel-dropoff-diagnostician",
+        "geo-performance-optimizer",
+        "google-ads-weekly-brief",
+        "incrementality-test-designer",
+        "keyword-performance-analyzer",
+        "landing-page-auditor",
+        "linkedin-ads-auditor",
+        "linkedin-ads-b2b-optimizer",
+        "ltv-cac-ratio-optimizer",
+        "meta-ads-audience-auditor",
+        "meta-ads-creative-ranker",
+        "meta-ads-performance-analyzer",
+        "month-end-report-generator",
+        "negative-keyword-implementer",
+        "orchestrator",
+        "pmax-asset-group-analyzer",
+        "post-click-experience-auditor",
+        "pricing-page-auditor",
+        "privacy-first-targeting-strategist",
+        "retargeting-sequence-designer",
+        "scaling-roadmap-builder",
+        "search-term-gold-miner",
+        "shopping-feed-optimizer",
+        "social-ads-budget-allocator",
+        "social-content-factory",
+        "spend-pacing-monitor",
+        "tiktok-ads-analyzer",
+        "ugc-brief-generator",
+        "usp-extractor",
+        "video-ad-script-writer",
+        "winning-ad-template-scout"
+      ]
+    },
+    "marketing": {
+      "family": "Marketing",
+      "triggers": [
+        "marketing",
+        "content creation",
+        "marketing copy",
+        "landing page copy",
+        "copywriting",
+        "headline",
+        "brochure",
+        "website copy"
+      ],
+      "required": [
+        "copywriting",
+        "copy-editing",
+        "invrt-brand-narrative",
+        "invrt-marketing-quality-gates",
+        "coterai-council"
+      ],
+      "recommended": [
+        "ab-testing",
+        "ad-ad-account-auditor",
+        "ad-ad-creative-builder",
+        "ad-ad-test-designer",
+        "ad-attribution-reconciler",
+        "ad-audience-segment-builder",
+        "ad-bid-strategy-planner",
+        "ad-budget-pacing-monitor",
+        "ad-campaign-architect",
+        "ad-conversion-signal-qa",
+        "ad-conversion-value-mapper",
+        "ad-creative",
+        "ad-fatigue-frequency-manager",
+        "ad-landing-experience-checker",
+        "ad-paid-measurement-loop",
+        "ad-placement-exclusion-manager",
+        "ad-product-feed-optimizer",
+        "ad-search-term-miner",
+        "ads",
+        "ai-seo",
+        "analytics",
+        "aso",
+        "attribution",
+        "brand-review",
+        "brand-voice-enforcement",
+        "campaign-plan",
+        "churn-prevention",
+        "co-marketing",
+        "cold-email",
+        "community-marketing",
+        "competitor-profiling",
+        "competitors",
+        "content-arc-planner",
+        "content-copy-producer",
+        "content-strategy",
+        "copy-editing",
+        "creative-asset-producer",
+        "cro",
+        "customer-research",
+        "directory-submissions",
+        "discover-brand",
+        "distribution-learning-loop",
+        "draft-content",
+        "email-audit",
+        "email-check",
+        "email-cold-outbound-sequencer",
+        "email-deliverability-qa",
+        "email-dynamic-content-personalizer",
+        "email-email-creative-builder",
+        "email-email-quality-auditor",
+        "email-email-render-builder",
+        "email-email-sequence",
+        "email-email-sequence-designer",
+        "email-inbox-placement-monitor",
+        "email-list-growth-designer",
+        "email-list-hygiene-monitor",
+        "email-list-segment-builder",
+        "email-newsletter-monetization-planner",
+        "email-plan",
+        "email-preference-frequency-manager",
+        "email-reactivation-specialist",
+        "email-review",
+        "email-send-experiment-designer",
+        "email-sequence",
+        "email-subject-line-lab",
+        "email-write",
+        "emails",
+        "events",
+        "free-tools",
+        "guideline-generation",
+        "image",
+        "influencer-audience-mapper",
+        "influencer-brief-generator",
+        "influencer-budget-optimizer",
+        "influencer-campaign-planner",
+        "influencer-competitor-tracker",
+        "influencer-content-amplifier",
+        "influencer-contract-helper",
+        "influencer-creator-content-auditor",
+        "influencer-fit-scorer",
+        "influencer-influencer-discovery",
+        "influencer-landing-optimizer",
+        "influencer-marketing",
+        "influencer-outreach-manager",
+        "influencer-performance-analyzer",
+        "influencer-report-generator",
+        "influencer-roi-calculator",
+        "influencer-trend-spotter",
+        "invrt-brand-narrative",
+        "invrt-linkedin-writer",
+        "invrt-marketing-quality-gates",
+        "kwpmkt-competitive-brief",
+        "kwpmkt-seo-audit",
+        "launch",
+        "launch-community-launch-runner",
+        "launch-early-access-designer",
+        "launch-launch-asset-packager",
+        "launch-launch-day-conductor",
+        "launch-launch-feedback-synthesizer",
+        "launch-launch-monitor",
+        "launch-launch-readiness-auditor",
+        "launch-launch-retro-analyzer",
+        "launch-launch-tier-planner",
+        "launch-launch-window-planner",
+        "launch-message-house-builder",
+        "launch-momentum-planner",
+        "launch-positioning-mapper",
+        "launch-press-media-relations",
+        "launch-pricing-packaging-planner",
+        "launch-sales-enablement-kit",
+        "lead-magnets",
+        "marketing-council",
+        "marketing-ideas",
+        "marketing-loops",
+        "marketing-plan",
+        "marketing-psychology",
+        "marketing-signals-scout",
+        "mkt-seo-audit",
+        "narrative-audience-belief-mapper",
+        "narrative-brand-language-codifier",
+        "narrative-category-narrative-mapper",
+        "narrative-message-system-architect",
+        "narrative-message-test-designer",
+        "narrative-narrative-baseline-mapper",
+        "narrative-narrative-cascade-planner",
+        "narrative-narrative-drift-monitor",
+        "narrative-narrative-enablement-kit",
+        "narrative-narrative-quality-auditor",
+        "narrative-narrative-resonance-monitor",
+        "narrative-pitch-narrative-builder",
+        "narrative-positioning-truth-tracer",
+        "narrative-proof-point-packager",
+        "narrative-story-bank-builder",
+        "narrative-strategic-narrative-designer",
+        "offers",
+        "onboarding",
+        "paywalls",
+        "performance-report",
+        "popups",
+        "pricing",
+        "product-marketing",
+        "programmatic-seo",
+        "prospecting",
+        "protocol-channel-registry",
+        "protocol-consent-registry",
+        "protocol-creator-registry",
+        "protocol-entity-registry",
+        "protocol-launch-registry",
+        "protocol-memory-management",
+        "protocol-narrative-registry",
+        "protocol-offer-claims-registry",
+        "public-relations",
+        "referrals",
+        "revops",
+        "sales-enablement",
+        "schema",
+        "seo-geo-competitor-analysis",
+        "seo-geo-content-gap-analysis",
+        "seo-geo-content-quality-auditor",
+        "seo-geo-content-writer",
+        "seo-geo-domain-authority-auditor",
+        "seo-geo-geo-content-optimizer",
+        "seo-geo-keyword-research",
+        "seo-geo-offsite-signal-analyzer",
+        "seo-geo-on-page-seo-checker",
+        "seo-geo-page-play-builder",
+        "seo-geo-performance-monitor",
+        "seo-geo-rank-tracker",
+        "seo-geo-serp-analysis",
+        "seo-geo-serp-markup-builder",
+        "seo-geo-site-structure-optimizer",
+        "seo-geo-technical-seo-checker",
+        "signup",
+        "site-architecture",
+        "sms",
+        "social",
+        "social-advocacy-program-designer",
+        "social-channel-portfolio-planner",
+        "social-crisis-response-planner",
+        "social-dark-social-attributor",
+        "social-engagement-inbox-manager",
+        "social-participation-warmup-planner",
+        "social-platform-norm-profiler",
+        "social-share-of-voice-tracker",
+        "social-short-video-scripter",
+        "social-social-calendar-builder",
+        "social-social-creative-builder",
+        "social-social-measurement-loop",
+        "social-social-pulse-monitor",
+        "social-social-quality-auditor",
+        "social-social-selling-planner",
+        "social-voice-dossier-builder",
+        "video"
+      ]
+    },
+    "design": {
+      "family": "Design",
+      "triggers": [
+        "design"
+      ],
+      "required": [
+        "design-system",
+        "accessibility-review"
+      ],
+      "recommended": [
+        "brandkit",
+        "brutalist-skill",
+        "design-critique",
+        "design-handoff",
+        "gpt-tasteskill",
+        "image-to-code-skill",
+        "imagegen-frontend-mobile",
+        "imagegen-frontend-web",
+        "invrt-design-genius",
+        "minimalist-skill",
+        "output-skill",
+        "redesign-skill",
+        "research-synthesis",
+        "scroll-craft",
+        "soft-skill",
+        "stitch-skill",
+        "taste-skill",
+        "taste-skill-v1",
+        "user-research",
+        "ux-copy"
+      ]
+    },
+    "sales": {
+      "family": "Sales",
+      "triggers": [
+        "sales outreach",
+        "outbound sequence",
+        "sales email",
+        "sales strategy",
+        "sales campaign",
+        "sales pipeline",
+        "sales funnel",
+        "cold email",
+        "cold emails",
+        "cold outreach"
+      ],
+      "required": [
+        "draft-outreach",
+        "cold-email",
+        "coterai-council"
+      ],
+      "recommended": [
+        "account-research",
+        "auto-research-public",
+        "blitz-list-builder",
+        "call-prep",
+        "call-summary",
+        "campaign-copywriting",
+        "campaign-strategy",
+        "clay-playbooks",
+        "cold-email-kickoff",
+        "cold-email-starter-kit",
+        "cold-email-weekly-rhythm",
+        "competitive-intelligence",
+        "competitor-engagers",
+        "create-an-asset",
+        "daily-briefing",
+        "deliverability-incident-response",
+        "deliverability-test-public",
+        "disco-like",
+        "email-deliverability-audit",
+        "experiment-design",
+        "forecast",
+        "google-maps-list-builder",
+        "icp-onboarding",
+        "icp-prompt-builder",
+        "invrt-ecommerce-prospecting",
+        "lead-magnet-brainstorm",
+        "list-builder",
+        "list-expander",
+        "list-quality-scorecard",
+        "personalization-subagent-pattern",
+        "pipeline-review",
+        "playbook-ad-library",
+        "playbook-ai-specificity",
+        "playbook-case-study-page",
+        "playbook-company-name-cleaning",
+        "playbook-creative-ideas",
+        "playbook-first-name-cleaning",
+        "playbook-fundraising",
+        "playbook-google-site-search",
+        "playbook-hiring-surge",
+        "playbook-job-posting-language",
+        "playbook-linkedin-engagement",
+        "playbook-lookalikes",
+        "playbook-name-to-other-prospects",
+        "playbook-new-in-role",
+        "playbook-pricing-page",
+        "playbook-social-link-finding",
+        "playbook-social-posts",
+        "playbook-tech-on-website",
+        "playbook-warm-intros",
+        "positive-reply-scoring",
+        "prospeo-full-export",
+        "prospeo-search-api",
+        "sales-competitors",
+        "sales-contacts",
+        "sales-followup",
+        "sales-icp",
+        "sales-objections",
+        "sales-outreach",
+        "sales-prep",
+        "sales-proposal",
+        "sales-prospect",
+        "sales-qualify",
+        "sales-report",
+        "sales-report-pdf",
+        "sales-research",
+        "smartlead-api",
+        "smartlead-campaign-upload-public",
+        "smartlead-inbox-manager",
+        "smartlead-spintax",
+        "spam-word-checker",
+        "zapmail-domain-setup-public"
+      ]
+    },
+    "growth": {
+      "family": "Growth",
+      "triggers": [
+        "growth",
+        "GTM",
+        "go to market"
+      ],
+      "required": [
+        "invrt-gtm-engineering",
+        "paid-validation-readiness",
+        "coterai-council"
+      ],
+      "recommended": [
+        "aeo-citation-builder",
+        "affiliate-programme-designer",
+        "creator-programme-operator",
+        "meeting-promise-harvester",
+        "youtube-ads-format-converter"
+      ]
+    },
+    "research_and_data": {
+      "family": "Research and data",
+      "triggers": [
+        "research",
+        "data analysis"
+      ],
+      "required": [
+        "deep-research",
+        "data-validation"
+      ],
+      "recommended": [
+        "analyze",
+        "anomaly-fraud-scanner",
+        "autoresearch-agent",
+        "bayesian-reasoning-calibration",
+        "board-meeting-prep",
+        "build-dashboard",
+        "causal-inference-root-cause",
+        "chief-data-officer-advisor",
+        "claim-extractor",
+        "cognitive-fallacies-guard",
+        "create-viz",
+        "csv-data-summarizer",
+        "data-context-extractor",
+        "data-data-context-extractor",
+        "data-data-visualization",
+        "data-exploration",
+        "data-quality-auditor",
+        "data-sql-queries",
+        "data-statistical-analysis",
+        "data-visualization",
+        "database-lookup",
+        "decision-matrix",
+        "design-of-experiments",
+        "digest",
+        "environmental-scanning-foresight",
+        "estimation-fermi",
+        "expected-value",
+        "exploratory-data-analysis",
+        "explore-data",
+        "hypothesis-generation",
+        "inspectional-reading",
+        "interactive-dashboard-builder",
+        "invrt-competitor-research",
+        "knowledge-synthesis",
+        "last30days",
+        "market-research",
+        "open-notebook",
+        "postgres",
+        "reference-class-forecasting",
+        "research-bundle",
+        "research-summarizer",
+        "scientific-visualization",
+        "scikit-learn",
+        "scout-mindset-bias-check",
+        "search",
+        "search-strategy",
+        "senior-data-engineer",
+        "senior-data-scientist",
+        "slop-detector",
+        "source-management",
+        "sql-database-assistant",
+        "sql-queries",
+        "statistical-analysis",
+        "statistical-analysis-w95",
+        "statistical-analyst",
+        "statsmodels",
+        "strategic-planning",
+        "systems-thinking-leverage",
+        "timesfm-forecasting",
+        "validate-data",
+        "write-query"
+      ]
+    },
+    "dev": {
+      "family": "Dev",
+      "triggers": [
+        "software development"
+      ],
+      "required": [
+        "production-guardrails",
+        "api-designer"
+      ],
+      "recommended": [
+        "architecture",
+        "building-mcp-servers",
+        "code-review",
+        "database-optimizer",
+        "debug",
+        "deep-agents-core",
+        "deep-agents-memory",
+        "deep-agents-orchestration",
+        "deploy-checklist",
+        "django-expert",
+        "documentation",
+        "ecosystem-primer",
+        "fastapi-expert",
+        "graphql-architect",
+        "incident-response",
+        "invrt-vibe-adr-decision-log",
+        "invrt-vibe-api-contract-testing",
+        "invrt-vibe-browser-qa-loop",
+        "invrt-vibe-dependency-hygiene",
+        "invrt-vibe-feature-flag-rollout",
+        "invrt-vibe-incident-writeup",
+        "invrt-vibe-migration-safety",
+        "invrt-vibe-observability-first",
+        "invrt-vibe-release-notes",
+        "invrt-vibe-spec-to-tickets",
+        "javascript-pro",
+        "langchain-dependencies",
+        "langchain-fundamentals",
+        "langchain-middleware",
+        "langchain-rag",
+        "langgraph-cli",
+        "langgraph-fundamentals",
+        "langgraph-human-in-the-loop",
+        "langgraph-persistence",
+        "managed-deep-agents",
+        "microsoft-teams",
+        "nestjs-expert",
+        "nextjs-developer",
+        "pandas-pro",
+        "postgres-pro",
+        "python-pro",
+        "react-expert",
+        "react-native-expert",
+        "sendgrid",
+        "slack",
+        "standup",
+        "supabase",
+        "supabase-postgres-best-practices",
+        "swarm",
+        "system-design",
+        "tech-debt",
+        "testing-strategy",
+        "twilio",
+        "typescript-pro",
+        "websocket-engineer"
+      ]
+    },
+    "dev_process": {
+      "family": "Dev process",
+      "triggers": [
+        "development process"
+      ],
+      "required": [
+        "test-driven-development",
+        "verification-before-completion",
+        "invrt-concise-code",
+        "production-guardrails"
+      ],
+      "recommended": [
+        "brainstorming",
+        "dispatching-parallel-agents",
+        "executing-plans",
+        "finishing-a-development-branch",
+        "receiving-code-review",
+        "requesting-code-review",
+        "subagent-driven-development",
+        "systematic-debugging",
+        "using-git-worktrees",
+        "using-superpowers",
+        "writing-plans",
+        "writing-skills"
+      ]
+    },
+    "legal": {
+      "family": "Legal",
+      "triggers": [
+        "legal",
+        "compliance",
+        "NDA",
+        "non disclosure agreement",
+        "contract review",
+        "review a contract",
+        "office lease",
+        "commercial lease",
+        "contract",
+        "contracts"
+      ],
+      "required": [
+        "kwplegal-legal-risk-assessment",
+        "compliance",
+        "contract-review"
+      ],
+      "recommended": [
+        "brief",
+        "canned-responses",
+        "compliance-check",
+        "compliance-os-bundle",
+        "compliance-tracking",
+        "contract-and-proposal-writer",
+        "contract-review",
+        "data-privacy-agreement",
+        "employment-contract",
+        "general-counsel-advisor",
+        "kwplegal-meeting-briefing",
+        "legal-response",
+        "legal-risk-assessment",
+        "master-claude-for-legal",
+        "meeting-briefing",
+        "nda",
+        "nda-triage",
+        "review-contract",
+        "safe",
+        "services-agreement",
+        "signature-request",
+        "soc2-compliance",
+        "triage-nda",
+        "vendor-check"
+      ]
+    },
+    "funnels": {
+      "family": "Funnels",
+      "triggers": [
+        "funnel building",
+        "lead magnet",
+        "offer design",
+        "funnel",
+        "funnels"
+      ],
+      "required": [
+        "funnel-strategy-orchestrator",
+        "hormozi-offer-architect",
+        "coterai-council"
+      ],
+      "recommended": [
+        "brunson-funnel-architect",
+        "garyvee-attention-engine"
+      ]
+    },
+    "operations": {
+      "family": "Operations",
+      "triggers": [
+        "operations"
+      ],
+      "required": [
+        "task-management",
+        "process-doc"
+      ],
+      "recommended": [
+        "capacity-plan",
+        "change-request",
+        "memory-management",
+        "ops-compliance-tracking",
+        "process-optimization",
+        "risk-assessment",
+        "runbook",
+        "start",
+        "status-report",
+        "update",
+        "vendor-review"
+      ]
+    },
+    "hr": {
+      "family": "HR",
+      "triggers": [
+        "hr",
+        "human resources",
+        "employee handbook",
+        "employee onboarding handbook",
+        "job description",
+        "hire",
+        "hiring",
+        "recruit",
+        "recruitment"
+      ],
+      "required": [
+        "chro-advisor",
+        "employee-handbook-builder"
+      ],
+      "recommended": [
+        "comp-analysis",
+        "compensation-benchmarking",
+        "dei-strategy",
+        "draft-offer",
+        "employee-engagement-survey",
+        "interview-kit-builder",
+        "interview-prep",
+        "job-description-writer",
+        "kwphr-onboarding",
+        "onboarding-planner",
+        "org-planning",
+        "people-report",
+        "performance-review",
+        "performance-review-assistant",
+        "policy-lookup",
+        "recruiting-pipeline",
+        "resume-generator"
+      ]
+    },
+    "planning": {
+      "family": "Planning",
+      "triggers": [
+        "planning",
+        "prd",
+        "stories"
+      ],
+      "required": [
+        "writing-plans",
+        "prd",
+        "coterai-council"
+      ],
+      "recommended": [
+        "competitive-brief",
+        "gsd-add-tests",
+        "gsd-ai-integration-phase",
+        "gsd-audit-fix",
+        "gsd-audit-milestone",
+        "gsd-audit-uat",
+        "gsd-autonomous",
+        "gsd-capture",
+        "gsd-cleanup",
+        "gsd-code-review",
+        "gsd-complete-milestone",
+        "gsd-config",
+        "gsd-debug",
+        "gsd-discuss-phase",
+        "gsd-docs-update",
+        "gsd-eval-review",
+        "gsd-execute-phase",
+        "gsd-explore",
+        "gsd-extract-learnings",
+        "gsd-fast",
+        "gsd-forensics",
+        "gsd-graphify",
+        "gsd-health",
+        "gsd-help",
+        "gsd-import",
+        "gsd-inbox",
+        "gsd-ingest-docs",
+        "gsd-manager",
+        "gsd-map-codebase",
+        "gsd-mempalace-capture",
+        "gsd-mempalace-recall",
+        "gsd-milestone-summary",
+        "gsd-mvp-phase",
+        "gsd-new-milestone",
+        "gsd-new-project",
+        "gsd-ns-context",
+        "gsd-ns-ideate",
+        "gsd-ns-manage",
+        "gsd-ns-project",
+        "gsd-ns-review",
+        "gsd-ns-workflow",
+        "gsd-pause-work",
+        "gsd-phase",
+        "gsd-plan-phase",
+        "gsd-plan-review-convergence",
+        "gsd-pr-branch",
+        "gsd-profile-user",
+        "gsd-progress",
+        "gsd-quick",
+        "gsd-resume-work",
+        "gsd-review",
+        "gsd-review-backlog",
+        "gsd-secure-phase",
+        "gsd-settings",
+        "gsd-ship",
+        "gsd-sketch",
+        "gsd-spec-phase",
+        "gsd-spike",
+        "gsd-stats",
+        "gsd-surface",
+        "gsd-thread",
+        "gsd-ui-phase",
+        "gsd-ui-review",
+        "gsd-ultraplan-phase",
+        "gsd-undo",
+        "gsd-update",
+        "gsd-validate-phase",
+        "gsd-verify-work",
+        "gsd-workspace",
+        "gsd-workstreams",
+        "metrics-review",
+        "product-brainstorming",
+        "ralph",
+        "roadmap-update",
+        "sprint-planning",
+        "stakeholder-update",
+        "synthesize-research",
+        "write-spec"
+      ]
+    },
+    "customer_support": {
+      "family": "Customer support",
+      "triggers": [
+        "customer support",
+        "customer service",
+        "customer complaint",
+        "email to the customer",
+        "customer email",
+        "reply to the customer"
+      ],
+      "required": [
+        "ticket-triage",
+        "draft-response"
+      ],
+      "recommended": [
+        "cs-customer-research",
+        "customer-escalation",
+        "kb-article"
+      ]
+    },
+    "accounting": {
+      "family": "Accounting",
+      "triggers": [
+        "accounting",
+        "reconciliation",
+        "Xero",
+        "bank feed",
+        "reconcile"
+      ],
+      "required": [
+        "transaction-categorizer",
+        "statement-reconciler"
+      ],
+      "recommended": [
+        "invoice-organizer",
+        "pdf-statement-parser",
+        "recurring-charge-detector",
+        "tax-loss-harvest-scanner",
+        "transaction-deduplicator"
+      ]
+    },
+    "lead_intelligence": {
+      "family": "Lead intelligence",
+      "triggers": [
+        "lead intelligence",
+        "lead research"
+      ],
+      "required": [
+        "radar-find-leads",
+        "radar-lead-enrichment",
+        "coterai-council"
+      ],
+      "recommended": [
+        "invrt-local-business-sourcing",
+        "radar-reveal-contacts",
+        "radar-website-visitors"
+      ]
+    },
+    "seo": {
+      "family": "SEO",
+      "triggers": [
+        "seo",
+        "aeo",
+        "geo audit",
+        "page audit",
+        "ai search",
+        "keyword",
+        "serp",
+        "geo"
+      ],
+      "required": [
+        "seo-audit",
+        "ai-seo",
+        "dataforseo-foundations",
+        "coterai-council"
+      ],
+      "recommended": [
+        "dataforseo-brain",
+        "geo-audit",
+        "geo-brand-mentions",
+        "geo-citability",
+        "geo-compare",
+        "geo-content",
+        "geo-crawlers",
+        "geo-llmstxt",
+        "geo-platform-optimizer",
+        "geo-proposal",
+        "geo-prospect",
+        "geo-report",
+        "geo-report-pdf",
+        "geo-schema",
+        "geo-technical",
+        "geo-update",
+        "invrt-seo-prompt-pack",
+        "invrt-website-audit",
+        "seo",
+        "seo-backlinks",
+        "seo-cluster",
+        "seo-competitor-pages",
+        "seo-content",
+        "seo-content-brief",
+        "seo-dataforseo",
+        "seo-drift",
+        "seo-ecommerce",
+        "seo-flow",
+        "seo-geo",
+        "seo-google",
+        "seo-hreflang",
+        "seo-image-gen",
+        "seo-images",
+        "seo-local",
+        "seo-maps",
+        "seo-page",
+        "seo-plan",
+        "seo-programmatic",
+        "seo-schema",
+        "seo-sitemap",
+        "seo-sxo",
+        "seo-technical"
+      ]
+    },
+    "framework_guardrail_trio": {
+      "family": "Framework (guardrail trio)",
+      "triggers": [
+        "guardrails"
+      ],
+      "required": [
+        "production-guardrails",
+        "production-audit",
+        "ai-native-agent"
+      ],
+      "recommended": []
+    },
+    "framework": {
+      "family": "Framework",
+      "triggers": [
+        "INVRT estate",
+        "estate navigation",
+        "estate architecture",
+        "orchestration"
+      ],
+      "required": [
+        "estate-navigation",
+        "monti-orchestration"
+      ],
+      "recommended": []
+    },
+    "research_and_data_dataforseo": {
+      "family": "Research and data (DataForSEO)",
+      "triggers": [
+        "dataforseo"
+      ],
+      "required": [
+        "dataforseo-foundations",
+        "dataforseo-serp"
+      ],
+      "recommended": [
+        "dataforseo-ai-visibility",
+        "dataforseo-backlinks-and-domain",
+        "dataforseo-business-data-and-local",
+        "dataforseo-keywords-and-labs",
+        "dataforseo-onpage-and-content"
+      ]
+    },
+    "content_creation": {
+      "family": "Marketing",
+      "triggers": [
+        "content creation",
+        "content plan",
+        "LinkedIn post",
+        "blog",
+        "newsletter",
+        "press release",
+        "tweet"
+      ],
+      "required": [
+        "content-creation",
+        "content-qa-brand-gate",
+        "coterai-council"
+      ],
+      "recommended": []
+    },
+    "email_sequence": {
+      "family": "Marketing",
+      "triggers": [
+        "email sequence",
+        "nurture email",
+        "onboarding email",
+        "onboarding emails",
+        "welcome email"
+      ],
+      "required": [
+        "email-sequence",
+        "email-sequence-builder",
+        "invrt-marketing-quality-gates",
+        "coterai-council"
+      ],
+      "recommended": []
+    },
+    "social": {
+      "family": "Marketing",
+      "triggers": [
+        "social post",
+        "social media",
+        "LinkedIn post",
+        "tweet",
+        "Instagram",
+        "caption",
+        "TikTok"
+      ],
+      "required": [
+        "social",
+        "social-social-creative-builder",
+        "invrt-marketing-quality-gates",
+        "coterai-council"
+      ],
+      "recommended": []
+    },
+    "influencer": {
+      "family": "Marketing",
+      "triggers": [
+        "influencer",
+        "creator campaign"
+      ],
+      "required": [
+        "creator-programme-operator",
+        "influencer-brief-generator",
+        "invrt-marketing-quality-gates",
+        "coterai-council"
+      ],
+      "recommended": []
+    },
+    "launch": {
+      "family": "Marketing",
+      "triggers": [
+        "product launch",
+        "webinar",
+        "launch"
+      ],
+      "required": [
+        "launch",
+        "coterai-council"
+      ],
+      "recommended": []
+    },
+    "brand_narrative": {
+      "family": "Marketing",
+      "triggers": [
+        "brand voice",
+        "brand narrative"
+      ],
+      "required": [
+        "brand-voice-enforcement",
+        "invrt-brand-narrative",
+        "coterai-council"
+      ],
+      "recommended": []
+    },
+    "finance_model": {
+      "family": "Finance",
+      "triggers": [
+        "finance model",
+        "financial model",
+        "three statement",
+        "three statement model"
+      ],
+      "required": [
+        "financial-analyst",
+        "3-statements",
+        "check-model"
+      ],
+      "recommended": []
+    },
+    "frontend": {
+      "family": "Dev",
+      "triggers": [
+        "front end",
+        "frontend",
+        "React component",
+        "React app",
+        "React frontend",
+        "typescript"
+      ],
+      "required": [
+        "invrt-ui-quality",
+        "react-expert",
+        "typescript-pro",
+        "taste-skill",
+        "design-system",
+        "production-guardrails"
+      ],
+      "recommended": []
+    },
+    "backend_api": {
+      "family": "Dev",
+      "triggers": [
+        "back end",
+        "backend",
+        "api",
+        "endpoint",
+        "express",
+        "fastapi",
+        "nestjs",
+        "websocket",
+        "webhook"
+      ],
+      "required": [
+        "api-designer",
+        "production-guardrails"
+      ],
+      "recommended": []
+    },
+    "backend_supabase": {
+      "family": "Dev",
+      "triggers": [
+        "supabase",
+        "migration",
+        "rls",
+        "postgres",
+        "database schema",
+        "edge function",
+        "edge functions",
+        "row level security"
+      ],
+      "required": [
+        "supabase",
+        "supabase-postgres-best-practices",
+        "postgres-pro",
+        "production-guardrails"
+      ],
+      "recommended": []
+    },
+    "python": {
+      "family": "Dev",
+      "triggers": [
+        "python",
+        "pandas",
+        "django",
+        "pytest",
+        "fastapi"
+      ],
+      "required": [
+        "python-pro",
+        "test-driven-development",
+        "production-guardrails"
+      ],
+      "recommended": []
+    },
+    "mcp": {
+      "family": "Dev",
+      "triggers": [
+        "mcp"
+      ],
+      "required": [
+        "building-mcp-servers",
+        "ai-native-agent",
+        "production-guardrails"
+      ],
+      "recommended": []
+    },
+    "agents_llm": {
+      "family": "Dev",
+      "triggers": [
+        "AI agent",
+        "AI agents",
+        "LLM",
+        "system prompt",
+        "prompt engineering",
+        "prompt design",
+        "agent memory",
+        "LLM eval",
+        "LLM evals",
+        "agent workflow",
+        "build an agent",
+        "agent runtime",
+        "agent orchestration"
+      ],
+      "required": [
+        "ai-native-agent",
+        "production-guardrails"
+      ],
+      "recommended": []
+    },
+    "debugging": {
+      "family": "Dev process",
+      "triggers": [
+        "debug",
+        "test failure",
+        "failing test",
+        "failing tests"
+      ],
+      "required": [
+        "systematic-debugging",
+        "test-driven-development",
+        "invrt-concise-code",
+        "production-guardrails"
+      ],
+      "recommended": []
+    },
+    "audit": {
+      "family": "Dev process",
+      "triggers": [
+        "code audit",
+        "code review",
+        "review code",
+        "review this code",
+        "audit code",
+        "pull request review",
+        "review pull request",
+        "review this pull request",
+        "review PR",
+        "review this PR",
+        "security audit",
+        "production audit",
+        "audit repository",
+        "code quality review",
+        "review code quality",
+        "audit concise code",
+        "review concise code",
+        "UI audit",
+        "UI review",
+        "code diff",
+        "audit this repository",
+        "audit the repository",
+        "review the repository",
+        "repository audit",
+        "pull request",
+        "PR review"
+      ],
+      "action_triggers": [
+        "verify native hook delivery",
+        "check native hook delivery",
+        "verify native hook events",
+        "run native forge acceptance",
+        "run the native forge acceptance",
+        "run forge acceptance checks",
+        "run the forge acceptance checks",
+        "run harness acceptance",
+        "check hook lifecycle",
+        "check the hook lifecycle",
+        "verify hook lifecycle",
+        "verify the hook lifecycle",
+        "perform hook verification",
+        "run hook verification",
+        "verify this account against the installed forge",
+        "perform Claude Code account verification",
+        "perform ZCode account verification",
+        "perform Codex account verification",
+        "verify the installed forge"
+      ],
+      "required": [
+        "production-audit",
+        "verification-before-completion",
+        "receiving-code-review",
+        "systematic-debugging",
+        "invrt-concise-code",
+        "production-guardrails"
+      ],
+      "recommended": []
+    },
+    "testing": {
+      "family": "Dev process",
+      "triggers": [
+        "testing",
+        "test suite"
+      ],
+      "required": [
+        "test-driven-development",
+        "verification-before-completion",
+        "invrt-concise-code",
+        "production-guardrails"
+      ],
+      "recommended": []
+    },
+    "installer_shell": {
+      "family": "Dev",
+      "triggers": [
+        "installer",
+        "bash script",
+        "shell script",
+        "installation tooling"
+      ],
+      "required": [
+        "production-guardrails",
+        "test-driven-development",
+        "verification-before-completion",
+        "systematic-debugging"
+      ],
+      "recommended": []
+    },
+    "media_craft": {
+      "family": "Media",
+      "triggers": [
+        "MEDIA FACTORY",
+        "REACH media",
+        "MONTI media",
+        "REACH creator campaign",
+        "MONTI creator campaign"
+      ],
+      "required": [
+        "media-campaign",
+        "media-campaign-design-direction",
+        "media-campaign-prompt-generation",
+        "media-campaign-review",
+        "invrt-marketing-quality-gates",
+        "coterai-council"
+      ],
+      "recommended": [
+        "media-campaign-prompt-editing",
+        "media-image-review",
+        "media-video-review",
+        "media-voice-review"
+      ]
+    },
+    "provider_media_inputs": {
+      "family": "Marketing",
+      "triggers": [
+        "MEDIA FACTORY",
+        "REACH media",
+        "MONTI media",
+        "REACH creator campaign",
+        "MONTI creator campaign",
+        "Gemini media",
+        "Gemini image",
+        "Gemini video",
+        "Higgsfield",
+        "fal.ai",
+        "fal"
+      ],
+      "required": [
+        "image",
+        "video",
+        "ai-native-agent",
+        "coterai-council"
+      ],
+      "recommended": []
+    },
+    "creator_media_inputs": {
+      "family": "Marketing",
+      "triggers": [
+        "creator campaign",
+        "MEDIA FACTORY creator",
+        "REACH media creator",
+        "MONTI media creator"
+      ],
+      "required": [
+        "influencer-campaign-planner",
+        "influencer-brief-generator",
+        "influencer-fit-scorer",
+        "influencer-creator-content-auditor",
+        "invrt-marketing-quality-gates",
+        "coterai-council"
+      ],
+      "recommended": []
+    },
+    "media_image_review": {
+      "family": "Media",
+      "triggers": [
+        "image review",
+        "image generation"
+      ],
+      "required": [
+        "media-image-review"
+      ],
+      "recommended": []
+    },
+    "media_video_review": {
+      "family": "Media",
+      "triggers": [
+        "video review",
+        "video generation"
+      ],
+      "required": [
+        "media-video-review"
+      ],
+      "recommended": []
+    },
+    "media_voice_review": {
+      "family": "Media",
+      "triggers": [
+        "voice review",
+        "voice generation"
+      ],
+      "required": [
+        "media-voice-review"
+      ],
+      "recommended": []
+    },
+    "code_quality": {
+      "family": "Dev process",
+      "triggers": [
+        "coding",
+        "code changes",
+        "write code",
+        "refactor code",
+        "concise code",
+        "minimise code",
+        "code minimisation",
+        "code quality",
+        "refactor this code"
+      ],
+      "required": [
+        "invrt-concise-code",
+        "production-guardrails"
+      ],
+      "recommended": []
+    },
+    "technical_prose": {
+      "family": "Dev process",
+      "triggers": [
+        "technical update",
+        "technical documentation",
+        "engineering documentation",
+        "engineering report",
+        "audit findings",
+        "audit report",
+        "handover",
+        "session report",
+        "runbook",
+        "README",
+        "PRD",
+        "product requirements"
+      ],
+      "required": [
+        "invrt-technical-prose",
+        "documentation"
+      ],
+      "recommended": []
+    },
+    "ui_quality": {
+      "family": "Design",
+      "triggers": [
+        "front end",
+        "frontend",
+        "React component",
+        "React app",
+        "user interface",
+        "UI component",
+        "UI design",
+        "UI review",
+        "UI audit",
+        "mobile app",
+        "dashboard UI",
+        "build a dashboard"
+      ],
+      "required": [
+        "invrt-ui-quality",
+        "design-system",
+        "accessibility-review",
+        "production-guardrails"
+      ],
+      "recommended": []
+    },
+    "board_reporting": {
+      "family": "Research and data",
+      "triggers": [
+        "for the board",
+        "board update",
+        "board report",
+        "board meeting",
+        "board pack"
+      ],
+      "required": [
+        "board-meeting-prep",
+        "data-validation"
+      ],
+      "recommended": []
+    },
+    "pitch_deck": {
+      "family": "Finance",
+      "triggers": [
+        "pitch deck",
+        "investor deck",
+        "investor pitch"
+      ],
+      "required": [
+        "pitch-deck",
+        "coterai-council"
+      ],
+      "recommended": []
+    },
+    "ad_script": {
+      "family": "Ads",
+      "triggers": [
+        "ad script",
+        "ad scripts",
+        "video ad"
+      ],
+      "required": [
+        "video-ad-script-writer",
+        "invrt-marketing-quality-gates",
+        "coterai-council"
+      ],
+      "recommended": []
+    },
+    "meeting_notes": {
+      "family": "Operations",
+      "triggers": [
+        "meeting notes",
+        "meeting summary",
+        "meeting memory",
+        "summarise the meeting",
+        "summarize the meeting",
+        "call notes",
+        "call summary"
+      ],
+      "required": [
+        "call-summary"
+      ],
+      "recommended": []
+    },
+    "python_django": {
+      "family": "Dev",
+      "triggers": [
+        "django"
+      ],
+      "required": [
+        "django-expert",
+        "python-pro",
+        "test-driven-development",
+        "production-guardrails"
+      ],
+      "recommended": []
+    },
+    "python_fastapi": {
+      "family": "Dev",
+      "triggers": [
+        "fastapi"
+      ],
+      "required": [
+        "fastapi-expert",
+        "python-pro",
+        "api-designer",
+        "test-driven-development",
+        "production-guardrails"
+      ],
+      "recommended": []
+    },
+    "python_pandas": {
+      "family": "Dev",
+      "triggers": [
+        "pandas"
+      ],
+      "required": [
+        "pandas-pro",
+        "python-pro",
+        "test-driven-development",
+        "production-guardrails"
+      ],
+      "recommended": []
+    },
+    "langchain": {
+      "family": "Dev",
+      "triggers": [
+        "langchain",
+        "langgraph",
+        "deep agents",
+        "deepagents",
+        "RAG",
+        "retrieval augmented",
+        "vector store",
+        "agent framework"
+      ],
+      "required": [
+        "langchain-fundamentals",
+        "langgraph-fundamentals",
+        "ai-native-agent",
+        "production-guardrails"
+      ],
+      "recommended": []
+    },
+    "langchain_rag": {
+      "family": "Dev",
+      "triggers": [
+        "RAG",
+        "retrieval augmented",
+        "vector store"
+      ],
+      "required": [
+        "langchain-rag",
+        "langchain-fundamentals",
+        "ai-native-agent",
+        "production-guardrails"
+      ],
+      "recommended": []
+    },
+    "deep_agents": {
+      "family": "Dev",
+      "triggers": [
+        "deep agents",
+        "deepagents"
+      ],
+      "required": [
+        "deep-agents-core",
+        "langgraph-fundamentals",
+        "ai-native-agent",
+        "production-guardrails"
+      ],
+      "recommended": []
+    }
+  },
+  "always": {
+    "on_build": [
+      "production-guardrails",
+      "production-audit",
+      "ai-native-agent",
+      "invrt-concise-code"
+    ],
+    "on_review": [
+      "production-audit",
+      "invrt-technical-prose"
+    ],
+    "on_llm": [
+      "ai-native-agent"
+    ],
+    "on_done": [
+      "verification-before-completion",
+      "invrt-technical-prose"
+    ]
+  },
+  "note": "Recommended skills are catalogue lookup candidates. Load only candidates relevant to the bounded task, never an entire family."
+}

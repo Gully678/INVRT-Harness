@@ -10,6 +10,17 @@ import {
 } from "./CodexDeveloperInstructions.ts";
 
 describe("buildCodexAdditionalContext", () => {
+  it("rejects supplied unverified FORGE content at the actual default consumer", () => {
+    NodeAssert.throws(
+      () =>
+        Reflect.apply(buildCodexAdditionalContext, undefined, [
+          { model: "gpt-6.1-sol" },
+          false,
+          { status: "ready", productionAdmitted: true },
+        ]),
+      /invalid-input/,
+    );
+  });
   describe.each([
     { model: "custom-model", modelName: "Custom 🦊 Model", reasoningEffort: "xhigh" },
   ])("with runtime $model", (runtime) => {

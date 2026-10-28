@@ -1,0 +1,226 @@
+#!/usr/bin/env python3
+"""Assign bounded skills from trusted forge routing data, with no model call.
+
+ROUTING.yaml deliberately uses JSON syntax, a YAML subset readable by stdlib.
+Hook input may supply prompt and cwd only. Story input is an explicit local CLI
+argument confined to the project; remote text and hook JSON cannot select it.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import sys
+from collections.abc import Sequence
+from pathlib import Path
+from typing import Any, TypedDict
+
+ROOT = Path(__file__).resolve().parents[1]
+MAX_INPUT = 131072
+MAX_REQUIRED = 6
+SOFTWARE_ROWS = {'dev', 'frontend', 'backend_api', 'backend_supabase', 'python', 'python_django', 'python_fastapi',
+                 'python_pandas', 'mcp', 'agents_llm', 'langchain', 'langchain_rag', 'deep_agents', 'installer_shell'}
+LLM_ROWS = {'agents_llm', 'mcp', 'langchain', 'langchain_rag', 'deep_agents'}
+# Code work that is not a build row but still owes code review and technical prose.
+CODE_PROCESS_ROWS = {'audit', 'dev_process', 'debugging', 'testing', 'code_quality', 'ui_quality'}
+TECHNICAL_ROWS = SOFTWARE_ROWS | CODE_PROCESS_ROWS | {'technical_prose'}
+# invrt-technical-prose is scoped to technical writing, never brand or advertising copy.
+PROSE = 'invrt-technical-prose'
+CUSTOMER_FACING_FAMILIES = {'Marketing', 'Ads', 'SEO', 'Sales', 'Growth', 'Funnels', 'Media', 'Strategy and Coterai'}
+
+
+class RouteResult(TypedDict):
+    task_types: list[str]
+    required: list[str]
+    recommended: list[str]
+
+
+def read_catalogue() -> dict[str, str]:
+    """Read canonical flat folder names and family strings from the catalogue."""
+    result: dict[str, str] = {}
+    for line in (ROOT / 'skills/CATALOG.md').read_text().splitlines():
+        cells = [cell.strip() for cell in line.split('|')]
+        if len(cells) == 6 and cells[1] not in {'Skill', '---', '------'}:
+            if (ROOT / 'skills' / cells[1] / 'SKILL.md').is_file():
+                result[cells[1]] = cells[4]
+    if not result:
+        raise ValueError('Catalogue has no recognised skill rows')
+    return result
+
+
+def load_routing() -> dict[str, Any]:
+    """Load and check trusted routing structure and names before assignment."""
+    data: dict[str, Any] = json.loads((ROOT / 'skills/ROUTING.yaml').read_text())
+    if data.get('schema_version') != 1 or not isinstance(data.get('task_types'), dict):
+        raise ValueError('Unsupported routing schema')
+    known = read_catalogue()
+    for task_type, row in data['task_types'].items():
+        if not isinstance(row, dict) or row.get('family') not in set(known.values()):
+            raise ValueError(f'Invalid routing row: {task_type}')
+        for field in ('required', 'recommended', 'triggers', 'action_triggers'):
+            value = row.get(field, [] if field == 'action_triggers' else None)
+            if not isinstance(value, list) or not all(isinstance(item, str) and item for item in value):
+                raise ValueError(f'Invalid {field} for {task_type}')
+        if not 1 <= len(row['required']) <= MAX_REQUIRED:
+            raise ValueError(f'Required set is not bounded: {task_type}')
+        unknown = set(row['required'] + row['recommended']) - known.keys()
+        if unknown:
+            raise ValueError(f'Unknown routing skill names: {sorted(unknown)}')
+    if not isinstance(data.get('always'), dict):
+        raise ValueError('Missing bounded always flags')
+    for flag in ('on_build', 'on_review', 'on_llm', 'on_done'):
+        value = data['always'].get(flag)
+        if not isinstance(value, list) or not all(isinstance(item, str) and item in known for item in value):
+            raise ValueError(f'Invalid always flag: {flag}')
+    return data
+
+
+def validate_routing() -> dict[str, Any]:
+    """Printable catalogue-wide coverage proof, separate from task assignment."""
+    data = load_routing()
+    catalogue = read_catalogue()
+    rows = data['task_types']
+    reachable = {skill for row in rows.values() for field in ('required', 'recommended') for skill in row[field]}
+    return {'rows': len(rows), 'families': len({row['family'] for row in rows.values()}),
+            'skills': len(reachable), 'unknown': sorted(reachable - catalogue.keys()),
+            'unreachable': sorted(catalogue.keys() - reachable),
+            'uncovered_families': sorted(set(catalogue.values()) - {row['family'] for row in rows.values()})}
+
+
+def matches(text: str, trigger: str) -> bool:
+    """Match bounded phrases, treating hyphenated words as spaced words."""
+    def normalise(value: str) -> str:
+        return re.sub(r'[-\u2010-\u2015]', ' ', value.casefold())
+
+    phrase = r'\s+'.join(re.escape(word) for word in normalise(trigger).split())
+    return re.search(r'(?<![\w])' + phrase + r'(?![\w])', normalise(text)) is not None
+
+
+def action_text(prompt: str) -> str:
+    """Exclude quoted or requested copy from action-only trigger matching.
+
+    Keep later task clauses so a content task cannot hide actual engineering.
+    Ordinary domain triggers still inspect the complete original prompt.
+    """
+    text = re.sub(r'"[^"\n]*"|\x27[^\x27\n]*\x27|`[^`\n]*`|'
+                  r'\u201c[^\u201d\n]*\u201d|\u2018[^\u2019\n]*\u2019', ' ', prompt)
+    return re.sub(r'\b(?:with\s+(?:the|a)\s+(?:line|headline|title|caption|text)|about(?:\s+how\s+to)?)'
+                  r'[^.;\n]*?(?=,?\s+(?:then\b|and\s+(?:verify|check|run|perform)\b)|[.;\n]|$)',
+                  ' ', text, flags=re.I)
+
+
+def story_skills(story: Path, cwd: Path) -> set[str]:
+    """Read a mandatory one-line skills field from an explicit project story."""
+    project = cwd.resolve()
+    candidate = (story if story.is_absolute() else project / story).resolve()
+    if not candidate.is_relative_to(project):
+        raise ValueError('Story path must stay within project directory')
+    if not candidate.is_file() or candidate.stat().st_size > MAX_INPUT:
+        raise ValueError('Story must be a bounded local file')
+    text = candidate.read_text()
+    found = re.search(r'^Skills \(required\):[ \t]*([^\n]+)$', text, re.M)
+    if not found:
+        raise ValueError('Story must have a Skills (required): line with canonical names')
+    names = {name.strip().strip('`') for name in found[1].split(',')}
+    unknown = names - read_catalogue().keys()
+    if unknown:
+        raise ValueError(f'Unknown story skill names: {sorted(unknown)}')
+    return names
+
+
+def route(prompt: str, *, task_types: Sequence[str] = (), build: bool = False,
+          review: bool = False, llm: bool = False, done: bool = False,
+          story: Path | None = None, cwd: Path | None = None) -> RouteResult:
+    """Union matching rows and explicit flags; fail visibly on unknown tasks."""
+    if len(prompt) > MAX_INPUT:
+        raise ValueError('Prompt exceeds routing input limit')
+    data = load_routing()
+    rows = data['task_types']
+    unknown = set(task_types) - rows.keys()
+    if unknown:
+        raise ValueError(f'Unknown task type: {sorted(unknown)}')
+    actions = action_text(prompt)
+    triggered = {key for key, row in rows.items()
+                 if any(matches(prompt, word) for word in row['triggers'])
+                 or any(matches(actions, word) for word in row.get('action_triggers', []))}
+    # 'audit report' or 'handover' inside customer-facing copy is a topic, not technical prose.
+    if ('technical_prose' in triggered and not (triggered & (TECHNICAL_ROWS - {'technical_prose'}))
+            and any(rows[key]['family'] in CUSTOMER_FACING_FAMILIES for key in triggered)):
+        triggered.discard('technical_prose')
+    matched = set(task_types) | triggered
+    # A domain review is not automatically a software audit. Explicit review=True
+    # remains available; natural review words require an actual software context.
+    if matched & SOFTWARE_ROWS and any(matches(prompt, word) for word in ('review', 'audit')):
+        matched.add('audit')
+    required = {skill for key in matched for skill in rows[key]['required']}
+    recommended = {skill for key in matched for skill in rows[key]['recommended']}
+    flags = {'on_build': build or bool(matched & (SOFTWARE_ROWS | CODE_PROCESS_ROWS)),
+             'on_review': review or 'audit' in matched,
+             'on_llm': llm or bool(matched & LLM_ROWS), 'on_done': done}
+    technical = not matched or bool(matched & TECHNICAL_ROWS)
+    for flag, enabled in flags.items():
+        if enabled:
+            required.update(name for name in data['always'][flag] if technical or name != PROSE)
+    code_work = bool(matched & (SOFTWARE_ROWS | CODE_PROCESS_ROWS))
+    if flags['on_review'] and code_work:
+        required.add('invrt-concise-code')
+    if flags['on_done'] and code_work:
+        required.add('production-audit')
+    if story is not None:
+        required.update(story_skills(story, cwd or Path.cwd()))
+    if not required:
+        raise ValueError('No routing match. Choose a bounded --task-type from skills/ROUTING.yaml before acting.')
+    return {'task_types': sorted(matched), 'required': sorted(required),
+            'recommended': sorted(recommended - required)}
+
+
+def context(result: RouteResult) -> str:
+    """Keep hook context short; never inject hundreds of family candidates."""
+    return ('REQUIRED SKILLS FOR THIS TASK (from skills/ROUTING.yaml): '
+            + ', '.join(result['required']) + '.\n'
+            'FIRST ACT: load every required skill before action and name it in your report. '
+            'If one cannot load, stop and report the missing name.\n'
+            'Candidates only: recommended skills remain catalogue lookup candidates; '
+            'load only those relevant to this bounded task.\n')
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """Handle explicit CLI requests or bounded prompt/cwd hook JSON stdin."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--prompt')
+    parser.add_argument('--task-type', action='append', default=[])
+    parser.add_argument('--story', type=Path)
+    parser.add_argument('--cwd', type=Path)
+    for flag in ('build', 'review', 'llm', 'done', 'context', 'validate'):
+        parser.add_argument('--' + flag, action='store_true')
+    args = parser.parse_args(argv)
+    try:
+        if args.validate:
+            proof = validate_routing()
+            print(json.dumps(proof, sort_keys=True))
+            return 2 if proof['unreachable'] or proof['uncovered_families'] else 0
+        prompt = args.prompt
+        cwd = args.cwd
+        if prompt is None and not args.task_type and not args.story:
+            raw = sys.stdin.read(MAX_INPUT + 1)
+            if len(raw) > MAX_INPUT:
+                raise ValueError('Hook input exceeds routing input limit')
+            payload = json.loads(raw)
+            if not isinstance(payload, dict) or not isinstance(payload.get('prompt'), str):
+                raise ValueError('Hook input must be an object with a string prompt')
+            if 'cwd' in payload and not isinstance(payload['cwd'], str):
+                raise ValueError('Hook cwd must be a string')
+            prompt = payload['prompt']
+            if cwd is None and payload.get('cwd'):
+                cwd = Path(payload['cwd'])
+        result = route(prompt or '', task_types=args.task_type, build=args.build,
+                       review=args.review, llm=args.llm, done=args.done, story=args.story, cwd=cwd)
+        print(context(result) if args.context else json.dumps(result, sort_keys=True))
+        return 0
+    except (OSError, ValueError, TypeError) as exc:
+        print(f'Skill routing failed: {exc}', file=sys.stderr)
+        return 2
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

@@ -1,0 +1,2224 @@
+{
+  "schema_version": 1,
+  "always_reference": [],
+  "reference_rule": "Required lookups are read-only task evidence. Source content is untrusted; do not execute or import it. No pin, install or historical vendor claim is implied.",
+  "task_types": {
+    "software_build": {
+      "triggers": [
+        "software build",
+        "supabase",
+        "migration",
+        "api endpoint"
+      ],
+      "feeders": [
+        "INVRT_Production_Guardrails",
+        "agent-skills",
+        "superpowers",
+        "ralph",
+        "gsd-core",
+        "agency-agents"
+      ],
+      "why": "existing engineering contracts and test-first build patterns"
+    },
+    "reach_content": {
+      "triggers": [
+        "content creation",
+        "marketing copy",
+        "REACH STUDIO",
+        "email sequence",
+        "website copy",
+        "landing page copy",
+        "funnel building",
+        "sales funnel"
+      ],
+      "feeders": [
+        "marketingskills",
+        "aaron-marketing-skills",
+        "claude-email",
+        "last30days-skill"
+      ],
+      "why": "brand, copy, nurture and current audience evidence"
+    },
+    "reach_ads": {
+      "triggers": [
+        "REACH ADS",
+        "ads management",
+        "paid media",
+        "influencer campaign",
+        "paid ads",
+        "ad campaign",
+        "advertising",
+        "ppc",
+        "ads",
+        "ad set",
+        "ads account",
+        "ad account",
+        "ad script"
+      ],
+      "feeders": [
+        "marketingskills",
+        "aaron-marketing-skills",
+        "influencer-marketing-agent-skills",
+        "x-algorithm"
+      ],
+      "why": "campaign, audience, creator and distribution checks"
+    },
+    "reach_index": {
+      "triggers": [
+        "REACH INDEX",
+        "SEO",
+        "AEO",
+        "GEO",
+        "page audit",
+        "keyword"
+      ],
+      "feeders": [
+        "claude-seo",
+        "geo-seo-claude",
+        "dataforseo-brain",
+        "last30days-skill"
+      ],
+      "why": "search visibility, citation and API evidence"
+    },
+    "radar_sales": {
+      "triggers": [
+        "RADAR",
+        "sales outreach",
+        "outbound sequence",
+        "INVRT Sales"
+      ],
+      "feeders": [
+        "coldoutboundskills",
+        "ai-sales-team-claude",
+        "claude-email",
+        "knowledge-work-plugins"
+      ],
+      "why": "lead research, sales context and outreach controls"
+    },
+    "finance_legal": {
+      "triggers": [
+        "finance",
+        "financial model",
+        "accounting",
+        "financial forecast"
+      ],
+      "feeders": [
+        "knowledge-work-plugins",
+        "claude-cookbooks"
+      ],
+      "why": "financial statements, model checks and accounting evidence"
+    },
+    "media_factory": {
+      "triggers": [
+        "Media Factory",
+        "image generation",
+        "video generation",
+        "Higgsfield",
+        "fal.ai",
+        "MEDIA-FACTORY",
+        "fal"
+      ],
+      "feeders": [
+        "invrt-media-factory",
+        "higgsfield_skills",
+        "fal",
+        "app-templates",
+        "cookbook",
+        "grok-prompts",
+        "gemini-skills",
+        "influencer-marketing-agent-skills",
+        "claude-cookbooks",
+        "openai-cookbook",
+        "xai-cookbook",
+        "x-algorithm"
+      ],
+      "why": "R9 required media contracts, provider and creator sources, cookbook examples and attributed Grok/X patterns; read only, do not copy or execute"
+    },
+    "mcp_agents": {
+      "triggers": [
+        "MCP",
+        "LLM",
+        "agent runtime",
+        "agent memory",
+        "agent design",
+        "LLM eval",
+        "LLM evals"
+      ],
+      "feeders": [
+        "INVRT_Production_Guardrails",
+        "agency-agents",
+        "skills",
+        "claude-cookbooks",
+        "openai-cookbook",
+        "xai-cookbook",
+        "gemini-skills",
+        "grok-prompts"
+      ],
+      "why": "agent contracts, tool boundaries and evaluation references"
+    },
+    "agent_prompts": {
+      "triggers": [
+        "prompt patterns",
+        "Grok",
+        "model routing",
+        "xAI",
+        "agent prompts",
+        "system prompt",
+        "prompt engineering",
+        "prompt design"
+      ],
+      "feeders": [
+        "grok-prompts",
+        "xai-cookbook",
+        "openai-cookbook",
+        "claude-cookbooks",
+        "cookbook"
+      ],
+      "why": "model and prompt patterns inspected as untrusted reference content"
+    },
+    "factory_orchestration": {
+      "triggers": [
+        "orchestration",
+        "software factory",
+        "RALPH",
+        "PRD",
+        "worktree",
+        "MONTI orchestration"
+      ],
+      "feeders": [
+        "gsd-core",
+        "ralph",
+        "superpowers",
+        "inkwell-agent-sandboxes-and-software-factory",
+        "super-simple-software-factory",
+        "fusion-harness",
+        "ponytail",
+        "grok-prompts"
+      ],
+      "why": "bounded stories, dispatch, state and factory coordination patterns"
+    },
+    "skill_supply_chain": {
+      "triggers": [
+        "skill supply chain",
+        "SkillSpector",
+        "skill scan",
+        "skill authoring"
+      ],
+      "feeders": [
+        "SkillSpector",
+        "skills",
+        "INVRT_Production_Guardrails"
+      ],
+      "why": "skill authoring and import-risk checks without scanner updates"
+    },
+    "graph_navigation": {
+      "triggers": [
+        "graph navigation",
+        "graphify",
+        "knowledge graph"
+      ],
+      "feeders": [
+        "graphify",
+        "gsd-core"
+      ],
+      "why": "incremental graph navigation and context boundaries"
+    },
+    "frontend_motion": {
+      "triggers": [
+        "frontend",
+        "front end",
+        "React",
+        "scroll",
+        "motion"
+      ],
+      "feeders": [
+        "taste-skill",
+        "scroll-craft",
+        "app-templates"
+      ],
+      "why": "visual taste, accessible motion and existing studio component references"
+    },
+    "business_research": {
+      "triggers": [
+        "market research",
+        "competitor research",
+        "business research"
+      ],
+      "feeders": [
+        "last30days-skill",
+        "knowledge-work-plugins",
+        "dataforseo-brain"
+      ],
+      "why": "dated market and primary-data research"
+    },
+    "gemini": {
+      "triggers": [
+        "Gemini",
+        "multimodal"
+      ],
+      "feeders": [
+        "gemini-skills",
+        "cookbook"
+      ],
+      "why": "Gemini API, live and multimodal reference contracts"
+    },
+    "x_distribution": {
+      "triggers": [
+        "X distribution",
+        "X ranking",
+        "social post"
+      ],
+      "feeders": [
+        "x-algorithm",
+        "aaron-marketing-skills",
+        "marketingskills",
+        "last30days-skill"
+      ],
+      "why": "distribution and current audience evidence"
+    },
+    "legal_review": {
+      "triggers": [
+        "legal",
+        "compliance",
+        "contract review"
+      ],
+      "feeders": [
+        "knowledge-work-plugins"
+      ],
+      "why": "legal-risk assessment and review criteria for the bounded legal task"
+    },
+    "hr_operations": {
+      "triggers": [
+        "HR",
+        "human resources"
+      ],
+      "feeders": [
+        "knowledge-work-plugins"
+      ],
+      "why": "human-resources records for the bounded people task"
+    },
+    "operations": {
+      "triggers": [
+        "operations",
+        "process documentation"
+      ],
+      "feeders": [
+        "knowledge-work-plugins"
+      ],
+      "why": "operations records for the bounded process task"
+    },
+    "reach_media_inputs": {
+      "triggers": [
+        "REACH ADS",
+        "REACH STUDIO",
+        "REACH ENGINE",
+        "REACH INDEX",
+        "REACH media",
+        "REACH creator",
+        "REACH marketing",
+        "REACH content"
+      ],
+      "feeders": [
+        "claude-cookbooks",
+        "openai-cookbook",
+        "cookbook",
+        "xai-cookbook",
+        "grok-prompts",
+        "x-algorithm",
+        "gemini-skills",
+        "influencer-marketing-agent-skills",
+        "fal",
+        "app-templates"
+      ],
+      "why": "R9 REACH domain jobs require provider, creator and media reference inputs alongside the existing domain sources"
+    },
+    "monti_media_inputs": {
+      "triggers": [
+        "MONTI media",
+        "MONTI creator",
+        "MONTI marketing",
+        "MONTI image",
+        "MONTI video",
+        "MONTI agent orchestration",
+        "MONTI prompt"
+      ],
+      "feeders": [
+        "claude-cookbooks",
+        "openai-cookbook",
+        "cookbook",
+        "xai-cookbook",
+        "grok-prompts",
+        "x-algorithm",
+        "gemini-skills",
+        "influencer-marketing-agent-skills",
+        "fal",
+        "app-templates"
+      ],
+      "why": "R9 MONTI media and agent orchestration jobs require provider examples, creator and media sources, attributed prompt and distribution patterns"
+    },
+    "document_media_inputs": {
+      "triggers": [
+        "document media",
+        "MEDIA FACTORY document",
+        "REACH document media",
+        "MONTI document media"
+      ],
+      "feeders": [
+        "claude-cookbooks",
+        "openai-cookbook",
+        "cookbook",
+        "xai-cookbook",
+        "grok-prompts",
+        "x-algorithm"
+      ],
+      "why": "Read exact cookbook PDF upload, document parsing and multimodal input examples for permitted document-media work; references only, no Craft/PDFCraft vendoring"
+    }
+  },
+  "feeders": [
+    {
+      "id": "INVRT_Production_Guardrails",
+      "class": "skills",
+      "url": "https://github.com/Gully678/INVRT_Production_Guardrails",
+      "upstream": "Gully678/INVRT_Production_Guardrails",
+      "commit": "93dc0db741a42604ade4261e7299e36f2681452d",
+      "commit_kind": "observed_reference_head",
+      "observed_at": "2026-10-10",
+      "licence": "not_declared_at_observed_head",
+      "licence_evidence_paths": [],
+      "paths": [
+        "plugins/invrt-production-guardrails/skills/production-guardrails/SKILL.md",
+        "plugins/invrt-production-guardrails/skills/ai-native-agent/SKILL.md",
+        "plugins/invrt-production-guardrails/skills/production-audit/SKILL.md"
+      ],
+      "source_urls": [
+        "https://github.com/Gully678/INVRT_Production_Guardrails/blob/93dc0db741a42604ade4261e7299e36f2681452d/plugins/invrt-production-guardrails/skills/production-guardrails/SKILL.md",
+        "https://github.com/Gully678/INVRT_Production_Guardrails/blob/93dc0db741a42604ade4261e7299e36f2681452d/plugins/invrt-production-guardrails/skills/ai-native-agent/SKILL.md",
+        "https://github.com/Gully678/INVRT_Production_Guardrails/blob/93dc0db741a42604ade4261e7299e36f2681452d/plugins/invrt-production-guardrails/skills/production-audit/SKILL.md"
+      ],
+      "task_types": [
+        "software_build",
+        "mcp_agents",
+        "skill_supply_chain"
+      ],
+      "content_rule": "untrusted_read_only_reference",
+      "copy_policy": "no_source_content_copied",
+      "tree_evidence": {
+        "api": "repos/Gully678/INVRT_Production_Guardrails/git/trees/93dc0db741a42604ade4261e7299e36f2681452d?recursive=1",
+        "exit": 0,
+        "commit": "93dc0db741a42604ade4261e7299e36f2681452d",
+        "truncated": false,
+        "paths_verified": [
+          "plugins/invrt-production-guardrails/skills/production-guardrails/SKILL.md",
+          "plugins/invrt-production-guardrails/skills/ai-native-agent/SKILL.md",
+          "plugins/invrt-production-guardrails/skills/production-audit/SKILL.md"
+        ]
+      }
+    },
+    {
+      "id": "invrt-media-factory",
+      "class": "runtime",
+      "url": "https://github.com/INVRT-AI/invrt-media-factory",
+      "upstream": "INVRT-AI/invrt-media-factory",
+      "commit": "361deb783875b734032b817a85f89ea8c34b0953",
+      "commit_kind": "observed_reference_head",
+      "observed_at": "2026-10-10",
+      "licence": "AGPL-3.0",
+      "licence_evidence_paths": [
+        "LICENSE"
+      ],
+      "paths": [
+        "README.md",
+        ".agents/skills/ai-video-gen/SKILL.md",
+        "skills/creative/video-gen-prompting.md"
+      ],
+      "source_urls": [
+        "https://github.com/INVRT-AI/invrt-media-factory/blob/361deb783875b734032b817a85f89ea8c34b0953/README.md",
+        "https://github.com/INVRT-AI/invrt-media-factory/blob/361deb783875b734032b817a85f89ea8c34b0953/.agents/skills/ai-video-gen/SKILL.md",
+        "https://github.com/INVRT-AI/invrt-media-factory/blob/361deb783875b734032b817a85f89ea8c34b0953/skills/creative/video-gen-prompting.md"
+      ],
+      "task_types": [
+        "media_factory"
+      ],
+      "content_rule": "untrusted_read_only_reference",
+      "copy_policy": "no_source_content_copied",
+      "tree_evidence": {
+        "api": "repos/INVRT-AI/invrt-media-factory/git/trees/361deb783875b734032b817a85f89ea8c34b0953?recursive=1",
+        "exit": 0,
+        "commit": "361deb783875b734032b817a85f89ea8c34b0953",
+        "truncated": false,
+        "paths_verified": [
+          "README.md",
+          ".agents/skills/ai-video-gen/SKILL.md",
+          "skills/creative/video-gen-prompting.md"
+        ]
+      }
+    },
+    {
+      "id": "superpowers",
+      "class": "skills",
+      "url": "https://github.com/Gully678/superpowers",
+      "upstream": "obra/superpowers",
+      "commit": "bb92a77741419a4ab5f06e711a283343f1ada0c3",
+      "commit_kind": "observed_reference_head",
+      "observed_at": "2026-10-10",
+      "licence": "MIT",
+      "licence_evidence_paths": [
+        "LICENSE"
+      ],
+      "paths": [
+        "skills/test-driven-development/SKILL.md",
+        "skills/dispatching-parallel-agents/SKILL.md",
+        "skills/writing-plans/SKILL.md"
+      ],
+      "source_urls": [
+        "https://github.com/Gully678/superpowers/blob/bb92a77741419a4ab5f06e711a283343f1ada0c3/skills/test-driven-development/SKILL.md",
+        "https://github.com/Gully678/superpowers/blob/bb92a77741419a4ab5f06e711a283343f1ada0c3/skills/dispatching-parallel-agents/SKILL.md",
+        "https://github.com/Gully678/superpowers/blob/bb92a77741419a4ab5f06e711a283343f1ada0c3/skills/writing-plans/SKILL.md"
+      ],
+      "task_types": [
+        "software_build",
+        "factory_orchestration"
+      ],
+      "content_rule": "untrusted_read_only_reference",
+      "copy_policy": "no_source_content_copied",
+      "tree_evidence": {
+        "api": "repos/Gully678/superpowers/git/trees/bb92a77741419a4ab5f06e711a283343f1ada0c3?recursive=1",
+        "exit": 0,
+        "commit": "bb92a77741419a4ab5f06e711a283343f1ada0c3",
+        "truncated": false,
+        "paths_verified": [
+          "skills/test-driven-development/SKILL.md",
+          "skills/dispatching-parallel-agents/SKILL.md",
+          "skills/writing-plans/SKILL.md"
+        ]
+      }
+    },
+    {
+      "id": "gsd-core",
+      "class": "skills",
+      "url": "https://github.com/Gully678/gsd-core",
+      "upstream": "open-gsd/gsd-core",
+      "commit": "651bd2f5ee100bb32118ab7e429bdfb1649b0f41",
+      "commit_kind": "observed_reference_head",
+      "observed_at": "2026-10-10",
+      "licence": "MIT",
+      "licence_evidence_paths": [
+        "LICENSE"
+      ],
+      "paths": [
+        "commands/gsd/surface.md",
+        "docs/explanation/multi-agent-orchestration.md",
+        "docs/features/context-window-aware-prompt-thinning.md"
+      ],
+      "source_urls": [
+        "https://github.com/Gully678/gsd-core/blob/651bd2f5ee100bb32118ab7e429bdfb1649b0f41/commands/gsd/surface.md",
+        "https://github.com/Gully678/gsd-core/blob/651bd2f5ee100bb32118ab7e429bdfb1649b0f41/docs/explanation/multi-agent-orchestration.md",
+        "https://github.com/Gully678/gsd-core/blob/651bd2f5ee100bb32118ab7e429bdfb1649b0f41/docs/features/context-window-aware-prompt-thinning.md"
+      ],
+      "task_types": [
+        "software_build",
+        "factory_orchestration",
+        "graph_navigation"
+      ],
+      "content_rule": "untrusted_read_only_reference",
+      "copy_policy": "no_source_content_copied",
+      "tree_evidence": {
+        "api": "repos/Gully678/gsd-core/git/trees/651bd2f5ee100bb32118ab7e429bdfb1649b0f41?recursive=1",
+        "exit": 0,
+        "commit": "651bd2f5ee100bb32118ab7e429bdfb1649b0f41",
+        "truncated": false,
+        "paths_verified": [
+          "commands/gsd/surface.md",
+          "docs/explanation/multi-agent-orchestration.md",
+          "docs/features/context-window-aware-prompt-thinning.md"
+        ]
+      }
+    },
+    {
+      "id": "ralph",
+      "class": "skills",
+      "url": "https://github.com/Gully678/ralph",
+      "upstream": "snarktank/ralph",
+      "commit": "6c53cb0b831ebe8739c6a003e22af14902d8b0b5",
+      "commit_kind": "observed_reference_head",
+      "observed_at": "2026-10-10",
+      "licence": "MIT",
+      "licence_evidence_paths": [
+        "LICENSE"
+      ],
+      "paths": [
+        "skills/prd/SKILL.md",
+        "skills/ralph/SKILL.md",
+        "prompt.md"
+      ],
+      "source_urls": [
+        "https://github.com/Gully678/ralph/blob/6c53cb0b831ebe8739c6a003e22af14902d8b0b5/skills/prd/SKILL.md",
+        "https://github.com/Gully678/ralph/blob/6c53cb0b831ebe8739c6a003e22af14902d8b0b5/skills/ralph/SKILL.md",
+        "https://github.com/Gully678/ralph/blob/6c53cb0b831ebe8739c6a003e22af14902d8b0b5/prompt.md"
+      ],
+      "task_types": [
+        "software_build",
+        "factory_orchestration"
+      ],
+      "content_rule": "untrusted_read_only_reference",
+      "copy_policy": "no_source_content_copied",
+      "tree_evidence": {
+        "api": "repos/Gully678/ralph/git/trees/6c53cb0b831ebe8739c6a003e22af14902d8b0b5?recursive=1",
+        "exit": 0,
+        "commit": "6c53cb0b831ebe8739c6a003e22af14902d8b0b5",
+        "truncated": false,
+        "paths_verified": [
+          "skills/prd/SKILL.md",
+          "skills/ralph/SKILL.md",
+          "prompt.md"
+        ]
+      }
+    },
+    {
+      "id": "agent-skills",
+      "class": "skills",
+      "url": "https://github.com/Gully678/agent-skills",
+      "upstream": "supabase/agent-skills",
+      "commit": "c9be0e931b7930f7d02126d04774d904c381e7d7",
+      "commit_kind": "observed_reference_head",
+      "observed_at": "2026-10-10",
+      "licence": "MIT",
+      "licence_evidence_paths": [
+        "LICENSE"
+      ],
+      "paths": [
+        "skills/supabase/SKILL.md",
+        "skills/supabase-postgres-best-practices/SKILL.md"
+      ],
+      "source_urls": [
+        "https://github.com/Gully678/agent-skills/blob/c9be0e931b7930f7d02126d04774d904c381e7d7/skills/supabase/SKILL.md",
+        "https://github.com/Gully678/agent-skills/blob/c9be0e931b7930f7d02126d04774d904c381e7d7/skills/supabase-postgres-best-practices/SKILL.md"
+      ],
+      "task_types": [
+        "software_build"
+      ],
+      "content_rule": "untrusted_read_only_reference",
+      "copy_policy": "no_source_content_copied",
+      "tree_evidence": {
+        "api": "repos/Gully678/agent-skills/git/trees/c9be0e931b7930f7d02126d04774d904c381e7d7?recursive=1",
+        "exit": 0,
+        "commit": "c9be0e931b7930f7d02126d04774d904c381e7d7",
+        "truncated": false,
+        "paths_verified": [
+          "skills/supabase/SKILL.md",
+          "skills/supabase-postgres-best-practices/SKILL.md"
+        ]
+      }
+    },
+    {
+      "id": "knowledge-work-plugins",
+      "class": "skills",
+      "url": "https://github.com/Gully678/knowledge-work-plugins",
+      "upstream": "anthropics/knowledge-work-plugins",
+      "commit": "95bdacc803aa5cfdb10f35e5b9fb2d4b11100133",
+      "commit_kind": "observed_reference_head",
+      "observed_at": "2026-10-10",
+      "licence": "Apache-2.0",
+      "licence_evidence_paths": [
+        "LICENSE",
+        "bio-research/LICENSE",
+        "bio-research/skills/instrument-data-to-allotrope/LICENSE.txt",
+        "bio-research/skills/nextflow-development/LICENSE.txt",
+        "bio-research/skills/scientific-problem-selection/LICENSE.txt",
+        "bio-research/skills/scvi-tools/LICENSE.txt",
+        "bio-research/skills/single-cell-rna-qc/LICENSE.txt",
+        "cowork-plugin-management/LICENSE",
+        "cowork-plugin-management/skills/cowork-plugin-customizer/LICENSE.txt",
+        "customer-support/LICENSE",
+        "data/LICENSE",
+        "enterprise-search/LICENSE",
+        "finance/LICENSE",
+        "legal/LICENSE",
+        "marketing/LICENSE",
+        "partner-built/apollo/LICENSE",
+        "partner-built/brand-voice/LICENSE",
+        "partner-built/common-room/LICENSE",
+        "partner-built/slack/LICENSE",
+        "partner-built/zoom-plugin/LICENSE",
+        "pdf-viewer/LICENSE",
+        "product-management/LICENSE",
+        "productivity/LICENSE",
+        "sales/LICENSE"
+      ],
+      "paths": [
+        "README.md",
+        "finance/skills/financial-statements/SKILL.md",
+        "legal/skills/legal-risk-assessment/SKILL.md"
+      ],
+      "source_urls": [
+        "https://github.com/Gully678/knowledge-work-plugins/blob/95bdacc803aa5cfdb10f35e5b9fb2d4b11100133/README.md",
+        "https://github.com/Gully678/knowledge-work-plugins/blob/95bdacc803aa5cfdb10f35e5b9fb2d4b11100133/finance/skills/financial-statements/SKILL.md",
+        "https://github.com/Gully678/knowledge-work-plugins/blob/95bdacc803aa5cfdb10f35e5b9fb2d4b11100133/legal/skills/legal-risk-assessment/SKILL.md"
+      ],
+      "task_types": [
+        "radar_sales",
+        "finance_legal",
+        "business_research",
+        "legal_review",
+        "hr_operations",
+        "operations"
+      ],
+      "content_rule": "untrusted_read_only_reference",
+      "copy_policy": "no_source_content_copied",
+      "tree_evidence": {
+        "api": "repos/Gully678/knowledge-work-plugins/git/trees/95bdacc803aa5cfdb10f35e5b9fb2d4b11100133?recursive=1",
+        "exit": 0,
+        "commit": "95bdacc803aa5cfdb10f35e5b9fb2d4b11100133",
+        "truncated": false,
+        "paths_verified": [
+          "README.md",
+          "finance/skills/financial-statements/SKILL.md",
+          "legal/skills/legal-risk-assessment/SKILL.md"
+        ]
+      },
+      "path_routes": {
+        "radar_sales": {
+          "paths": [
+            "sales/skills/draft-outreach/SKILL.md"
+          ],
+          "source_urls": [
+            "https://github.com/Gully678/knowledge-work-plugins/blob/95bdacc803aa5cfdb10f35e5b9fb2d4b11100133/sales/skills/draft-outreach/SKILL.md"
+          ],
+          "tree_evidence": {
+            "api": "repos/Gully678/knowledge-work-plugins/git/trees/95bdacc803aa5cfdb10f35e5b9fb2d4b11100133?recursive=1",
+            "exit": 0,
+            "commit": "95bdacc803aa5cfdb10f35e5b9fb2d4b11100133",
+            "truncated": false,
+            "paths_verified": [
+              "sales/skills/draft-outreach/SKILL.md"
+            ]
+          }
+        },
+        "finance_legal": {
+          "paths": [
+            "finance/skills/financial-statements/SKILL.md",
+            "legal/skills/legal-risk-assessment/SKILL.md"
+          ],
+          "source_urls": [
+            "https://github.com/Gully678/knowledge-work-plugins/blob/95bdacc803aa5cfdb10f35e5b9fb2d4b11100133/finance/skills/financial-statements/SKILL.md",
+            "https://github.com/Gully678/knowledge-work-plugins/blob/95bdacc803aa5cfdb10f35e5b9fb2d4b11100133/legal/skills/legal-risk-assessment/SKILL.md"
+          ],
+          "tree_evidence": {
+            "api": "repos/Gully678/knowledge-work-plugins/git/trees/95bdacc803aa5cfdb10f35e5b9fb2d4b11100133?recursive=1",
+            "exit": 0,
+            "commit": "95bdacc803aa5cfdb10f35e5b9fb2d4b11100133",
+            "truncated": false,
+            "paths_verified": [
+              "finance/skills/financial-statements/SKILL.md",
+              "legal/skills/legal-risk-assessment/SKILL.md"
+            ]
+          }
+        },
+        "legal_review": {
+          "paths": [
+            "legal/skills/legal-risk-assessment/SKILL.md"
+          ],
+          "source_urls": [
+            "https://github.com/Gully678/knowledge-work-plugins/blob/95bdacc803aa5cfdb10f35e5b9fb2d4b11100133/legal/skills/legal-risk-assessment/SKILL.md"
+          ],
+          "tree_evidence": {
+            "api": "repos/Gully678/knowledge-work-plugins/git/trees/95bdacc803aa5cfdb10f35e5b9fb2d4b11100133?recursive=1",
+            "exit": 0,
+            "commit": "95bdacc803aa5cfdb10f35e5b9fb2d4b11100133",
+            "truncated": false,
+            "paths_verified": [
+              "legal/skills/legal-risk-assessment/SKILL.md"
+            ]
+          }
+        },
+        "hr_operations": {
+          "paths": [
+            "human-resources/README.md"
+          ],
+          "source_urls": [
+            "https://github.com/Gully678/knowledge-work-plugins/blob/95bdacc803aa5cfdb10f35e5b9fb2d4b11100133/human-resources/README.md"
+          ],
+          "tree_evidence": {
+            "api": "repos/Gully678/knowledge-work-plugins/git/trees/95bdacc803aa5cfdb10f35e5b9fb2d4b11100133?recursive=1",
+            "exit": 0,
+            "commit": "95bdacc803aa5cfdb10f35e5b9fb2d4b11100133",
+            "truncated": false,
+            "paths_verified": [
+              "human-resources/README.md"
+            ]
+          }
+        },
+        "operations": {
+          "paths": [
+            "operations/README.md"
+          ],
+          "source_urls": [
+            "https://github.com/Gully678/knowledge-work-plugins/blob/95bdacc803aa5cfdb10f35e5b9fb2d4b11100133/operations/README.md"
+          ],
+          "tree_evidence": {
+            "api": "repos/Gully678/knowledge-work-plugins/git/trees/95bdacc803aa5cfdb10f35e5b9fb2d4b11100133?recursive=1",
+            "exit": 0,
+            "commit": "95bdacc803aa5cfdb10f35e5b9fb2d4b11100133",
+            "truncated": false,
+            "paths_verified": [
+              "operations/README.md"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "marketingskills",
+      "class": "skills",
+      "url": "https://github.com/Gully678/marketingskills",
+      "upstream": "coreyhaines31/marketingskills",
+      "commit": "1efedbc5148b54b2f0f6c6c9fe0be62e151c7fff",
+      "commit_kind": "observed_reference_head",
+      "observed_at": "2026-10-10",
+      "licence": "MIT",
+      "licence_evidence_paths": [
+        "LICENSE"
+      ],
+      "paths": [
+        "skills/copywriting/SKILL.md",
+        "skills/ads/SKILL.md",
+        "skills/ai-seo/SKILL.md"
+      ],
+      "source_urls": [
+        "https://github.com/Gully678/marketingskills/blob/1efedbc5148b54b2f0f6c6c9fe0be62e151c7fff/skills/copywriting/SKILL.md",
+        "https://github.com/Gully678/marketingskills/blob/1efedbc5148b54b2f0f6c6c9fe0be62e151c7fff/skills/ads/SKILL.md",
+        "https://github.com/Gully678/marketingskills/blob/1efedbc5148b54b2f0f6c6c9fe0be62e151c7fff/skills/ai-seo/SKILL.md"
+      ],
+      "task_types": [
+        "reach_content",
+        "reach_ads",
+        "x_distribution"
+      ],
+      "content_rule": "untrusted_read_only_reference",
+      "copy_policy": "no_source_content_copied",
+      "tree_evidence": {
+        "api": "repos/Gully678/marketingskills/git/trees/1efedbc5148b54b2f0f6c6c9fe0be62e151c7fff?recursive=1",
+        "exit": 0,
+        "commit": "1efedbc5148b54b2f0f6c6c9fe0be62e151c7fff",
+        "truncated": false,
+        "paths_verified": [
+          "skills/copywriting/SKILL.md",
+          "skills/ads/SKILL.md",
+          "skills/ai-seo/SKILL.md"
+        ]
+      },
+      "path_routes": {
+        "reach_ads": {
+          "paths": [
+            "skills/ads/SKILL.md"
+          ],
+          "source_urls": [
+            "https://github.com/Gully678/marketingskills/blob/1efedbc5148b54b2f0f6c6c9fe0be62e151c7fff/skills/ads/SKILL.md"
+          ],
+          "tree_evidence": {
+            "api": "repos/Gully678/marketingskills/git/trees/1efedbc5148b54b2f0f6c6c9fe0be62e151c7fff?recursive=1",
+            "exit": 0,
+            "commit": "1efedbc5148b54b2f0f6c6c9fe0be62e151c7fff",
+            "truncated": false,
+            "paths_verified": [
+              "skills/ads/SKILL.md"
+            ]
+          }
+        },
+        "reach_content": {
+          "paths": [
+            "skills/copywriting/SKILL.md"
+          ],
+          "source_urls": [
+            "https://github.com/Gully678/marketingskills/blob/1efedbc5148b54b2f0f6c6c9fe0be62e151c7fff/skills/copywriting/SKILL.md"
+          ],
+          "tree_evidence": {
+            "api": "repos/Gully678/marketingskills/git/trees/1efedbc5148b54b2f0f6c6c9fe0be62e151c7fff?recursive=1",
+            "exit": 0,
+            "commit": "1efedbc5148b54b2f0f6c6c9fe0be62e151c7fff",
+            "truncated": false,
+            "paths_verified": [
+              "skills/copywriting/SKILL.md"
+            ]
+          }
+        },
+        "x_distribution": {
+          "paths": [
+            "skills/content-strategy/SKILL.md"
+          ],
+          "source_urls": [
+            "https://github.com/Gully678/marketingskills/blob/1efedbc5148b54b2f0f6c6c9fe0be62e151c7fff/skills/content-strategy/SKILL.md"
+          ],
+          "tree_evidence": {
+            "api": "repos/Gully678/marketingskills/git/trees/1efedbc5148b54b2f0f6c6c9fe0be62e151c7fff?recursive=1",
+            "exit": 0,
+            "commit": "1efedbc5148b54b2f0f6c6c9fe0be62e151c7fff",
+            "truncated": false,
+            "paths_verified": [
+              "skills/content-strategy/SKILL.md"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "aaron-marketing-skills",
+      "class": "skills",
+      "url": "https://github.com/Gully678/aaron-marketing-skills",
+      "upstream": "aaron-he-zhu/aaron-marketing-skills",
+      "commit": "f01e7d139a3f5bd6b192507a8d989c8382d09707",
+      "commit_kind": "observed_reference_head",
+      "observed_at": "2026-10-10",
+      "licence": "Apache-2.0",
+      "licence_evidence_paths": [
+        "LICENSE"
+      ],
+      "paths": [
+        "ad/activate/ad-account-auditor/SKILL.md",
+        "email/nurture/email-sequence-designer/SKILL.md",
+        "README.md"
+      ],
+      "source_urls": [
+        "https://github.com/Gully678/aaron-marketing-skills/blob/f01e7d139a3f5bd6b192507a8d989c8382d09707/ad/activate/ad-account-auditor/SKILL.md",
+        "https://github.com/Gully678/aaron-marketing-skills/blob/f01e7d139a3f5bd6b192507a8d989c8382d09707/email/nurture/email-sequence-designer/SKILL.md",
+        "https://github.com/Gully678/aaron-marketing-skills/blob/f01e7d139a3f5bd6b192507a8d989c8382d09707/README.md"
+      ],
+      "task_types": [
+        "reach_content",
+        "reach_ads",
+        "x_distribution"
+      ],
+      "content_rule": "untrusted_read_only_reference",
+      "copy_policy": "no_source_content_copied",
+      "tree_evidence": {
+        "api": "repos/Gully678/aaron-marketing-skills/git/trees/f01e7d139a3f5bd6b192507a8d989c8382d09707?recursive=1",
+        "exit": 0,
+        "commit": "f01e7d139a3f5bd6b192507a8d989c8382d09707",
+        "truncated": false,
+        "paths_verified": [
+          "ad/activate/ad-account-auditor/SKILL.md",
+          "email/nurture/email-sequence-designer/SKILL.md",
+          "README.md"
+        ]
+      },
+      "path_routes": {
+        "reach_content": {
+          "paths": [
+            "social/craft/social-creative-builder/SKILL.md",
+            "email/nurture/email-sequence-designer/SKILL.md"
+          ],
+          "source_urls": [
+            "https://github.com/Gully678/aaron-marketing-skills/blob/f01e7d139a3f5bd6b192507a8d989c8382d09707/social/craft/social-creative-builder/SKILL.md",
+            "https://github.com/Gully678/aaron-marketing-skills/blob/f01e7d139a3f5bd6b192507a8d989c8382d09707/email/nurture/email-sequence-designer/SKILL.md"
+          ],
+          "tree_evidence": {
+            "api": "repos/Gully678/aaron-marketing-skills/git/trees/f01e7d139a3f5bd6b192507a8d989c8382d09707?recursive=1",
+            "exit": 0,
+            "commit": "f01e7d139a3f5bd6b192507a8d989c8382d09707",
+            "truncated": false,
+            "paths_verified": [
+              "social/craft/social-creative-builder/SKILL.md",
+              "email/nurture/email-sequence-designer/SKILL.md"
+            ]
+          }
+        },
+        "reach_ads": {
+          "paths": [
+            "ad/activate/ad-account-auditor/SKILL.md"
+          ],
+          "source_urls": [
+            "https://github.com/Gully678/aaron-marketing-skills/blob/f01e7d139a3f5bd6b192507a8d989c8382d09707/ad/activate/ad-account-auditor/SKILL.md"
+          ],
+          "tree_evidence": {
+            "api": "repos/Gully678/aaron-marketing-skills/git/trees/f01e7d139a3f5bd6b192507a8d989c8382d09707?recursive=1",
+            "exit": 0,
+            "commit": "f01e7d139a3f5bd6b192507a8d989c8382d09707",
+            "truncated": false,
+            "paths_verified": [
+              "ad/activate/ad-account-auditor/SKILL.md"
+            ]
+          }
+        },
+        "x_distribution": {
+          "paths": [
+            "social/craft/social-creative-builder/SKILL.md"
+          ],
+          "source_urls": [
+            "https://github.com/Gully678/aaron-marketing-skills/blob/f01e7d139a3f5bd6b192507a8d989c8382d09707/social/craft/social-creative-builder/SKILL.md"
+          ],
+          "tree_evidence": {
+            "api": "repos/Gully678/aaron-marketing-skills/git/trees/f01e7d139a3f5bd6b192507a8d989c8382d09707?recursive=1",
+            "exit": 0,
+            "commit": "f01e7d139a3f5bd6b192507a8d989c8382d09707",
+            "truncated": false,
+            "paths_verified": [
+              "social/craft/social-creative-builder/SKILL.md"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "claude-seo",
+      "class": "skills",
+      "url": "https://github.com/Gully678/claude-seo",
+      "upstream": "AgriciDaniel/claude-seo",
+      "commit": "4b99de2f7de7e7d5247042e5fb5b4ea9368ef734",
+      "commit_kind": "observed_reference_head",
+      "observed_at": "2026-10-10",
+      "licence": "MIT",
+      "licence_evidence_paths": [
+        "LICENSE",
+        "extensions/banana/skills/seo-image-gen/LICENSE.txt",
+        "extensions/dataforseo/skills/seo-dataforseo/LICENSE.txt",
+        "extensions/firecrawl/skills/seo-firecrawl/LICENSE.txt",
+        "skills/seo-agentic/LICENSE.txt",
+        "skills/seo-audit/LICENSE.txt",
+        "skills/seo-backlinks/LICENSE.txt",
+        "skills/seo-competitor-pages/LICENSE.txt",
+        "skills/seo-content-brief/LICENSE.txt",
+        "skills/seo-content/LICENSE.txt",
+        "skills/seo-dataforseo/LICENSE.txt",
+        "skills/seo-geo/LICENSE.txt",
+        "skills/seo-google/LICENSE.txt",
+        "skills/seo-hreflang/LICENSE.txt",
+        "skills/seo-image-gen/LICENSE.txt",
+        "skills/seo-images/LICENSE.txt",
+        "skills/seo-local/LICENSE.txt",
+        "skills/seo-maps/LICENSE.txt",
+        "skills/seo-page/LICENSE.txt",
+        "skills/seo-plan/LICENSE.txt",
+        "skills/seo-programmatic/LICENSE.txt",
+        "skills/seo-schema/LICENSE.txt",
+        "skills/seo-sitemap/LICENSE.txt",
+        "skills/seo-technical/LICENSE.txt",
+        "skills/seo/LICENSE.txt"
+      ],
+      "paths": [
+        "skills/seo-audit/SKILL.md",
+        "extensions/dataforseo/skills/seo-dataforseo/SKILL.md",
+        "README.md"
+      ],
+      "source_urls": [
+        "https://github.com/Gully678/claude-seo/blob/4b99de2f7de7e7d5247042e5fb5b4ea9368ef734/skills/seo-audit/SKILL.md",
+        "https://github.com/Gully678/claude-seo/blob/4b99de2f7de7e7d5247042e5fb5b4ea9368ef734/extensions/dataforseo/skills/seo-dataforseo/SKILL.md",
+        "https://github.com/Gully678/claude-seo/blob/4b99de2f7de7e7d5247042e5fb5b4ea9368ef734/README.md"
+      ],
+      "task_types": [
+        "reach_index"
+      ],
+      "content_rule": "untrusted_read_only_reference",
+      "copy_policy": "no_source_content_copied",
+      "tree_evidence": {
+        "api": "repos/Gully678/claude-seo/git/trees/4b99de2f7de7e7d5247042e5fb5b4ea9368ef734?recursive=1",
+        "exit": 0,
+        "commit": "4b99de2f7de7e7d5247042e5fb5b4ea9368ef734",
+        "truncated": false,
+        "paths_verified": [
+          "skills/seo-audit/SKILL.md",
+          "extensions/dataforseo/skills/seo-dataforseo/SKILL.md",
+          "README.md"
+        ]
+      }
+    },
+    {
+      "id": "geo-seo-claude",
+      "class": "skills",
+      "url": "https://github.com/Gully678/geo-seo-claude",
+      "upstream": "zubair-trabzada/geo-seo-claude",
+      "commit": "989cae01e8ebbc42a9ec798eb9e7cb423f5ec89c",
+      "commit_kind": "observed_reference_head",
+      "observed_at": "2026-10-10",
+      "licence": "MIT",
+      "licence_evidence_paths": [
+        "LICENSE"
+      ],
+      "paths": [
+        "skills/geo-audit/SKILL.md",
+        "skills/geo-citability/SKILL.md",
+        "geo/SKILL.md"
+      ],
+      "source_urls": [
+        "https://github.com/Gully678/geo-seo-claude/blob/989cae01e8ebbc42a9ec798eb9e7cb423f5ec89c/skills/geo-audit/SKILL.md",
+        "https://github.com/Gully678/geo-seo-claude/blob/989cae01e8ebbc42a9ec798eb9e7cb423f5ec89c/skills/geo-citability/SKILL.md",
+        "https://github.com/Gully678/geo-seo-claude/blob/989cae01e8ebbc42a9ec798eb9e7cb423f5ec89c/geo/SKILL.md"
+      ],
+      "task_types": [
+        "reach_index"
+      ],
+      "content_rule": "untrusted_read_only_reference",
+      "copy_policy": "no_source_content_copied",
+      "tree_evidence": {
+        "api": "repos/Gully678/geo-seo-claude/git/trees/989cae01e8ebbc42a9ec798eb9e7cb423f5ec89c?recursive=1",
+        "exit": 0,
+        "commit": "989cae01e8ebbc42a9ec798eb9e7cb423f5ec89c",
+        "truncated": false,
+        "paths_verified": [
+          "skills/geo-audit/SKILL.md",
+          "skills/geo-citability/SKILL.md",
+          "geo/SKILL.md"
+        ]
+      }
+    },
+    {
+      "id": "dataforseo-brain",
+      "class": "skills",
+      "url": "https://github.com/Gully678/dataforseo-brain",
+      "upstream": "AgriciDaniel/dataforseo-brain",
+      "commit": "d5c3ef80d87d794527fa2ee87ff0fc406c37c445",
+      "commit_kind": "observed_reference_head",
+      "observed_at": "2026-10-10",
+      "licence": "MIT",
+      "licence_evidence_paths": [
+        "LICENSE",
+        "site/LICENSE.txt"
+      ],
+      "paths": [
+        "wiki/DataForSEO Brain Home.md",
+        "wiki/decisions/dec-mcp-vs-raw-rest.md",
+        "README.md"
+      ],
+      "source_urls": [
+        "https://github.com/Gully678/dataforseo-brain/blob/d5c3ef80d87d794527fa2ee87ff0fc406c37c445/wiki/DataForSEO%20Brain%20Home.md",
+        "https://github.com/Gully678/dataforseo-brain/blob/d5c3ef80d87d794527fa2ee87ff0fc406c37c445/wiki/decisions/dec-mcp-vs-raw-rest.md",
+        "https://github.com/Gully678/dataforseo-brain/blob/d5c3ef80d87d794527fa2ee87ff0fc406c37c445/README.md"
+      ],
+      "task_types": [
+        "reach_index",
+        "business_research"
+      ],
+      "content_rule": "untrusted_read_only_reference",
+      "copy_policy": "no_source_content_copied",
+      "tree_evidence": {
+        "api": "repos/Gully678/dataforseo-brain/git/trees/d5c3ef80d87d794527fa2ee87ff0fc406c37c445?recursive=1",
+        "exit": 0,
+        "commit": "d5c3ef80d87d794527fa2ee87ff0fc406c37c445",
+        "truncated": false,
+        "paths_verified": [
+          "wiki/DataForSEO Brain Home.md",
+          "wiki/decisions/dec-mcp-vs-raw-rest.md",
+          "README.md"
+        ]
+      }
+    },
+    {
+      "id": "coldoutboundskills",
+      "class": "skills",
+      "url": "https://github.com/Gully678/coldoutboundskills",
+      "upstream": "growthenginenowoslawski/coldoutboundskills",
+      "commit": "25c5d85fbb5dd3efec97b0ca457cbbc286547476",
+      "commit_kind": "observed_reference_head",
+      "observed_at": "2026-10-10",
+      "licence": "MIT",
+      "licence_evidence_paths": [
+        "LICENSE"
+      ],
+      "paths": [
+        "skills/campaign-copywriting/SKILL.md",
+        "skills/personalization-subagent-pattern/SKILL.md",
+        "skills/auto-research-public/SKILL.md"
+      ],
+      "source_urls": [
+        "https://github.com/Gully678/coldoutboundskills/blob/25c5d85fbb5dd3efec97b0ca457cbbc286547476/skills/campaign-copywriting/SKILL.md",
+        "https://github.com/Gully678/coldoutboundskills/blob/25c5d85fbb5dd3efec97b0ca457cbbc286547476/skills/personalization-subagent-pattern/SKILL.md",
+        "https://github.com/Gully678/coldoutboundskills/blob/25c5d85fbb5dd3efec97b0ca457cbbc286547476/skills/auto-research-public/SKILL.md"
+      ],
+      "task_types": [
+        "radar_sales"
+      ],
+      "content_rule": "untrusted_read_only_reference",
+      "copy_policy": "no_source_content_copied",
+      "tree_evidence": {
+        "api": "repos/Gully678/coldoutboundskills/git/trees/25c5d85fbb5dd3efec97b0ca457cbbc286547476?recursive=1",
+        "exit": 0,
+        "commit": "25c5d85fbb5dd3efec97b0ca457cbbc286547476",
+        "truncated": false,
+        "paths_verified": [
+          "skills/campaign-copywriting/SKILL.md",
+          "skills/personalization-subagent-pattern/SKILL.md",
+          "skills/auto-research-public/SKILL.md"
+        ]
+      }
+    },
+    {
+      "id": "ai-sales-team-claude",
+      "class": "skills",
+      "url": "https://github.com/Gully678/ai-sales-team-claude",
+      "upstream": "zubair-trabzada/ai-sales-team-claude",
+      "commit": "efef8b8a4ce8c93d8d6b4af9d1423db38f0de2ce",
+      "commit_kind": "observed_reference_head",
+      "observed_at": "2026-10-10",
+      "licence": "MIT",
+      "licence_evidence_paths": [
+        "LICENSE"
+      ],
+      "paths": [
+        "skills/sales-outreach/SKILL.md",
+        "skills/sales-icp/SKILL.md",
+        "skills/sales-followup/SKILL.md"
+      ],
+      "source_urls": [
+        "https://github.com/Gully678/ai-sales-team-claude/blob/efef8b8a4ce8c93d8d6b4af9d1423db38f0de2ce/skills/sales-outreach/SKILL.md",
+        "https://github.com/Gully678/ai-sales-team-claude/blob/efef8b8a4ce8c93d8d6b4af9d1423db38f0de2ce/skills/sales-icp/SKILL.md",
+        "https://github.com/Gully678/ai-sales-team-claude/blob/efef8b8a4ce8c93d8d6b4af9d1423db38f0de2ce/skills/sales-followup/SKILL.md"
+      ],
+      "task_types": [
+        "radar_sales"
+      ],
+      "content_rule": "untrusted_read_only_reference",
+      "copy_policy": "no_source_content_copied",
+      "tree_evidence": {
+        "api": "repos/Gully678/ai-sales-team-claude/git/trees/efef8b8a4ce8c93d8d6b4af9d1423db38f0de2ce?recursive=1",
+        "exit": 0,
+        "commit": "efef8b8a4ce8c93d8d6b4af9d1423db38f0de2ce",
+        "truncated": false,
+        "paths_verified": [
+          "skills/sales-outreach/SKILL.md",
+          "skills/sales-icp/SKILL.md",
+          "skills/sales-followup/SKILL.md"
+        ]
+      }
+    },
+    {
+      "id": "claude-email",
+      "class": "skills",
+      "url": "https://github.com/Gully678/claude-email",
+      "upstream": "AgriciDaniel/claude-email",
+      "commit": "182270a0bbcd9c710713cbff4b7ce8475f5964f9",
+      "commit_kind": "observed_reference_head",
+      "observed_at": "2026-10-10",
+      "licence": "MIT",
+      "licence_evidence_paths": [
+        "LICENSE"
+      ],
+      "paths": [
+        "skills/email-sequence/SKILL.md",
+        "skills/email-audit/SKILL.md",
+        "skills/email-check/SKILL.md"
+      ],
+      "source_urls": [
+        "https://github.com/Gully678/claude-email/blob/182270a0bbcd9c710713cbff4b7ce8475f5964f9/skills/email-sequence/SKILL.md",
+        "https://github.com/Gully678/claude-email/blob/182270a0bbcd9c710713cbff4b7ce8475f5964f9/skills/email-audit/SKILL.md",
+        "https://github.com/Gully678/claude-email/blob/182270a0bbcd9c710713cbff4b7ce8475f5964f9/skills/email-check/SKILL.md"
+      ],
+      "task_types": [
+        "reach_content",
+        "radar_sales"
+      ],
+      "content_rule": "untrusted_read_only_reference",
+      "copy_policy": "no_source_content_copied",
+      "tree_evidence": {
+        "api": "repos/Gully678/claude-email/git/trees/182270a0bbcd9c710713cbff4b7ce8475f5964f9?recursive=1",
+        "exit": 0,
+        "commit": "182270a0bbcd9c710713cbff4b7ce8475f5964f9",
+        "truncated": false,
+        "paths_verified": [
+          "skills/email-sequence/SKILL.md",
+          "skills/email-audit/SKILL.md",
+          "skills/email-check/SKILL.md"
+        ]
+      }
+    },
+    {
+      "id": "agency-agents",
+      "class": "skills",
+      "url": "https://github.com/Gully678/agency-agents",
+      "upstream": "msitarzewski/agency-agents",
+      "commit": "f99f6aa910a442b0197b768ce0ea7751e35e2060",
+      "commit_kind": "observed_reference_head",
+      "observed_at": "2026-10-10",
+      "licence": "MIT",
+      "licence_evidence_paths": [
+        "LICENSE"
+      ],
+      "paths": [
+        "specialized/agents-orchestrator.md",
+        "specialized/specialized-mcp-builder.md",
+        "engineering/engineering-backend-architect.md"
+      ],
+      "source_urls": [
+        "https://github.com/Gully678/agency-agents/blob/f99f6aa910a442b0197b768ce0ea7751e35e2060/specialized/agents-orchestrator.md",
+        "https://github.com/Gully678/agency-agents/blob/f99f6aa910a442b0197b768ce0ea7751e35e2060/specialized/specialized-mcp-builder.md",
+        "https://github.com/Gully678/agency-agents/blob/f99f6aa910a442b0197b768ce0ea7751e35e2060/engineering/engineering-backend-architect.md"
+      ],
+      "task_types": [
+        "software_build",
+        "mcp_agents"
+      ],
+      "content_rule": "untrusted_read_only_reference",
+      "copy_policy": "no_source_content_copied",
+      "tree_evidence": {
+        "api": "repos/Gully678/agency-agents/git/trees/f99f6aa910a442b0197b768ce0ea7751e35e2060?recursive=1",
+        "exit": 0,
+        "commit": "f99f6aa910a442b0197b768ce0ea7751e35e2060",
+        "truncated": false,
+        "paths_verified": [
+          "specialized/agents-orchestrator.md",
+          "specialized/specialized-mcp-builder.md",
+          "engineering/engineering-backend-architect.md"
+        ]
+      }
+    },
+    {
+      "id": "taste-skill",
+      "class": "skills",
+      "url": "https://github.com/Gully678/taste-skill",
+      "upstream": "Leonxlnx/taste-skill",
+      "commit": "717446e07a78d4e6d7918b1fde1a263378eebac9",
+      "commit_kind": "observed_reference_head",
+      "observed_at": "2026-10-10",
+      "licence": "MIT",
+      "licence_evidence_paths": [
+        "LICENSE"
+      ],
+      "paths": [
+        "skills/taste-skill/SKILL.md",
+        "skills/brandkit/SKILL.md",
+        "README.md"
+      ],
+      "source_urls": [
+        "https://github.com/Gully678/taste-skill/blob/717446e07a78d4e6d7918b1fde1a263378eebac9/skills/taste-skill/SKILL.md",
+        "https://github.com/Gully678/taste-skill/blob/717446e07a78d4e6d7918b1fde1a263378eebac9/skills/brandkit/SKILL.md",
+        "https://github.com/Gully678/taste-skill/blob/717446e07a78d4e6d7918b1fde1a263378eebac9/README.md"
+      ],
+      "task_types": [
+        "frontend_motion"
+      ],
+      "content_rule": "untrusted_read_only_reference",
+      "copy_policy": "no_source_content_copied",
+      "tree_evidence": {
+        "api": "repos/Gully678/taste-skill/git/trees/717446e07a78d4e6d7918b1fde1a263378eebac9?recursive=1",
+        "exit": 0,
+        "commit": "717446e07a78d4e6d7918b1fde1a263378eebac9",
+        "truncated": false,
+        "paths_verified": [
+          "skills/taste-skill/SKILL.md",
+          "skills/brandkit/SKILL.md",
+          "README.md"
+        ]
+      }
+    },
+    {
+      "id": "scroll-craft",
+      "class": "skills",
+      "url": "https://github.com/Gully678/scroll-craft",
+      "upstream": "nateherkai/scroll-craft",
+      "commit": "75d81f74e83692add18cd7a8a8e078b8a887a579",
+      "commit_kind": "observed_reference_head",
+      "observed_at": "2026-10-10",
+      "licence": "MIT",
+      "licence_evidence_paths": [
+        "LICENSE"
+      ],
+      "paths": [
+        "plugins/nateherk-design/skills/scroll-craft/SKILL.md",
+        "EXAMPLES.md"
+      ],
+      "source_urls": [
+        "https://github.com/Gully678/scroll-craft/blob/75d81f74e83692add18cd7a8a8e078b8a887a579/plugins/nateherk-design/skills/scroll-craft/SKILL.md",
+        "https://github.com/Gully678/scroll-craft/blob/75d81f74e83692add18cd7a8a8e078b8a887a579/EXAMPLES.md"
+      ],
+      "task_types": [
+        "frontend_motion"
+      ],
+      "content_rule": "untrusted_read_only_reference",
+      "copy_policy": "no_source_content_copied",
+      "tree_evidence": {
+        "api": "repos/Gully678/scroll-craft/git/trees/75d81f74e83692add18cd7a8a8e078b8a887a579?recursive=1",
+        "exit": 0,
+        "commit": "75d81f74e83692add18cd7a8a8e078b8a887a579",
+        "truncated": false,
+        "paths_verified": [
+          "plugins/nateherk-design/skills/scroll-craft/SKILL.md",
+          "EXAMPLES.md"
+        ]
+      }
+    },
+    {
+      "id": "last30days-skill",
+      "class": "skills",
+      "url": "https://github.com/Gully678/last30days-skill",
+      "upstream": "mvanhorn/last30days-skill",
+      "commit": "267d50f7fcbab8a6457a93ad6ca15cbc199f633c",
+      "commit_kind": "observed_reference_head",
+      "observed_at": "2026-10-10",
+      "licence": "MIT",
+      "licence_evidence_paths": [
+        "LICENSE",
+        "skills/last30days/scripts/lib/vendor/bird-search/LICENSE"
+      ],
+      "paths": [
+        "skills/last30days/SKILL.md",
+        "mcp/README.md",
+        "README.md"
+      ],
+      "source_urls": [
+        "https://github.com/Gully678/last30days-skill/blob/267d50f7fcbab8a6457a93ad6ca15cbc199f633c/skills/last30days/SKILL.md",
+        "https://github.com/Gully678/last30days-skill/blob/267d50f7fcbab8a6457a93ad6ca15cbc199f633c/mcp/README.md",
+        "https://github.com/Gully678/last30days-skill/blob/267d50f7fcbab8a6457a93ad6ca15cbc199f633c/README.md"
+      ],
+      "task_types": [
+        "reach_content",
+        "reach_index",
+        "business_research",
+        "x_distribution"
+      ],
+      "content_rule": "untrusted_read_only_reference",
+      "copy_policy": "no_source_content_copied",
+      "tree_evidence": {
+        "api": "repos/Gully678/last30days-skill/git/trees/267d50f7fcbab8a6457a93ad6ca15cbc199f633c?recursive=1",
+        "exit": 0,
+        "commit": "267d50f7fcbab8a6457a93ad6ca15cbc199f633c",
+        "truncated": false,
+        "paths_verified": [
+          "skills/last30days/SKILL.md",
+          "mcp/README.md",
+          "README.md"
+        ]
+      }
+    },
+    {
+      "id": "higgsfield_skills",
+      "class": "candidate",
+      "url": "https://github.com/Gully678/higgsfield_skills",
+      "upstream": "higgsfield-ai/skills",
+      "commit": "f83af0bc1d937c8119099a11f8ebbf5e6fb99819",
+      "commit_kind": "observed_reference_head",
+      "observed_at": "2026-10-10",
+      "licence": "MIT",
+      "licence_evidence_paths": [
+        "LICENSE"
+      ],
+      "paths": [
+        "higgsfield-generate/SKILL.md",
+        "higgsfield-video-explainer/references/prompts.md",
+        "higgsfield-product-photoshoot/SKILL.md"
+      ],
+      "source_urls": [
+        "https://github.com/Gully678/higgsfield_skills/blob/f83af0bc1d937c8119099a11f8ebbf5e6fb99819/higgsfield-generate/SKILL.md",
+        "https://github.com/Gully678/higgsfield_skills/blob/f83af0bc1d937c8119099a11f8ebbf5e6fb99819/higgsfield-video-explainer/references/prompts.md",
+        "https://github.com/Gully678/higgsfield_skills/blob/f83af0bc1d937c8119099a11f8ebbf5e6fb99819/higgsfield-product-photoshoot/SKILL.md"
+      ],
+      "task_types": [
+        "media_factory"
+      ],
+      "content_rule": "untrusted_read_only_reference",
+      "copy_policy": "no_source_content_copied",
+      "tree_evidence": {
+        "api": "repos/Gully678/higgsfield_skills/git/trees/f83af0bc1d937c8119099a11f8ebbf5e6fb99819?recursive=1",
+        "exit": 0,
+        "commit": "f83af0bc1d937c8119099a11f8ebbf5e6fb99819",
+        "truncated": false,
+        "paths_verified": [
+          "higgsfield-generate/SKILL.md",
+          "higgsfield-video-explainer/references/prompts.md",
+          "higgsfield-product-photoshoot/SKILL.md"
+        ]
+      }
+    },
+    {
+      "id": "skills",
+      "class": "skills",
+      "url": "https://github.com/Gully678/skills",
+      "upstream": "anthropics/skills",
+      "commit": "dbd4588f9e1033efb41dad4bef2f7947c8993d44",
+      "commit_kind": "observed_reference_head",
+      "observed_at": "2026-10-10",
+      "licence": "per_skill_terms; sampled Apache-2.0, no root licence",
+      "licence_evidence_paths": [
+        "skills/academy-guide/LICENSE.txt",
+        "skills/algorithmic-art/LICENSE.txt",
+        "skills/brand-guidelines/LICENSE.txt",
+        "skills/canvas-design/LICENSE.txt",
+        "skills/claude-api/LICENSE.txt",
+        "skills/discernment-nudge/LICENSE.txt",
+        "skills/docx/LICENSE.txt",
+        "skills/frontend-design/LICENSE.txt",
+        "skills/internal-comms/LICENSE.txt",
+        "skills/mcp-builder/LICENSE.txt",
+        "skills/pdf/LICENSE.txt",
+        "skills/pptx/LICENSE.txt",
+        "skills/skill-creator/LICENSE.txt",
+        "skills/slack-gif-creator/LICENSE.txt",
+        "skills/theme-factory/LICENSE.txt",
+        "skills/web-artifacts-builder/LICENSE.txt",
+        "skills/webapp-testing/LICENSE.txt",
+        "skills/xlsx/LICENSE.txt"
+      ],
+      "paths": [
+        "skills/skill-creator/SKILL.md",
+        "skills/mcp-builder/SKILL.md",
+        "skills/claude-api/shared/prompt-audit.md"
+      ],
+      "source_urls": [
+        "https://github.com/Gully678/skills/blob/dbd4588f9e1033efb41dad4bef2f7947c8993d44/skills/skill-creator/SKILL.md",
+        "https://github.com/Gully678/skills/blob/dbd4588f9e1033efb41dad4bef2f7947c8993d44/skills/mcp-builder/SKILL.md",
+        "https://github.com/Gully678/skills/blob/dbd4588f9e1033efb41dad4bef2f7947c8993d44/skills/claude-api/shared/prompt-audit.md"
+      ],
+      "task_types": [
+        "mcp_agents",
+        "skill_supply_chain"
+      ],
+      "content_rule": "untrusted_read_only_reference",
+      "copy_policy": "no_source_content_copied",
+      "tree_evidence": {
+        "api": "repos/Gully678/skills/git/trees/dbd4588f9e1033efb41dad4bef2f7947c8993d44?recursive=1",
+        "exit": 0,
+        "commit": "dbd4588f9e1033efb41dad4bef2f7947c8993d44",
+        "truncated": false,
+        "paths_verified": [
+          "skills/skill-creator/SKILL.md",
+          "skills/mcp-builder/SKILL.md",
+          "skills/claude-api/shared/prompt-audit.md"
+        ]
+      }
+    },
+    {
+      "id": "influencer-marketing-agent-skills",
+      "class": "candidate",
+      "url": "https://github.com/Gully678/influencer-marketing-agent-skills",
+      "upstream": "aaron-he-zhu/influencer-marketing-agent-skills",
+      "commit": "45a8a66121d13b3a086abc2a1e2f721ae392e39a",
+      "commit_kind": "observed_reference_head",
+      "observed_at": "2026-10-10",
+      "licence": "Apache-2.0",
+      "licence_evidence_paths": [
+        "LICENSE"
+      ],
+      "paths": [
+        "activate/content-reviewer/SKILL.md",
+        "activate/outreach-manager/SKILL.md",
+        "insight/audience-analyzer/SKILL.md"
+      ],
+      "source_urls": [
+        "https://github.com/Gully678/influencer-marketing-agent-skills/blob/45a8a66121d13b3a086abc2a1e2f721ae392e39a/activate/content-reviewer/SKILL.md",
+        "https://github.com/Gully678/influencer-marketing-agent-skills/blob/45a8a66121d13b3a086abc2a1e2f721ae392e39a/activate/outreach-manager/SKILL.md",
+        "https://github.com/Gully678/influencer-marketing-agent-skills/blob/45a8a66121d13b3a086abc2a1e2f721ae392e39a/insight/audience-analyzer/SKILL.md"
+      ],
+      "task_types": [
+        "reach_ads",
+        "media_factory",
+        "reach_media_inputs",
+        "monti_media_inputs"
+      ],
+      "content_rule": "untrusted_read_only_reference",
+      "copy_policy": "no_source_content_copied",
+      "tree_evidence": {
+        "api": "repos/Gully678/influencer-marketing-agent-skills/git/trees/45a8a66121d13b3a086abc2a1e2f721ae392e39a?recursive=1",
+        "exit": 0,
+        "commit": "45a8a66121d13b3a086abc2a1e2f721ae392e39a",
+        "truncated": false,
+        "paths_verified": [
+          "activate/content-reviewer/SKILL.md",
+          "activate/outreach-manager/SKILL.md",
+          "insight/audience-analyzer/SKILL.md"
+        ]
+      }
+    },
+    {
+      "id": "fal",
+      "class": "reference",
+      "url": "https://github.com/Gully678/fal",
+      "upstream": "fal-ai/fal",
+      "commit": "0f62cff083db466a4e6a526f24e46dc861935707",
+      "commit_kind": "observed_reference_head",
+      "observed_at": "2026-10-10",
+      "licence": "Apache-2.0",
+      "licence_evidence_paths": [
+        "LICENSE",
+        "projects/fal/LICENSE",
+        "projects/fal_client/LICENSE",
+        "projects/isolate_proto/LICENSE"
+      ],
+      "paths": [
+        "projects/fal/README.md",
+        "projects/fal_client/README.md",
+        "projects/fal/openapi-fal-rest/README.md"
+      ],
+      "source_urls": [
+        "https://github.com/Gully678/fal/blob/0f62cff083db466a4e6a526f24e46dc861935707/projects/fal/README.md",
+        "https://github.com/Gully678/fal/blob/0f62cff083db466a4e6a526f24e46dc861935707/projects/fal_client/README.md",
+        "https://github.com/Gully678/fal/blob/0f62cff083db466a4e6a526f24e46dc861935707/projects/fal/openapi-fal-rest/README.md"
+      ],
+      "task_types": [
+        "media_factory",
+        "reach_media_inputs",
+        "monti_media_inputs"
+      ],
+      "content_rule": "untrusted_read_only_reference",
+      "copy_policy": "no_source_content_copied",
+      "tree_evidence": {
+        "api": "repos/Gully678/fal/git/trees/0f62cff083db466a4e6a526f24e46dc861935707?recursive=1",
+        "exit": 0,
+        "commit": "0f62cff083db466a4e6a526f24e46dc861935707",
+        "truncated": false,
+        "paths_verified": [
+          "projects/fal/README.md",
+          "projects/fal_client/README.md",
+          "projects/fal/openapi-fal-rest/README.md"
+        ]
+      }
+    },
+    {
+      "id": "app-templates",
+      "class": "reference",
+      "url": "https://github.com/Gully678/app-templates",
+      "upstream": "higgsfield-ai/app-templates",
+      "commit": "1e15e224f2815d7d854ea3df27aded6f4e6fefdd",
+      "commit_kind": "observed_reference_head",
+      "observed_at": "2026-10-10",
+      "licence": "not_declared_at_observed_head",
+      "licence_evidence_paths": [],
+      "paths": [
+        "README.md",
+        "components/studio/studio-prompt-box.tsx",
+        "generation/stores/prompt.ts"
+      ],
+      "source_urls": [
+        "https://github.com/Gully678/app-templates/blob/1e15e224f2815d7d854ea3df27aded6f4e6fefdd/README.md",
+        "https://github.com/Gully678/app-templates/blob/1e15e224f2815d7d854ea3df27aded6f4e6fefdd/components/studio/studio-prompt-box.tsx",
+        "https://github.com/Gully678/app-templates/blob/1e15e224f2815d7d854ea3df27aded6f4e6fefdd/generation/stores/prompt.ts"
+      ],
+      "task_types": [
+        "media_factory",
+        "frontend_motion",
+        "reach_media_inputs",
+        "monti_media_inputs"
+      ],
+      "content_rule": "untrusted_read_only_reference",
+      "copy_policy": "no_source_content_copied",
+      "tree_evidence": {
+        "api": "repos/Gully678/app-templates/git/trees/1e15e224f2815d7d854ea3df27aded6f4e6fefdd?recursive=1",
+        "exit": 0,
+        "commit": "1e15e224f2815d7d854ea3df27aded6f4e6fefdd",
+        "truncated": false,
+        "paths_verified": [
+          "README.md",
+          "components/studio/studio-prompt-box.tsx",
+          "generation/stores/prompt.ts"
+        ]
+      }
+    },
+    {
+      "id": "gemini-skills",
+      "class": "candidate",
+      "url": "https://github.com/Gully678/gemini-skills",
+      "upstream": "google-gemini/gemini-skills",
+      "commit": "832c8f94114dc343d86ff27296fe9335b45affa0",
+      "commit_kind": "observed_reference_head",
+      "observed_at": "2026-10-10",
+      "licence": "Apache-2.0",
+      "licence_evidence_paths": [
+        "LICENSE"
+      ],
+      "paths": [
+        "skills/gemini-api-dev/SKILL.md",
+        "skills/gemini-live-api-dev/SKILL.md",
+        "skills/gemini-omni-flash-api/SKILL.md"
+      ],
+      "source_urls": [
+        "https://github.com/Gully678/gemini-skills/blob/832c8f94114dc343d86ff27296fe9335b45affa0/skills/gemini-api-dev/SKILL.md",
+        "https://github.com/Gully678/gemini-skills/blob/832c8f94114dc343d86ff27296fe9335b45affa0/skills/gemini-live-api-dev/SKILL.md",
+        "https://github.com/Gully678/gemini-skills/blob/832c8f94114dc343d86ff27296fe9335b45affa0/skills/gemini-omni-flash-api/SKILL.md"
+      ],
+      "task_types": [
+        "mcp_agents",
+        "gemini",
+        "media_factory",
+        "reach_media_inputs",
+        "monti_media_inputs"
+      ],
+      "content_rule": "untrusted_read_only_reference",
+      "copy_policy": "no_source_content_copied",
+      "tree_evidence": {
+        "api": "repos/Gully678/gemini-skills/git/trees/832c8f94114dc343d86ff27296fe9335b45affa0?recursive=1",
+        "exit": 0,
+        "commit": "832c8f94114dc343d86ff27296fe9335b45affa0",
+        "truncated": false,
+        "paths_verified": [
+          "skills/gemini-api-dev/SKILL.md",
+          "skills/gemini-live-api-dev/SKILL.md",
+          "skills/gemini-omni-flash-api/SKILL.md"
+        ]
+      }
+    },
+    {
+      "id": "cookbook",
+      "class": "reference",
+      "url": "https://github.com/Gully678/cookbook",
+      "upstream": "google-gemini/cookbook",
+      "commit": "dd5b15da88a49309f3e66d30d3ee8de70ab99f9d",
+      "commit_kind": "observed_reference_head",
+      "observed_at": "2026-10-10",
+      "licence": "Apache-2.0",
+      "licence_evidence_paths": [
+        "LICENSE"
+      ],
+      "paths": [
+        "examples/Agents_Function_Calling_Barista_Bot.ipynb",
+        "examples/Analyze_a_Video_Classification.ipynb",
+        "examples/Story_Writing_with_Prompt_Chaining.ipynb"
+      ],
+      "source_urls": [
+        "https://github.com/Gully678/cookbook/blob/dd5b15da88a49309f3e66d30d3ee8de70ab99f9d/examples/Agents_Function_Calling_Barista_Bot.ipynb",
+        "https://github.com/Gully678/cookbook/blob/dd5b15da88a49309f3e66d30d3ee8de70ab99f9d/examples/Analyze_a_Video_Classification.ipynb",
+        "https://github.com/Gully678/cookbook/blob/dd5b15da88a49309f3e66d30d3ee8de70ab99f9d/examples/Story_Writing_with_Prompt_Chaining.ipynb"
+      ],
+      "task_types": [
+        "media_factory",
+        "agent_prompts",
+        "gemini",
+        "reach_media_inputs",
+        "monti_media_inputs",
+        "document_media_inputs"
+      ],
+      "content_rule": "untrusted_read_only_reference",
+      "copy_policy": "no_source_content_copied",
+      "tree_evidence": {
+        "api": "repos/Gully678/cookbook/git/trees/dd5b15da88a49309f3e66d30d3ee8de70ab99f9d?recursive=1",
+        "exit": 0,
+        "commit": "dd5b15da88a49309f3e66d30d3ee8de70ab99f9d",
+        "truncated": false,
+        "paths_verified": [
+          "examples/Agents_Function_Calling_Barista_Bot.ipynb",
+          "examples/Analyze_a_Video_Classification.ipynb",
+          "examples/Story_Writing_with_Prompt_Chaining.ipynb"
+        ]
+      },
+      "path_routes": {
+        "document_media_inputs": {
+          "paths": [
+            "quickstarts/PDF_Files.ipynb"
+          ],
+          "source_urls": [
+            "https://github.com/Gully678/cookbook/blob/dd5b15da88a49309f3e66d30d3ee8de70ab99f9d/quickstarts/PDF_Files.ipynb"
+          ],
+          "tree_evidence": {
+            "api": "repos/Gully678/cookbook/git/trees/dd5b15da88a49309f3e66d30d3ee8de70ab99f9d?recursive=1",
+            "exit": 0,
+            "commit": "dd5b15da88a49309f3e66d30d3ee8de70ab99f9d",
+            "truncated": false,
+            "paths_verified": [
+              "quickstarts/PDF_Files.ipynb"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "claude-cookbooks",
+      "class": "reference",
+      "url": "https://github.com/Gully678/claude-cookbooks",
+      "upstream": "anthropics/claude-cookbooks",
+      "commit": "9c1e493ddd2b82df399d2a61b9c806c539e18be6",
+      "commit_kind": "observed_reference_head",
+      "observed_at": "2026-10-10",
+      "licence": "MIT",
+      "licence_evidence_paths": [
+        "LICENSE"
+      ],
+      "paths": [
+        "claude_agent_sdk/README.md",
+        "skills/custom_skills/creating-financial-models/SKILL.md",
+        "skills/custom_skills/analyzing-financial-statements/SKILL.md"
+      ],
+      "source_urls": [
+        "https://github.com/Gully678/claude-cookbooks/blob/9c1e493ddd2b82df399d2a61b9c806c539e18be6/claude_agent_sdk/README.md",
+        "https://github.com/Gully678/claude-cookbooks/blob/9c1e493ddd2b82df399d2a61b9c806c539e18be6/skills/custom_skills/creating-financial-models/SKILL.md",
+        "https://github.com/Gully678/claude-cookbooks/blob/9c1e493ddd2b82df399d2a61b9c806c539e18be6/skills/custom_skills/analyzing-financial-statements/SKILL.md"
+      ],
+      "task_types": [
+        "finance_legal",
+        "mcp_agents",
+        "agent_prompts",
+        "media_factory",
+        "reach_media_inputs",
+        "monti_media_inputs",
+        "document_media_inputs"
+      ],
+      "content_rule": "untrusted_read_only_reference",
+      "copy_policy": "no_source_content_copied",
+      "tree_evidence": {
+        "api": "repos/Gully678/claude-cookbooks/git/trees/9c1e493ddd2b82df399d2a61b9c806c539e18be6?recursive=1",
+        "exit": 0,
+        "commit": "9c1e493ddd2b82df399d2a61b9c806c539e18be6",
+        "truncated": false,
+        "paths_verified": [
+          "claude_agent_sdk/README.md",
+          "skills/custom_skills/creating-financial-models/SKILL.md",
+          "skills/custom_skills/analyzing-financial-statements/SKILL.md"
+        ]
+      },
+      "path_routes": {
+        "finance_legal": {
+          "paths": [
+            "skills/custom_skills/creating-financial-models/SKILL.md",
+            "skills/custom_skills/analyzing-financial-statements/SKILL.md"
+          ],
+          "source_urls": [
+            "https://github.com/Gully678/claude-cookbooks/blob/9c1e493ddd2b82df399d2a61b9c806c539e18be6/skills/custom_skills/creating-financial-models/SKILL.md",
+            "https://github.com/Gully678/claude-cookbooks/blob/9c1e493ddd2b82df399d2a61b9c806c539e18be6/skills/custom_skills/analyzing-financial-statements/SKILL.md"
+          ],
+          "tree_evidence": {
+            "api": "repos/Gully678/claude-cookbooks/git/trees/9c1e493ddd2b82df399d2a61b9c806c539e18be6?recursive=1",
+            "exit": 0,
+            "commit": "9c1e493ddd2b82df399d2a61b9c806c539e18be6",
+            "truncated": false,
+            "paths_verified": [
+              "skills/custom_skills/creating-financial-models/SKILL.md",
+              "skills/custom_skills/analyzing-financial-statements/SKILL.md"
+            ]
+          }
+        },
+        "document_media_inputs": {
+          "paths": [
+            "misc/pdf_upload_summarization.ipynb"
+          ],
+          "source_urls": [
+            "https://github.com/Gully678/claude-cookbooks/blob/9c1e493ddd2b82df399d2a61b9c806c539e18be6/misc/pdf_upload_summarization.ipynb"
+          ],
+          "tree_evidence": {
+            "api": "repos/Gully678/claude-cookbooks/git/trees/9c1e493ddd2b82df399d2a61b9c806c539e18be6?recursive=1",
+            "exit": 0,
+            "commit": "9c1e493ddd2b82df399d2a61b9c806c539e18be6",
+            "truncated": false,
+            "paths_verified": [
+              "misc/pdf_upload_summarization.ipynb"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "openai-cookbook",
+      "class": "reference",
+      "url": "https://github.com/Gully678/openai-cookbook",
+      "upstream": "openai/openai-cookbook",
+      "commit": "5bd6cb40b6b84b69b2032d810610aa85064102df",
+      "commit_kind": "observed_reference_head",
+      "observed_at": "2026-10-10",
+      "licence": "MIT",
+      "licence_evidence_paths": [
+        "LICENSE"
+      ],
+      "paths": [
+        "examples/Optimize_Prompts.ipynb",
+        "examples/Prompt_Caching101.ipynb",
+        "README.md"
+      ],
+      "source_urls": [
+        "https://github.com/Gully678/openai-cookbook/blob/5bd6cb40b6b84b69b2032d810610aa85064102df/examples/Optimize_Prompts.ipynb",
+        "https://github.com/Gully678/openai-cookbook/blob/5bd6cb40b6b84b69b2032d810610aa85064102df/examples/Prompt_Caching101.ipynb",
+        "https://github.com/Gully678/openai-cookbook/blob/5bd6cb40b6b84b69b2032d810610aa85064102df/README.md"
+      ],
+      "task_types": [
+        "mcp_agents",
+        "agent_prompts",
+        "media_factory",
+        "reach_media_inputs",
+        "monti_media_inputs",
+        "document_media_inputs"
+      ],
+      "content_rule": "untrusted_read_only_reference",
+      "copy_policy": "no_source_content_copied",
+      "tree_evidence": {
+        "api": "repos/Gully678/openai-cookbook/git/trees/5bd6cb40b6b84b69b2032d810610aa85064102df?recursive=1",
+        "exit": 0,
+        "commit": "5bd6cb40b6b84b69b2032d810610aa85064102df",
+        "truncated": false,
+        "paths_verified": [
+          "examples/Optimize_Prompts.ipynb",
+          "examples/Prompt_Caching101.ipynb",
+          "README.md"
+        ]
+      },
+      "path_routes": {
+        "document_media_inputs": {
+          "paths": [
+            "examples/Parse_PDF_docs_for_RAG.ipynb"
+          ],
+          "source_urls": [
+            "https://github.com/Gully678/openai-cookbook/blob/5bd6cb40b6b84b69b2032d810610aa85064102df/examples/Parse_PDF_docs_for_RAG.ipynb"
+          ],
+          "tree_evidence": {
+            "api": "repos/Gully678/openai-cookbook/git/trees/5bd6cb40b6b84b69b2032d810610aa85064102df?recursive=1",
+            "exit": 0,
+            "commit": "5bd6cb40b6b84b69b2032d810610aa85064102df",
+            "truncated": false,
+            "paths_verified": [
+              "examples/Parse_PDF_docs_for_RAG.ipynb"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "xai-cookbook",
+      "class": "reference",
+      "url": "https://github.com/Gully678/xai-cookbook",
+      "upstream": "xai-org/xai-cookbook",
+      "commit": "316ba56c8e389b7c6b8b8e6c5eb625ab7b5359c5",
+      "commit_kind": "observed_reference_head",
+      "observed_at": "2026-10-10",
+      "licence": "Beta Testing License",
+      "licence_evidence_paths": [
+        "LICENSE"
+      ],
+      "paths": [
+        "examples/prompt-caching/README.md",
+        "examples/bug-report-to-fix/README.md",
+        "README.md"
+      ],
+      "source_urls": [
+        "https://github.com/Gully678/xai-cookbook/blob/316ba56c8e389b7c6b8b8e6c5eb625ab7b5359c5/examples/prompt-caching/README.md",
+        "https://github.com/Gully678/xai-cookbook/blob/316ba56c8e389b7c6b8b8e6c5eb625ab7b5359c5/examples/bug-report-to-fix/README.md",
+        "https://github.com/Gully678/xai-cookbook/blob/316ba56c8e389b7c6b8b8e6c5eb625ab7b5359c5/README.md"
+      ],
+      "task_types": [
+        "mcp_agents",
+        "agent_prompts",
+        "media_factory",
+        "reach_media_inputs",
+        "monti_media_inputs",
+        "document_media_inputs"
+      ],
+      "content_rule": "untrusted_read_only_reference",
+      "copy_policy": "no_source_content_copied",
+      "tree_evidence": {
+        "api": "repos/Gully678/xai-cookbook/git/trees/316ba56c8e389b7c6b8b8e6c5eb625ab7b5359c5?recursive=1",
+        "exit": 0,
+        "commit": "316ba56c8e389b7c6b8b8e6c5eb625ab7b5359c5",
+        "truncated": false,
+        "paths_verified": [
+          "examples/prompt-caching/README.md",
+          "examples/bug-report-to-fix/README.md",
+          "README.md"
+        ]
+      }
+    },
+    {
+      "id": "grok-prompts",
+      "class": "reference",
+      "url": "https://github.com/Gully678/grok-prompts",
+      "upstream": "xai-org/grok-prompts",
+      "commit": "a7c186f5ccac95875c0041aed60398f6ecb6d6c7",
+      "commit_kind": "observed_reference_head",
+      "observed_at": "2026-10-10",
+      "licence": "AGPL-3.0",
+      "licence_evidence_paths": [
+        "LICENSE"
+      ],
+      "paths": [
+        "grok4_system_turn_prompt_v8.j2",
+        "grok4p1_thinking_system_turn_prompt_v2.j2",
+        "README.md"
+      ],
+      "source_urls": [
+        "https://github.com/Gully678/grok-prompts/blob/a7c186f5ccac95875c0041aed60398f6ecb6d6c7/grok4_system_turn_prompt_v8.j2",
+        "https://github.com/Gully678/grok-prompts/blob/a7c186f5ccac95875c0041aed60398f6ecb6d6c7/grok4p1_thinking_system_turn_prompt_v2.j2",
+        "https://github.com/Gully678/grok-prompts/blob/a7c186f5ccac95875c0041aed60398f6ecb6d6c7/README.md"
+      ],
+      "task_types": [
+        "media_factory",
+        "mcp_agents",
+        "agent_prompts",
+        "factory_orchestration",
+        "reach_media_inputs",
+        "monti_media_inputs",
+        "document_media_inputs"
+      ],
+      "content_rule": "untrusted_read_only_reference",
+      "copy_policy": "no_source_content_copied",
+      "tree_evidence": {
+        "api": "repos/Gully678/grok-prompts/git/trees/a7c186f5ccac95875c0041aed60398f6ecb6d6c7?recursive=1",
+        "exit": 0,
+        "commit": "a7c186f5ccac95875c0041aed60398f6ecb6d6c7",
+        "truncated": false,
+        "paths_verified": [
+          "grok4_system_turn_prompt_v8.j2",
+          "grok4p1_thinking_system_turn_prompt_v2.j2",
+          "README.md"
+        ]
+      }
+    },
+    {
+      "id": "x-algorithm",
+      "class": "reference",
+      "url": "https://github.com/Gully678/x-algorithm",
+      "upstream": "xai-org/x-algorithm",
+      "commit": "cb45b5501423126adfc508052116c2d67c0e3fec",
+      "commit_kind": "observed_reference_head",
+      "observed_at": "2026-10-10",
+      "licence": "Apache-2.0",
+      "licence_evidence_paths": [
+        "LICENSE",
+        "phoenix/xrex/cutedsl/quack/LICENSE"
+      ],
+      "paths": [
+        "README.md",
+        "phoenix/README.md",
+        "phoenix/reference/README.md"
+      ],
+      "source_urls": [
+        "https://github.com/Gully678/x-algorithm/blob/cb45b5501423126adfc508052116c2d67c0e3fec/README.md",
+        "https://github.com/Gully678/x-algorithm/blob/cb45b5501423126adfc508052116c2d67c0e3fec/phoenix/README.md",
+        "https://github.com/Gully678/x-algorithm/blob/cb45b5501423126adfc508052116c2d67c0e3fec/phoenix/reference/README.md"
+      ],
+      "task_types": [
+        "reach_ads",
+        "x_distribution",
+        "media_factory",
+        "reach_media_inputs",
+        "monti_media_inputs",
+        "document_media_inputs"
+      ],
+      "content_rule": "untrusted_read_only_reference",
+      "copy_policy": "no_source_content_copied",
+      "tree_evidence": {
+        "api": "repos/Gully678/x-algorithm/git/trees/cb45b5501423126adfc508052116c2d67c0e3fec?recursive=1",
+        "exit": 0,
+        "commit": "cb45b5501423126adfc508052116c2d67c0e3fec",
+        "truncated": false,
+        "paths_verified": [
+          "README.md",
+          "phoenix/README.md",
+          "phoenix/reference/README.md"
+        ]
+      }
+    },
+    {
+      "id": "SkillSpector",
+      "class": "tool",
+      "url": "https://github.com/Gully678/SkillSpector",
+      "upstream": "NVIDIA/SkillSpector",
+      "commit": "5edc347c320bd516f8ff38df200a63831bf92e80",
+      "commit_kind": "observed_reference_head",
+      "observed_at": "2026-10-10",
+      "licence": "Apache-2.0",
+      "licence_evidence_paths": [
+        "LICENSE"
+      ],
+      "paths": [
+        "skills/skill-inspector/SKILL.md",
+        "README.md",
+        "src/skillspector/nodes/analyzers/static_patterns_prompt_injection.py"
+      ],
+      "source_urls": [
+        "https://github.com/Gully678/SkillSpector/blob/5edc347c320bd516f8ff38df200a63831bf92e80/skills/skill-inspector/SKILL.md",
+        "https://github.com/Gully678/SkillSpector/blob/5edc347c320bd516f8ff38df200a63831bf92e80/README.md",
+        "https://github.com/Gully678/SkillSpector/blob/5edc347c320bd516f8ff38df200a63831bf92e80/src/skillspector/nodes/analyzers/static_patterns_prompt_injection.py"
+      ],
+      "task_types": [
+        "skill_supply_chain"
+      ],
+      "content_rule": "untrusted_read_only_reference",
+      "copy_policy": "no_source_content_copied",
+      "tree_evidence": {
+        "api": "repos/Gully678/SkillSpector/git/trees/5edc347c320bd516f8ff38df200a63831bf92e80?recursive=1",
+        "exit": 0,
+        "commit": "5edc347c320bd516f8ff38df200a63831bf92e80",
+        "truncated": false,
+        "paths_verified": [
+          "skills/skill-inspector/SKILL.md",
+          "README.md",
+          "src/skillspector/nodes/analyzers/static_patterns_prompt_injection.py"
+        ]
+      }
+    },
+    {
+      "id": "graphify",
+      "class": "tool",
+      "url": "https://github.com/Gully678/graphify",
+      "upstream": "Graphify-Labs/graphify",
+      "commit": "1d1e03b4c88abf94a3f450c838e3c744ae514ef9",
+      "commit_kind": "observed_reference_head",
+      "observed_at": "2026-10-10",
+      "licence": "Apache-2.0",
+      "licence_evidence_paths": [
+        "LICENSE"
+      ],
+      "paths": [
+        "graphify/skill.md",
+        "README.md",
+        "ARCHITECTURE.md"
+      ],
+      "source_urls": [
+        "https://github.com/Gully678/graphify/blob/1d1e03b4c88abf94a3f450c838e3c744ae514ef9/graphify/skill.md",
+        "https://github.com/Gully678/graphify/blob/1d1e03b4c88abf94a3f450c838e3c744ae514ef9/README.md",
+        "https://github.com/Gully678/graphify/blob/1d1e03b4c88abf94a3f450c838e3c744ae514ef9/ARCHITECTURE.md"
+      ],
+      "task_types": [
+        "graph_navigation"
+      ],
+      "content_rule": "untrusted_read_only_reference",
+      "copy_policy": "no_source_content_copied",
+      "tree_evidence": {
+        "api": "repos/Gully678/graphify/git/trees/1d1e03b4c88abf94a3f450c838e3c744ae514ef9?recursive=1",
+        "exit": 0,
+        "commit": "1d1e03b4c88abf94a3f450c838e3c744ae514ef9",
+        "truncated": false,
+        "paths_verified": [
+          "graphify/skill.md",
+          "README.md",
+          "ARCHITECTURE.md"
+        ]
+      }
+    },
+    {
+      "id": "inkwell-agent-sandboxes-and-software-factory",
+      "class": "baseplate",
+      "url": "https://github.com/Gully678/inkwell-agent-sandboxes-and-software-factory",
+      "upstream": "disler/inkwell-agent-sandboxes-and-software-factory",
+      "commit": "92f1701810993b8303562265ba04c727468fe070",
+      "commit_kind": "observed_reference_head",
+      "observed_at": "2026-10-10",
+      "licence": "MIT",
+      "licence_evidence_paths": [
+        "LICENSE"
+      ],
+      "paths": [
+        ".claude/skills/sssf/SKILL.md",
+        ".claude/skills/sssf-sandbox-orchestrator/SKILL.md",
+        "README.md"
+      ],
+      "source_urls": [
+        "https://github.com/Gully678/inkwell-agent-sandboxes-and-software-factory/blob/92f1701810993b8303562265ba04c727468fe070/.claude/skills/sssf/SKILL.md",
+        "https://github.com/Gully678/inkwell-agent-sandboxes-and-software-factory/blob/92f1701810993b8303562265ba04c727468fe070/.claude/skills/sssf-sandbox-orchestrator/SKILL.md",
+        "https://github.com/Gully678/inkwell-agent-sandboxes-and-software-factory/blob/92f1701810993b8303562265ba04c727468fe070/README.md"
+      ],
+      "task_types": [
+        "factory_orchestration"
+      ],
+      "content_rule": "untrusted_read_only_reference",
+      "copy_policy": "no_source_content_copied",
+      "tree_evidence": {
+        "api": "repos/Gully678/inkwell-agent-sandboxes-and-software-factory/git/trees/92f1701810993b8303562265ba04c727468fe070?recursive=1",
+        "exit": 0,
+        "commit": "92f1701810993b8303562265ba04c727468fe070",
+        "truncated": false,
+        "paths_verified": [
+          ".claude/skills/sssf/SKILL.md",
+          ".claude/skills/sssf-sandbox-orchestrator/SKILL.md",
+          "README.md"
+        ]
+      }
+    },
+    {
+      "id": "super-simple-software-factory",
+      "class": "baseplate",
+      "url": "https://github.com/Gully678/super-simple-software-factory",
+      "upstream": "disler/super-simple-software-factory",
+      "commit": "de31374882e7a4e3e5b7bb9bd09e69dc2f779356",
+      "commit_kind": "observed_reference_head",
+      "observed_at": "2026-10-10",
+      "licence": "MIT",
+      "licence_evidence_paths": [
+        "LICENSE"
+      ],
+      "paths": [
+        ".claude/skills/sssf/SKILL.md",
+        ".claude/skills/sssf/cookbooks/run_adw.md",
+        "README.md"
+      ],
+      "source_urls": [
+        "https://github.com/Gully678/super-simple-software-factory/blob/de31374882e7a4e3e5b7bb9bd09e69dc2f779356/.claude/skills/sssf/SKILL.md",
+        "https://github.com/Gully678/super-simple-software-factory/blob/de31374882e7a4e3e5b7bb9bd09e69dc2f779356/.claude/skills/sssf/cookbooks/run_adw.md",
+        "https://github.com/Gully678/super-simple-software-factory/blob/de31374882e7a4e3e5b7bb9bd09e69dc2f779356/README.md"
+      ],
+      "task_types": [
+        "factory_orchestration"
+      ],
+      "content_rule": "untrusted_read_only_reference",
+      "copy_policy": "no_source_content_copied",
+      "tree_evidence": {
+        "api": "repos/Gully678/super-simple-software-factory/git/trees/de31374882e7a4e3e5b7bb9bd09e69dc2f779356?recursive=1",
+        "exit": 0,
+        "commit": "de31374882e7a4e3e5b7bb9bd09e69dc2f779356",
+        "truncated": false,
+        "paths_verified": [
+          ".claude/skills/sssf/SKILL.md",
+          ".claude/skills/sssf/cookbooks/run_adw.md",
+          "README.md"
+        ]
+      }
+    },
+    {
+      "id": "fusion-harness",
+      "class": "baseplate",
+      "url": "https://github.com/Gully678/fusion-harness",
+      "upstream": "disler/fusion-harness",
+      "commit": "01a348202482cad0e7d3c34eada180f711aaddd7",
+      "commit_kind": "observed_reference_head",
+      "observed_at": "2026-10-10",
+      "licence": "MIT",
+      "licence_evidence_paths": [
+        "LICENSE"
+      ],
+      "paths": [
+        "README.md",
+        "extensions/fusion-harness/prompts/SYSTEM_PROMPT_COLLAB_COORDINATOR.md",
+        "extensions/fusion-harness/prompts/SYSTEM_PROMPT_VALIDATOR.md"
+      ],
+      "source_urls": [
+        "https://github.com/Gully678/fusion-harness/blob/01a348202482cad0e7d3c34eada180f711aaddd7/README.md",
+        "https://github.com/Gully678/fusion-harness/blob/01a348202482cad0e7d3c34eada180f711aaddd7/extensions/fusion-harness/prompts/SYSTEM_PROMPT_COLLAB_COORDINATOR.md",
+        "https://github.com/Gully678/fusion-harness/blob/01a348202482cad0e7d3c34eada180f711aaddd7/extensions/fusion-harness/prompts/SYSTEM_PROMPT_VALIDATOR.md"
+      ],
+      "task_types": [
+        "factory_orchestration"
+      ],
+      "content_rule": "untrusted_read_only_reference",
+      "copy_policy": "no_source_content_copied",
+      "tree_evidence": {
+        "api": "repos/Gully678/fusion-harness/git/trees/01a348202482cad0e7d3c34eada180f711aaddd7?recursive=1",
+        "exit": 0,
+        "commit": "01a348202482cad0e7d3c34eada180f711aaddd7",
+        "truncated": false,
+        "paths_verified": [
+          "README.md",
+          "extensions/fusion-harness/prompts/SYSTEM_PROMPT_COLLAB_COORDINATOR.md",
+          "extensions/fusion-harness/prompts/SYSTEM_PROMPT_VALIDATOR.md"
+        ]
+      }
+    },
+    {
+      "id": "ponytail",
+      "class": "baseplate",
+      "url": "https://github.com/Gully678/ponytail",
+      "upstream": "DietrichGebert/ponytail",
+      "commit": "9b58c1ffb790c075ca32e70a89cf1d80588f4abf",
+      "commit_kind": "observed_reference_head",
+      "observed_at": "2026-10-10",
+      "licence": "MIT",
+      "licence_evidence_paths": [
+        "LICENSE"
+      ],
+      "paths": [
+        ".agents/rules/ponytail.md",
+        ".openclaw/skills/ponytail-audit/SKILL.md",
+        ".openclaw/skills/ponytail-review/SKILL.md"
+      ],
+      "source_urls": [
+        "https://github.com/Gully678/ponytail/blob/9b58c1ffb790c075ca32e70a89cf1d80588f4abf/.agents/rules/ponytail.md",
+        "https://github.com/Gully678/ponytail/blob/9b58c1ffb790c075ca32e70a89cf1d80588f4abf/.openclaw/skills/ponytail-audit/SKILL.md",
+        "https://github.com/Gully678/ponytail/blob/9b58c1ffb790c075ca32e70a89cf1d80588f4abf/.openclaw/skills/ponytail-review/SKILL.md"
+      ],
+      "task_types": [
+        "factory_orchestration"
+      ],
+      "content_rule": "untrusted_read_only_reference",
+      "copy_policy": "no_source_content_copied",
+      "tree_evidence": {
+        "api": "repos/Gully678/ponytail/git/trees/9b58c1ffb790c075ca32e70a89cf1d80588f4abf?recursive=1",
+        "exit": 0,
+        "commit": "9b58c1ffb790c075ca32e70a89cf1d80588f4abf",
+        "truncated": false,
+        "paths_verified": [
+          ".agents/rules/ponytail.md",
+          ".openclaw/skills/ponytail-audit/SKILL.md",
+          ".openclaw/skills/ponytail-review/SKILL.md"
+        ]
+      }
+    }
+  ]
+}

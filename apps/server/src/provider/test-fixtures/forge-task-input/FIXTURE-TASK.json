@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "binding": {
+    "orgId": "fixture-org",
+    "projectId": "fixture-project",
+    "principalId": "fixture-principal",
+    "threadId": "fixture-thread",
+    "runId": "fixture-run",
+    "policy": {
+      "policyId": "fixture-policy",
+      "revision": 1,
+      "digest": "448d70a3e3ba07feee88672eab821cddfb07a8c793b448d14b27e6a6c0a0174d"
+    },
+    "bindingRevision": "b3a48f23cf97a8d0c3c4cf71b5eb81a2fc68c7c83542bc831e667e96664514b0",
+    "cwd": "/fixture/project"
+  },
+  "task": {
+    "taskId": "fixture-task",
+    "taskRevision": 1,
+    "prompt": "Add an endpoint.",
+    "taskTypes": [
+      "backend_api"
+    ],
+    "flags": {
+      "build": true,
+      "review": false,
+      "llm": false,
+      "done": false
+    },
+    "explicitRequired": [],
+    "directRequired": [
+      {
+        "name": "typescript-pro",
+        "reason": "Typed internal component boundary",
+        "selectionRevision": "953da9eb9cb970ccc6fe29098e117ac1a96ef0937570f8e07f0ab8f14695b7fe"
+      }
+    ]
+  }
+}

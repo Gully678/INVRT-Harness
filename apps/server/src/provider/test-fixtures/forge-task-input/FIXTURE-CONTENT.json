@@ -1,0 +1,9 @@
+{
+  "skills/ai-native-agent/SKILL.md": "TEST ONLY synthetic ai-native-agent body.\nUnicode 🦊 café.\n",
+  "skills/api-designer/SKILL.md": "TEST ONLY synthetic api-designer body.\nUnicode 🦊 café.\n",
+  "skills/invrt-concise-code/SKILL.md": "TEST ONLY synthetic invrt-concise-code body.\nUnicode 🦊 café.\n",
+  "skills/production-audit/SKILL.md": "TEST ONLY synthetic production-audit body.\nUnicode 🦊 café.\n",
+  "skills/production-guardrails/SKILL.md": "TEST ONLY synthetic production-guardrails body.\nUnicode 🦊 café.\nRequired synthetic reference: references/fixture-reference.md\n",
+  "skills/typescript-pro/SKILL.md": "TEST ONLY synthetic typescript-pro body.\nUnicode 🦊 café.\n",
+  "skills/production-guardrails/references/fixture-reference.md": "TEST ONLY complete synthetic reference. 🦊\n"
+}

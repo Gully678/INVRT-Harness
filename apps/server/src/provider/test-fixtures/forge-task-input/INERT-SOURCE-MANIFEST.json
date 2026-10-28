@@ -1,0 +1,34 @@
+[
+  {
+    "file": "router.py.inert",
+    "testPath": "tools/route_skills.py",
+    "sha256": "b6ca9fbaff14c396745d1aac327f22f82a4a2fe6f0b315d9d603c7ec66382539",
+    "byteLength": 11651,
+    "originSnapshot": "561aaa0d2e1a5af53d0888b4a1dd2f12bb75f332e8ecf2ccfd9911d9a51ef722",
+    "originPath": "tools/route_skills.py"
+  },
+  {
+    "file": "routing.json.inert",
+    "testPath": "skills/ROUTING.yaml",
+    "sha256": "55161266ebeda622dcc1b234d1b517bea2512f875f81622a7b236184bac9cdce",
+    "byteLength": 45260,
+    "originSnapshot": "561aaa0d2e1a5af53d0888b4a1dd2f12bb75f332e8ecf2ccfd9911d9a51ef722",
+    "originPath": "skills/ROUTING.yaml"
+  },
+  {
+    "file": "catalogue.md.inert",
+    "testPath": "skills/CATALOG.md",
+    "sha256": "79442b65ff66ba419959f32b00236161d704fa7c921ae7f53195efd65d2725ea",
+    "byteLength": 49211,
+    "originSnapshot": "561aaa0d2e1a5af53d0888b4a1dd2f12bb75f332e8ecf2ccfd9911d9a51ef722",
+    "originPath": "skills/CATALOG.md"
+  },
+  {
+    "file": "feeders.json.inert",
+    "testPath": "skills/FEEDERS.json",
+    "sha256": "7889a281157a95098faba664be829b38edb3246f1bffa26c087fc03f082b8534",
+    "byteLength": 83819,
+    "originSnapshot": "561aaa0d2e1a5af53d0888b4a1dd2f12bb75f332e8ecf2ccfd9911d9a51ef722",
+    "originPath": "skills/FEEDERS.json"
+  }
+]
