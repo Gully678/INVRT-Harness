@@ -138,7 +138,7 @@ function SubscriptionUsage(
                 ? `${tightest.remaining}% left`
                 : period !== "auto" && !stale && provider.windows.length > 0
                   ? "N/A"
-                  : "Open T3"}
+                  : "Open INVRT Code"}
             </Text>
           </HStack>
           {tightest ? (
@@ -231,7 +231,7 @@ function SubscriptionUsage(
           >
             {(period === "auto" ? (provider.totalWindows ?? windows.length) : windows.length) -
               limit}{" "}
-            more in T3
+            more in INVRT Code
           </Text>
         ) : null}
       </VStack>
@@ -271,7 +271,7 @@ function SubscriptionUsage(
         >
           {props.checkedAt
             ? `As of ${new Date(props.checkedAt).toLocaleString(undefined, { hour: "numeric", minute: "2-digit", month: "short", day: "numeric" })}`
-            : "Tap to connect in T3"}
+            : "Tap to connect in INVRT Code"}
         </Text>
       ) : null}
     </VStack>

@@ -9,6 +9,7 @@ import { describe, expect, it, vi } from "vite-plus/test";
 import {
   buildSubscriptionUsageSnapshot,
   createWidgetRefresher,
+  subscriptionUsageTimeline,
   WIDGET_REFRESH_INTERVAL,
 } from "./subscriptionUsageSnapshot";
 
@@ -63,6 +64,35 @@ describe("subscription widget snapshots", () => {
     });
     expect(snapshot.url).toBe(deepLink);
     expect(JSON.stringify(snapshot)).not.toContain("private@example.com");
+  });
+  it("brands an already stale snapshot without changing its expiry policy", () => {
+    const snapshot = buildSubscriptionUsageSnapshot(
+      presentations([
+        provider({ usageLimits: { ...limits, checkedAt: "1969-12-31T23:40:00.000Z" } }),
+      ]),
+      deepLink,
+    );
+    expect(snapshot.providers[0]).toMatchObject({
+      detail: "Open INVRT Code to refresh",
+      windows: [],
+      expiresAt: 0,
+      totalWindows: 0,
+    });
+    expect(snapshot.url).toBe(deepLink);
+  });
+  it("brands the exact expiry timeline entry while preserving fresh data and routing", () => {
+    const snapshot = buildSubscriptionUsageSnapshot(presentations(), deepLink);
+    const entries = subscriptionUsageTimeline(snapshot, now);
+    expect(entries.map((entry) => entry.date.getTime())).toEqual([now, now + 10 * 60_000]);
+    expect(entries[0]?.props.providers[0]?.windows).toHaveLength(1);
+    expect(entries[1]?.props.providers[0]).toMatchObject({
+      detail: "Open INVRT Code to refresh",
+      windows: [],
+      totalWindows: 0,
+      expiresAt: now + 10 * 60_000,
+    });
+    expect(entries[1]?.props.url).toBe(deepLink);
+    expect(snapshot.providers[0]?.windows).toHaveLength(1);
   });
   it("uses upstream deduplication for a native account also present in a proxy hub", () => {
     const input = new Map([
