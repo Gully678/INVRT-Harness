@@ -1646,6 +1646,7 @@ describe("D4 replay result isolation", () => {
     Object.assign(workItem.requirementIds, { 0: "changed" });
     Object.assign(workItem.dependencies, { 0: "changed" });
     Object.assign(workItem.createdAt, { epochMilliseconds: 0 });
+    Object.assign(workItem.updatedAt, { epochMilliseconds: 0 });
     if (workItem.dueAt !== null) Object.assign(workItem.dueAt, { epochMilliseconds: 0 });
     if (workItem.buildCompletion) {
       Object.assign(workItem.buildCompletion, { sourceCommit: COMMIT_B });
@@ -1664,6 +1665,7 @@ describe("D4 replay result isolation", () => {
     Object.assign(review.findings[0]!, { description: "changed", path: "changed.ts" });
     Object.assign(review.coverage, { 0: "changed" });
     Object.assign(review.createdAt, { epochMilliseconds: 0 });
+    Object.assign(review.updatedAt, { epochMilliseconds: 0 });
   };
 
   const expectOriginalReplay = (
@@ -1674,8 +1676,13 @@ describe("D4 replay result isolation", () => {
     expect(encodeResult(replay)).toEqual(expected);
     expect(DateTime.isUtc(replay.workItem.createdAt)).toBe(true);
     expect(DateTime.isUtc(replay.workItem.updatedAt)).toBe(true);
+    expect(DateTime.isUtc(replay.workItem.dueAt!)).toBe(true);
     expect(DateTime.isUtc(replay.workItem.buildCompletion!.admittedAt)).toBe(true);
-    if (replay.review !== undefined) expect(DateTime.isUtc(replay.review.createdAt)).toBe(true);
+    expect(DateTime.isUtc(replay.workItem.testedMilestone!.recordedAt)).toBe(true);
+    if (replay.review !== undefined) {
+      expect(DateTime.isUtc(replay.review.createdAt)).toBe(true);
+      expect(DateTime.isUtc(replay.review.updatedAt)).toBe(true);
+    }
     expect(replay.workItem.revision).toBe(6);
     expect(fixture.context.replayRecords.size).toBe(1);
     expect(fixture.context.aggregateKeyIndex.size).toBe(1);

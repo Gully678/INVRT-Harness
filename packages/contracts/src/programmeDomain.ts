@@ -541,21 +541,52 @@ export interface ProgrammeReplayRecord {
   readonly review?: ProgrammeReview;
 }
 
-const replayRecordCodec = Schema.toCodecJson(
-  Schema.Struct({
-    receipt: MutationReceipt,
-    aggregate: WorkItem,
-    authorityScope: Schema.String,
-    review: Schema.optionalKey(ProgrammeReview),
-  }),
-);
-
-const encodeReplayRecord = Schema.encodeSync(replayRecordCodec);
-const decodeReplayRecord = Schema.decodeSync(replayRecordCodec);
-
-// Schema round trips isolate nested values and retain Effect DateTime representations.
-const snapshotReplayRecord = (record: ProgrammeReplayRecord): ProgrammeReplayRecord =>
-  decodeReplayRecord(encodeReplayRecord(record));
+// Snapshot known mutable fields without adding validation to the mutation's existing gates.
+const snapshotReplayRecord = (record: ProgrammeReplayRecord): ProgrammeReplayRecord => ({
+  receipt: { ...record.receipt },
+  authorityScope: record.authorityScope,
+  aggregate: {
+    ...record.aggregate,
+    createdAt: DateTime.toUtc(record.aggregate.createdAt),
+    updatedAt: DateTime.toUtc(record.aggregate.updatedAt),
+    dueAt: record.aggregate.dueAt === null ? null : DateTime.toUtc(record.aggregate.dueAt),
+    requirementIds: [...record.aggregate.requirementIds],
+    acceptance: [...record.aggregate.acceptance],
+    dependencies: [...record.aggregate.dependencies],
+    sourceRefs: [...record.aggregate.sourceRefs],
+    ...(record.aggregate.buildCompletion == null
+      ? {}
+      : {
+          buildCompletion: {
+            ...record.aggregate.buildCompletion,
+            evidenceIds: [...record.aggregate.buildCompletion.evidenceIds],
+            admittedAt: DateTime.toUtc(record.aggregate.buildCompletion.admittedAt),
+          },
+        }),
+    ...(record.aggregate.testedMilestone == null
+      ? {}
+      : {
+          testedMilestone: {
+            ...record.aggregate.testedMilestone,
+            evidenceIds: [...record.aggregate.testedMilestone.evidenceIds],
+            recordedAt: DateTime.toUtc(record.aggregate.testedMilestone.recordedAt),
+          },
+        }),
+  },
+  ...(record.review === undefined
+    ? {}
+    : {
+        review: {
+          ...record.review,
+          createdAt: DateTime.toUtc(record.review.createdAt),
+          updatedAt: DateTime.toUtc(record.review.updatedAt),
+          scope: [...record.review.scope],
+          evidenceRefs: [...record.review.evidenceRefs],
+          findings: record.review.findings.map((finding) => ({ ...finding })),
+          coverage: [...record.review.coverage],
+        },
+      }),
+});
 
 /** Caller-owned context: replay records live only for the life of the calling process. */
 export interface ProgrammeMutationContext {
