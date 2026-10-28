@@ -165,6 +165,8 @@ export interface PolicyDelegatedException {
 }
 /** Injected by authenticated services, never constructed from mutation-body role claims. No port implementation or persistence is supplied here. */
 export interface RoutingAuthorityPort {
+  /** The current request's verified session principal, never a body claim or directory lookup. Services must bind a fresh port to each request; null means unauthenticated. */
+  resolveAuthenticatedActor(): PrincipalId | null;
   resolvePrincipalAuthority(
     principalId: PrincipalId,
     scope: RoutingScope,
@@ -277,6 +279,12 @@ const checkPrincipal = (
   publication: boolean,
 ): void => {
   checkScope(scope);
+  const actor =
+    port.resolveAuthenticatedActor?.() ?? unavailable("Authenticated routing actor is unavailable");
+  if (actor !== principalId)
+    throw new ProgrammeForbiddenError({
+      message: "Routing subject differs from the authenticated actor",
+    });
   const authority =
     port.resolvePrincipalAuthority(principalId, scope) ??
     unavailable("Scoped principal authority is unavailable");
@@ -615,6 +623,7 @@ export const acknowledgePolicyDevice = (input: AcknowledgePolicyDeviceInput): Po
   return {
     ...device,
     revision: device.revision + 1,
+    createdAt: DateTime.toUtc(device.createdAt),
     updatedAt: DateTime.toUtc(input.now),
     requiredPolicyRef: policyReference(policy),
     acknowledgedRevision: policy.revision,

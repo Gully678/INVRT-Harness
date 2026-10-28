@@ -169,6 +169,7 @@ const fixture = () => {
     revocationState: "clear" as const,
   };
   const port: RoutingAuthorityPort = {
+    resolveAuthenticatedActor: () => PRINCIPAL,
     resolvePrincipalAuthority: () => ({ principal, membership }),
     resolveRequiredPolicy: () => current,
     resolvePolicy: () => current,
@@ -780,5 +781,241 @@ describe("additional policy boundary probes", () => {
     const candidate = next(f.current);
     const tampered = { ...candidate, requiredSkillProfileRef: "altered" };
     tagged(() => publish(tampered, f.port), "ProgrammePolicyDeniedError");
+  });
+});
+
+describe("request-bound routing authority", () => {
+  it.each(
+    [scope, projectScope, soloScope].flatMap((routingScope) =>
+      ["publication", "acknowledgement", "admission", "continuation"].map((decision) => ({
+        routingScope,
+        decision,
+      })),
+    ),
+  )(
+    "binds $decision to the authenticated $routingScope.scope actor",
+    ({ routingScope, decision }) => {
+      const f = fixture();
+      const current = policy({
+        ...routingScope,
+        parentPolicyRef: routingScope.scope === "project" ? policyReference(f.current) : null,
+      });
+      const candidate = policy({
+        ...encodePolicy(current),
+        revision: 2,
+        supersedesRef: policyReference(current),
+      });
+      const device = {
+        ...f.device,
+        ...routingScope,
+        requiredPolicyRef: policyReference(current),
+        acknowledgedDigest: current.digest,
+      };
+      const snapshot = { ...f.snapshot, policyRef: policyReference(current) };
+      const member = { ...f.membership, organisationRole: "member" as const };
+      const viewerId = toPrincipalId("active-viewer");
+      const viewer = { ...f.principal, principalId: viewerId };
+      const viewerMembership = {
+        ...member,
+        principalId: viewerId,
+        organisationRole: "member" as const,
+        projectGrants: [],
+      };
+      const authority = {
+        principal: f.principal,
+        membership: routingScope.scope === "project" ? member : f.membership,
+      };
+      const port = {
+        ...f.port,
+        resolvePrincipalAuthority: (id: PrincipalId) =>
+          id === PRINCIPAL
+            ? authority
+            : id === viewerId
+              ? { principal: viewer, membership: viewerMembership }
+              : null,
+        resolveRequiredPolicy: (s: { scope: string }) =>
+          routingScope.scope === "project" && s.scope === "org" ? f.current : current,
+        resolveDeviceState: () => device,
+        resolveCapabilitySnapshot: () => snapshot,
+        resolvePolicy: () => current,
+        resolveContinuationLease: () => ({
+          ...f.lease,
+          ...routingScope,
+          policyRef: policyReference(current),
+        }),
+      };
+      const request = { ...f.request, ...routingScope, port };
+      const acknowledgement = {
+        ...request,
+        expectedRevision: 1,
+        appliedPolicyRef: policyReference(current),
+        capabilitySnapshotRef: "snapshot-a",
+        resolvedRoutesHash: HASH,
+      };
+      const before = structuredClone({
+        current,
+        candidate,
+        device,
+        snapshot,
+        authority,
+        viewer,
+        viewerMembership,
+      });
+      const decide = (boundPort: RoutingAuthorityPort) => {
+        if (decision === "publication") return publish(candidate, boundPort);
+        if (decision === "acknowledgement")
+          return acknowledgePolicyDevice({ ...acknowledgement, port: boundPort });
+        return resolveManagedRoute({
+          ...request,
+          port: boundPort,
+          ...(decision === "continuation" ? { mode: "continue" as const, taskId: "task-a" } : {}),
+        });
+      };
+      expect(decide(port)).toMatchObject(
+        decision === "publication" || decision === "acknowledgement"
+          ? { revision: 2 }
+          : { policyRef: policyReference(current) },
+      );
+      const otherActorPort = { ...port, resolveAuthenticatedActor: () => viewerId };
+      tagged(() => decide(otherActorPort), "ProgrammeForbiddenError");
+      expect({ current, candidate, device, snapshot, authority, viewer, viewerMembership }).toEqual(
+        before,
+      );
+    },
+  );
+  it.each(
+    ["org", "project"].flatMap((scopeKind) =>
+      ["publication", "acknowledgement", "admission", "continuation"].map((decision) => ({
+        scopeKind,
+        decision,
+      })),
+    ),
+  )(
+    "denies $scopeKind scope forgery during $decision even for the matching authenticated principal",
+    ({ scopeKind, decision }) => {
+      const f = fixture();
+      const foreignScope =
+        scopeKind === "org"
+          ? { ...scope, orgId: toOrgId("other-org") }
+          : { ...projectScope, projectId: toProjectId("other-project") };
+      const port = {
+        ...f.port,
+        resolvePrincipalAuthority: () => ({
+          principal: f.principal,
+          membership: { ...f.membership, organisationRole: "member" as const },
+        }),
+      };
+      const candidate = policy({ ...foreignScope });
+      const request = { ...f.request, ...foreignScope, port };
+      const before = structuredClone({
+        candidate,
+        current: f.current,
+        device: f.device,
+        principal: f.principal,
+        membership: f.membership,
+      });
+      const decide = () => {
+        if (decision === "publication") return publish(candidate, port, 0);
+        if (decision === "acknowledgement")
+          return acknowledgePolicyDevice({
+            ...request,
+            expectedRevision: 1,
+            appliedPolicyRef: policyReference(f.current),
+            capabilitySnapshotRef: "snapshot-a",
+            resolvedRoutesHash: HASH,
+          });
+        return resolveManagedRoute({
+          ...request,
+          ...(decision === "continuation" ? { mode: "continue" as const, taskId: "task-a" } : {}),
+        });
+      };
+      tagged(decide, "ProgrammeForbiddenError");
+      expect({
+        candidate,
+        current: f.current,
+        device: f.device,
+        principal: f.principal,
+        membership: f.membership,
+      }).toEqual(before);
+    },
+  );
+  it("requires an authenticated actor even when genuine directory authority exists", () => {
+    const f = fixture();
+    for (const port of [
+      { ...f.port, resolveAuthenticatedActor: () => null },
+      Object.assign({}, f.port),
+    ]) {
+      if (port.resolveAuthenticatedActor() !== null)
+        Reflect.deleteProperty(port, "resolveAuthenticatedActor");
+      const before = structuredClone({ current: f.current, device: f.device });
+      tagged(() => publish(next(f.current), port), "ProgrammeCapabilityUnavailableError");
+      tagged(
+        () => resolveManagedRoute({ ...f.request, port }),
+        "ProgrammeCapabilityUnavailableError",
+      );
+      tagged(
+        () =>
+          acknowledgePolicyDevice({
+            ...f.request,
+            port,
+            expectedRevision: 1,
+            appliedPolicyRef: policyReference(f.current),
+            capabilitySnapshotRef: "snapshot-a",
+            resolvedRoutesHash: HASH,
+          }),
+        "ProgrammeCapabilityUnavailableError",
+      );
+      expect({ current: f.current, device: f.device }).toEqual(before);
+    }
+  });
+});
+
+describe("acknowledgement timestamp isolation", () => {
+  it("detaches every returned mutable timestamp and policy reference from the prior device and request", () => {
+    const f = fixture();
+    const now = DateTime.toUtc(NOW);
+    const input = {
+      ...f.request,
+      now,
+      expectedRevision: 1,
+      appliedPolicyRef: policyReference(f.current),
+      capabilitySnapshotRef: "snapshot-a",
+      resolvedRoutesHash: HASH,
+    };
+    const before = encodeDevice(f.device);
+    const ack = acknowledgePolicyDevice(input);
+    expect(ack.createdAt).not.toBe(f.device.createdAt);
+    expect(ack.updatedAt).not.toBe(f.device.updatedAt);
+    expect(ack.observedAt).not.toBe(f.device.observedAt);
+    expect(ack.updatedAt).not.toBe(now);
+    expect(ack.observedAt).not.toBe(now);
+    expect(ack.updatedAt).not.toBe(ack.observedAt);
+    expect(ack.requiredPolicyRef).not.toBe(f.device.requiredPolicyRef);
+    for (const timestamp of [ack.createdAt, ack.updatedAt, ack.observedAt]) {
+      expect(DateTime.isDateTime(timestamp)).toBe(true);
+      Reflect.set(timestamp, "epochMilliseconds", 0);
+    }
+    Reflect.set(ack.requiredPolicyRef, "revision", 99);
+    expect(encodeDevice(f.device)).toEqual(before);
+    expect(DateTime.toEpochMillis(now)).toBe(DateTime.toEpochMillis(NOW));
+    expect(input.appliedPolicyRef).toEqual(policyReference(f.current));
+  });
+  it("retains the accepted timestamps when prior device dates and request time later change", () => {
+    const f = fixture();
+    const now = DateTime.toUtc(NOW);
+    const ack = acknowledgePolicyDevice({
+      ...f.request,
+      now,
+      expectedRevision: 1,
+      appliedPolicyRef: policyReference(f.current),
+      capabilitySnapshotRef: "snapshot-a",
+      resolvedRoutesHash: HASH,
+    });
+    const before = encodeDevice(ack);
+    for (const timestamp of [f.device.createdAt, f.device.updatedAt, f.device.observedAt, now])
+      Reflect.set(timestamp, "epochMilliseconds", 0);
+    Reflect.set(f.device.requiredPolicyRef, "revision", 99);
+    expect(encodeDevice(ack)).toEqual(before);
+    expect(ack.revision).toBe(2);
   });
 });
