@@ -27,14 +27,17 @@ the checkout's own adoption evidence. Last reviewed: 2026-10-27.
 named findings otherwise:
 
 1. Every entry passes the typed validator (`registry.ts`): unique ids, known statuses, sha
-   format, ISO dates, first-party/local-pin consistency.
+   format, ISO dates, first-party/local-pin consistency, nested git cross-check fields and
+   non-negative integer entry counts before any git invocation.
 2. Summary consistency: `sourcesTotal` equals the entry count; `changedBodiesBySource` and the
    per-entry counts sum to `changedBodies` (78); per-entry `missingPaths` sums to 23; per-entry
    `packsRecords` sums to `admittedRecords` (795).
 3. Coverage counts match `coverage-2026-10-27-SEMANTIC-COVERAGE.json`, a byte-identical copy of
    the review wave's `ALL-SYNCED-SOURCES-SEMANTIC-COVERAGE.json` (sha256
    `4234dc930599bb7327137e9a727027cb34dc2d27914100332c71c354a12dc3e7`; 78 bodies, 21570 lines,
-   77 full diffs, `last30days` structural deletion, 78 evidence rows).
+   77 full diffs, `last30days` structural deletion, 78 evidence rows). Rows must include their
+   source identity, full pin/blob SHA, source path, body/diff read flags and review group.
+   Missing, malformed, short or long row arrays fail with named coverage findings.
 4. Documented pins cross-check against git-reachable facts (local `git` reads only):
    - `Gully678/INVRT-Harness` pin `70eccd48...` is reachable and an ancestor of upstream
      `790ba13d0c...`; merge `5b0f7fb84...` subject binds `790ba13d0c`; the committed
@@ -78,3 +81,11 @@ Pins recorded as `adopted` are consumed today by FORGE's local vendored copies; 
 `pending` are frozen review inputs for the queued adoption waves. The `fc0de407...` grill pin is
 the full sha whose prefix the packet names; `fusion-harness` `01a34820...` is the recorded head
 the checklist states matches current source. Neither has been adopted into the product.
+
+## Test evidence and cleanup
+
+Corrupted-copy fixtures register disposal immediately after creating their exact directory, so
+assertion or subprocess failures still clean that test's files. Historical raw `*.log` outputs
+were excluded by repository ignore rules before the 2026-10-27 preservation cleanup. Surviving summaries and snapshots do not recover those bytes.
+Save fresh raw proof in a durable knowledge-home directory and inventory its SHA256 before
+removing temporary resources; distinguish fresh reruns from historical reported results.

@@ -11,6 +11,7 @@ import {
   defaultCoveragePath,
   defaultRegistryPath,
   loadRegistry,
+  RegistryValidationError,
   type GitCrossCheck,
   type SourceRegistry,
   type SourceRegistryEntry,
@@ -131,11 +132,39 @@ export function checkCoverage(
     }
   }
   const rows = coverage.rows;
-  if (Array.isArray(rows) && rows.length !== coverage.current_bodies_reviewed) {
+  if (!Array.isArray(rows)) {
+    findings.push({
+      code: "coverage-rows-invalid",
+      message: "coverage.rows must be an array of evidence rows",
+    });
+    return findings;
+  }
+  if (rows.length !== expected.currentBodiesReviewed) {
     findings.push({
       code: "coverage-rows-mismatch",
       message: `coverage rows.length=${rows.length} but current_bodies_reviewed=${String(coverage.current_bodies_reviewed)}`,
     });
+  }
+  for (const [index, row] of rows.entries()) {
+    if (
+      !isRecord(row) ||
+      !["skill", "source", "source_path"].every(
+        (field) => typeof row[field] === "string" && row[field].trim().length > 0,
+      ) ||
+      !["current_pin", "current_source_blob"].every(
+        (field) => typeof row[field] === "string" && CROSS_CHECK_SHA.test(row[field]),
+      ) ||
+      row.full_current_body_read !== true ||
+      typeof row.full_unified_diff_read !== "boolean" ||
+      typeof row.review_group !== "number" ||
+      !Number.isInteger(row.review_group) ||
+      row.review_group < 1
+    ) {
+      findings.push({
+        code: "coverage-rows-invalid",
+        message: `coverage.rows[${index}] must contain the source, pin, blob, path and review evidence fields`,
+      });
+    }
   }
   return findings;
 }
@@ -249,7 +278,13 @@ export function checkRegistryOffline(options: CheckOptions = {}): CheckReport {
     return {
       findings: [
         {
-          code: "registry-invalid",
+          code:
+            error instanceof RegistryValidationError && error.code === "malformed-cross-check-sha"
+              ? error.code
+              : "registry-invalid",
+          ...(error instanceof RegistryValidationError && error.entryId
+            ? { entryId: error.entryId }
+            : {}),
           message: error instanceof Error ? error.message : String(error),
         },
       ],

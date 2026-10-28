@@ -175,6 +175,76 @@ function toPin(entryId: string, value: unknown, firstParty: boolean): Pin {
   );
 }
 
+function toGitCrossCheck(entryId: string, value: unknown): GitCrossCheck {
+  const fail = (field: string, message: string): never => {
+    throw new RegistryValidationError(
+      "bad-git-cross-check",
+      message,
+      entryId,
+      `gitCrossCheck.${field}`,
+    );
+  };
+  if (!isRecord(value)) fail("", "gitCrossCheck must be an object");
+  const object = value as Record<string, unknown>;
+  const sha = (value: unknown, field: string): CommitSha => {
+    if (typeof value !== "string" || !COMMIT_SHA.test(value)) {
+      throw new RegistryValidationError(
+        "malformed-cross-check-sha",
+        `${field} must be 40 lowercase hex characters`,
+        entryId,
+        `gitCrossCheck.${field}`,
+      );
+    }
+    return value as CommitSha;
+  };
+  const text = (value: unknown, field: string): string => {
+    if (typeof value !== "string" || value.trim().length === 0)
+      fail(field, `${field} must be a non-empty string`);
+    return value as string;
+  };
+  const rows = <T>(field: string, parse: (row: unknown, index: number) => T): T[] | undefined => {
+    if (object[field] === undefined) return undefined;
+    if (!Array.isArray(object[field])) fail(field, `${field} must be an array`);
+    return (object[field] as unknown[]).map(parse);
+  };
+  const record = (row: unknown, field: string): Record<string, unknown> => {
+    if (!isRecord(row)) fail(field, `${field} must be an object`);
+    return row as Record<string, unknown>;
+  };
+  const reachable = rows("reachable", (row, i) => sha(row, `reachable[${i}]`));
+  const ancestors = rows("ancestors", (row, i) => {
+    const item = record(row, `ancestors[${i}]`);
+    return {
+      ancestor: sha(item.ancestor, `ancestors[${i}].ancestor`),
+      of: sha(item.of, `ancestors[${i}].of`),
+    };
+  });
+  const commitSubjectsBind = rows("commitSubjectsBind", (row, i) => {
+    const item = record(row, `commitSubjectsBind[${i}]`);
+    return {
+      sha: sha(item.sha, `commitSubjectsBind[${i}].sha`),
+      contains: text(item.contains, `commitSubjectsBind[${i}].contains`),
+    };
+  });
+  const evidenceFiles = rows("evidenceFiles", (row, i) => {
+    const item = record(row, `evidenceFiles[${i}]`);
+    if (!Array.isArray(item.contains))
+      fail(`evidenceFiles[${i}].contains`, "contains must be an array of strings");
+    return {
+      path: text(item.path, `evidenceFiles[${i}].path`),
+      contains: (item.contains as unknown[]).map((value, j) =>
+        text(value, `evidenceFiles[${i}].contains[${j}]`),
+      ),
+    };
+  });
+  return {
+    ...(reachable === undefined ? {} : { reachable }),
+    ...(ancestors === undefined ? {} : { ancestors }),
+    ...(commitSubjectsBind === undefined ? {} : { commitSubjectsBind }),
+    ...(evidenceFiles === undefined ? {} : { evidenceFiles }),
+  };
+}
+
 function toEntry(value: unknown): SourceRegistryEntry {
   if (!isRecord(value)) {
     throw new RegistryValidationError(
@@ -225,14 +295,20 @@ function toEntry(value: unknown): SourceRegistryEntry {
   if (forkOf !== undefined && (typeof forkOf !== "string" || !OWNER_REPO.test(forkOf))) {
     throw new RegistryValidationError("bad-fork-of", "forkOf must be owner/repo", idRaw, "forkOf");
   }
-  const gitCrossCheck = value.gitCrossCheck;
-  if (gitCrossCheck !== undefined && !isRecord(gitCrossCheck)) {
-    throw new RegistryValidationError(
-      "bad-git-cross-check",
-      "gitCrossCheck must be an object",
-      idRaw,
-      "gitCrossCheck",
-    );
+  const gitCrossCheck =
+    value.gitCrossCheck === undefined ? undefined : toGitCrossCheck(idRaw, value.gitCrossCheck);
+  for (const field of ["packsRecords", "changedBodies", "missingPaths"]) {
+    if (
+      value[field] !== undefined &&
+      (typeof value[field] !== "number" || !Number.isInteger(value[field]) || value[field] < 0)
+    ) {
+      throw new RegistryValidationError(
+        "bad-entry-count",
+        `${field} must be a non-negative integer`,
+        idRaw,
+        field,
+      );
+    }
   }
   return {
     id,
@@ -249,7 +325,7 @@ function toEntry(value: unknown): SourceRegistryEntry {
     ...(typeof value.notes === "string" ? { notes: value.notes } : {}),
     lastReviewed,
     reviewRef,
-    ...(gitCrossCheck !== undefined ? { gitCrossCheck: gitCrossCheck as GitCrossCheck } : {}),
+    ...(gitCrossCheck !== undefined ? { gitCrossCheck } : {}),
   };
 }
 
@@ -363,6 +439,16 @@ export function validateRegistry(data: unknown): SourceRegistry {
       undefined,
       "reviewRefs",
     );
+  }
+  for (const [key, value] of Object.entries(reviewRefs)) {
+    if (typeof value !== "string" || value.trim().length === 0) {
+      throw new RegistryValidationError(
+        "bad-review-refs",
+        `reviewRefs.${key} must be a non-empty string`,
+        undefined,
+        `reviewRefs.${key}`,
+      );
+    }
   }
   const summary = data.summary;
   if (!isRecord(summary)) {
