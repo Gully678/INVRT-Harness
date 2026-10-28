@@ -29,6 +29,7 @@ import {
   TaskId,
   TaskPacket,
   WorkItem,
+  WorkItemId,
   admitBuildComplete,
   makeLabelledFixtureAuthorityPort,
   makeMutationContext,
@@ -1080,5 +1081,488 @@ describe("typed errors", () => {
     expect(budget._tag).toBe("ProgrammeBudgetExceededError");
     expect(budget.attempts).toBe(3);
     expect(budget.maxAttempts).toBe(3);
+  });
+});
+
+const expectReviewDenial = (
+  overrides: Partial<Parameters<typeof recordReview>[0]>,
+  tag: string,
+) => {
+  const input = reviewInput(queuedWorkItem(), overrides);
+  const before = JSON.stringify(input.workItem);
+  expectTagged(() => recordReview(input), tag);
+  expect(JSON.stringify(input.workItem)).toBe(before);
+  expect(input.context.replayRecords.size).toBe(0);
+  expect(input.context.aggregateKeyIndex.size).toBe(0);
+};
+
+const expectBuildDenial = (
+  overrides: Partial<Parameters<typeof admitBuildComplete>[0]>,
+  tag = "ProgrammeForbiddenError",
+) => {
+  const input = admitInput(overrides);
+  const before = JSON.stringify(input.workItem);
+  expectTagged(() => admitBuildComplete(input), tag);
+  expect(JSON.stringify(input.workItem)).toBe(before);
+  expect(input.context.replayRecords.size).toBe(0);
+  expect(input.context.aggregateKeyIndex.size).toBe(0);
+};
+
+describe("D1 evidence proof binding", () => {
+  it.each(["fail", "unknown"])("denies %s evidence", (result) => {
+    const fixture = basePort();
+    expectReviewDenial(
+      {
+        port: {
+          ...fixture,
+          resolveEvidenceRecord: (request) => {
+            const resolved = fixture.resolveEvidenceRecord(request);
+            return resolved === null
+              ? null
+              : {
+                  ...resolved,
+                  evidence: { ...resolved.evidence, result: result as "fail" | "unknown" },
+                };
+          },
+        },
+      },
+      "ProgrammeEvidenceMissingError",
+    );
+  });
+  it.each([COMMIT_B, null])("denies evidence source %s", (sourceCommit) => {
+    const fixture = basePort();
+    expectReviewDenial(
+      {
+        port: {
+          ...fixture,
+          resolveEvidenceRecord: (request) => {
+            const resolved = fixture.resolveEvidenceRecord(request);
+            return resolved === null
+              ? null
+              : { ...resolved, evidence: { ...resolved.evidence, sourceCommit } };
+          },
+        },
+      },
+      sourceCommit === null ? "ProgrammeEvidenceMissingError" : "ProgrammeSourceStaleError",
+    );
+  });
+  it.each([{ evidenceId: "wrong-evidence" }, { orgId: "wrong-org" }])(
+    "denies returned evidence scope %j",
+    (variant) => {
+      const fixture = basePort();
+      expectReviewDenial(
+        {
+          port: {
+            ...fixture,
+            resolveEvidenceRecord: () => ({
+              evidence: decodeWire(ProgrammeEvidence)(
+                evidenceWire({ ...variant, coverage: ["build", "test"] }),
+              ),
+              revision: 1,
+            }),
+          },
+        },
+        "ProgrammeInvalidRequestError",
+      );
+    },
+  );
+});
+
+describe("D2 complete independent identity", () => {
+  it.each([
+    { modelIdentity: null },
+    { lineage: [{ runId: BUILDER_RUN, role: "builder", modelIdentity: null }] },
+  ])("denies unknown builder lineage %j", (variant) => {
+    const builder = decodeWire(ProgrammeAssignmentRun)({ ...builderRunWire, ...variant });
+    const fixture = basePort();
+    expectReviewDenial(
+      {
+        port: {
+          ...fixture,
+          resolveRunRecord: (request) =>
+            request.runId === BUILDER_RUN
+              ? { run: builder, revision: 1 }
+              : fixture.resolveRunRecord(request),
+        },
+      },
+      "ProgrammeEvidenceMissingError",
+    );
+  });
+  it.each([
+    { ...auditorIdentity, model: builderIdentity.model },
+    { ...auditorIdentity, contextId: builderIdentity.contextId },
+  ])("denies shared model or context %j", (identity) => {
+    const fixture = basePort();
+    expectReviewDenial(
+      {
+        port: {
+          ...fixture,
+          resolveRunRecord: (request) =>
+            request.runId === AUDITOR_RUN
+              ? { run: { ...AUDITOR_RUN_DECODED, modelIdentity: identity }, revision: 1 }
+              : fixture.resolveRunRecord(request),
+        },
+      },
+      "ProgrammeForbiddenError",
+    );
+  });
+  it("denies an auditor run ID present in builder lineage despite distinct labels", () => {
+    const fixture = basePort();
+    expectReviewDenial(
+      {
+        port: {
+          ...fixture,
+          resolveRunRecord: (request) =>
+            request.runId === BUILDER_RUN
+              ? {
+                  run: {
+                    ...BUILDER_RUN_DECODED,
+                    lineage: [
+                      { runId: AUDITOR_RUN_B, role: "builder", modelIdentity: builderIdentity },
+                    ],
+                  },
+                  revision: 1,
+                }
+              : fixture.resolveRunRecord(request),
+        },
+      },
+      "ProgrammeForbiddenError",
+    );
+  });
+});
+
+describe("D3 aggregate and authoritative record joins", () => {
+  it.each([
+    { taskPacket: decodeWire(TaskPacket)({ ...taskPacketWire, workItemId: "wrong-work" }) },
+    { taskPacket: decodeWire(TaskPacket)({ ...taskPacketWire, orgId: "wrong-org" }) },
+    { workItem: decodeWire(WorkItem)({ ...workItemWire, programmeId: "wrong-programme" }) },
+    { workItem: decodeWire(WorkItem)({ ...workItemWire, orgId: "wrong-org" }) },
+  ])("denies build aggregate mismatch %j", (variant) => expectBuildDenial(variant));
+  it.each([
+    { taskPacket: decodeWire(TaskPacket)({ ...taskPacketWire, workItemId: "wrong-work" }) },
+    { taskPacket: decodeWire(TaskPacket)({ ...taskPacketWire, orgId: "wrong-org" }) },
+    { taskPacket: decodeWire(TaskPacket)({ ...taskPacketWire, projectId: OTHER_PROJECT }) },
+    { review: decodeWire(ProgrammeReview)({ ...reviewWire, orgId: "wrong-org" }) },
+    { review: decodeWire(ProgrammeReview)({ ...reviewWire, projectId: OTHER_PROJECT }) },
+  ])("denies review aggregate mismatch %j", (variant) =>
+    expectReviewDenial(variant, "ProgrammeInvalidRequestError"),
+  );
+  it("denies substitution of another builder attempt for the frozen writer", () => {
+    const fixture = basePort();
+    const alternateId = RunId.make("alternate-builder");
+    expectReviewDenial(
+      {
+        review: { ...decodeWire(ProgrammeReview)(reviewWire), builderRunId: alternateId },
+        port: {
+          ...fixture,
+          resolveRunRecord: (request) =>
+            request.runId === alternateId
+              ? { run: { ...BUILDER_RUN_DECODED, runId: alternateId }, revision: 1 }
+              : fixture.resolveRunRecord(request),
+        },
+      },
+      "ProgrammeInvalidRequestError",
+    );
+  });
+  it.each([{ runId: "wrong-run" }, { orgId: "wrong-org" }, { projectId: OTHER_PROJECT }])(
+    "denies build resolved run mismatch %j",
+    (variant) => {
+      expectBuildDenial({
+        port: {
+          ...basePort(),
+          resolveRunRecord: () => ({
+            run: decodeWire(ProgrammeAssignmentRun)({ ...builderRunWire, ...variant }),
+            revision: 1,
+          }),
+        },
+      });
+    },
+  );
+  for (const role of ["builder", "auditor"] as const) {
+    it.each([
+      { runId: "wrong-run" },
+      { orgId: "wrong-org" },
+      { projectId: OTHER_PROJECT },
+      { taskId: "wrong-task" },
+      { role: role === "builder" ? "auditor" : "builder" },
+    ])(`denies review resolved ${role} mismatch %j`, (variant) => {
+      const target = role === "builder" ? BUILDER_RUN : AUDITOR_RUN;
+      const wire = role === "builder" ? builderRunWire : auditorRunWire;
+      const fixture = basePort();
+      expectReviewDenial(
+        {
+          port: {
+            ...fixture,
+            resolveRunRecord: (request) =>
+              request.runId === target
+                ? { run: decodeWire(ProgrammeAssignmentRun)({ ...wire, ...variant }), revision: 1 }
+                : fixture.resolveRunRecord(request),
+          },
+        },
+        "ProgrammeInvalidRequestError",
+      );
+    });
+  }
+  it("denies a returned source record for another project", () =>
+    expectReviewDenial(
+      {
+        port: {
+          ...basePort(),
+          resolveSourceRecord: () => ({ projectId: PROJECT2_B, commit: COMMIT_A }),
+        },
+      },
+      "ProgrammeInvalidRequestError",
+    ));
+  it.each(["admit", "start", "record"])(
+    "denies a mismatched verified principal for %s",
+    (operation) => {
+      const fixture = basePort();
+      const port = {
+        ...fixture,
+        resolveVerifiedActor: (request: { requestedPrincipalId: PrincipalId; orgId: OrgId }) => {
+          const actor = fixture.resolveVerifiedActor(request);
+          return actor === null ? null : { ...actor, principalId: PRINCIPAL_OTHER };
+        },
+      };
+      if (operation === "admit") expectBuildDenial({ port });
+      else if (operation === "record") expectReviewDenial({ port }, "ProgrammeForbiddenError");
+      else {
+        const admitted = admitBuildComplete(admitInput());
+        const context = makeMutationContext();
+        expectTagged(
+          () =>
+            startReview({
+              port,
+              context,
+              requestingPrincipalId: PRINCIPAL_BUILDER,
+              workItem: admitted.workItem,
+              expectedRevision: 6,
+              idempotencyKey: "start",
+              payloadDigest: DIGEST_1,
+              now: LATER,
+            }),
+          "ProgrammeForbiddenError",
+        );
+        expect(context.replayRecords.size).toBe(0);
+        expect(admitted.workItem.revision).toBe(6);
+      }
+    },
+  );
+});
+
+describe("D4 original result and safe replay scope", () => {
+  it("returns the saved review when a caller changes review findings and disposition", () => {
+    const input = reviewInput(queuedWorkItem());
+    const first = recordReview(input);
+    const second = recordReview({
+      ...input,
+      review: {
+        ...input.review,
+        disposition: "rejected",
+        findings: [{ severity: "major", description: "caller changed", path: null }],
+      },
+    });
+    expect(second).toEqual(first);
+    expect(input.context.replayRecords.size).toBe(1);
+  });
+  it("denies reusing a review receipt for another work item", () => {
+    const input = reviewInput(queuedWorkItem());
+    recordReview(input);
+    const other = { ...input.workItem, workItemId: WorkItemId.make("other-work") };
+    expectTagged(
+      () =>
+        recordReview({
+          ...input,
+          workItem: other,
+          taskPacket: { ...input.taskPacket, workItemId: other.workItemId },
+        }),
+      "ProgrammeIdempotencyConflictError",
+    );
+    expect(input.context.replayRecords.size).toBe(1);
+  });
+  it.each(["admit", "start", "record"])("rechecks verified authority on %s replay", (operation) => {
+    const port = { ...basePort(), resolveVerifiedActor: () => null };
+    if (operation === "admit") {
+      const input = admitInput();
+      admitBuildComplete(input);
+      expectTagged(
+        () => admitBuildComplete({ ...input, port }),
+        "ProgrammeCapabilityUnavailableError",
+      );
+    } else if (operation === "record") {
+      const input = reviewInput(queuedWorkItem());
+      recordReview(input);
+      expectTagged(() => recordReview({ ...input, port }), "ProgrammeCapabilityUnavailableError");
+    } else {
+      const admitted = admitBuildComplete(admitInput());
+      const input = {
+        port: basePort(),
+        context: makeMutationContext(),
+        requestingPrincipalId: PRINCIPAL_BUILDER,
+        workItem: admitted.workItem,
+        expectedRevision: 6,
+        idempotencyKey: "start",
+        payloadDigest: DIGEST_1,
+        now: LATER,
+      };
+      startReview(input);
+      expectTagged(() => startReview({ ...input, port }), "ProgrammeCapabilityUnavailableError");
+    }
+  });
+  it("keeps arbitrary delimiter identifiers distinct in receipt scope", () => {
+    const context = makeMutationContext();
+    const first = admitInput({
+      context,
+      workItem: { ...WORK_ITEM, workItemId: WorkItemId.make("work|admitBuildComplete") },
+      taskPacket: { ...TASK_PACKET, workItemId: WorkItemId.make("work|admitBuildComplete") },
+      idempotencyKey: "key",
+    });
+    const second = admitInput({
+      context,
+      workItem: { ...WORK_ITEM, workItemId: WorkItemId.make("work") },
+      taskPacket: { ...TASK_PACKET, workItemId: WorkItemId.make("work") },
+      idempotencyKey: "admitBuildComplete|key",
+    });
+    const port = {
+      ...basePort(),
+      resolveApproval: () => ({
+        approval: {
+          ...APPROVAL_DECODED,
+          targetIds: [first.workItem.workItemId, second.workItem.workItemId],
+        },
+        revision: 2,
+      }),
+    };
+    admitBuildComplete({ ...first, port });
+    const result = admitBuildComplete({ ...second, port });
+    expect(result.workItem.workItemId).toBe(second.workItem.workItemId);
+    expect(context.replayRecords.size).toBe(2);
+  });
+});
+
+describe("D6 active programme holds", () => {
+  it.each(["paused", "needsDecision", "blocked"])("denies %s with zero mutation", (hold) =>
+    expectBuildDenial({ programme: { ...PROGRAMME, holds: { [hold]: "active hold" } } }),
+  );
+  it("admits when all hold reasons are explicitly null", () =>
+    expect(
+      admitBuildComplete(
+        admitInput({
+          programme: {
+            ...PROGRAMME,
+            holds: {
+              paused: null,
+              needsDecision: null,
+              blocked: null,
+              cancelRequested: null,
+              cancelled: null,
+            },
+          },
+        }),
+      ).workItem.state,
+    ).toBe("buildComplete"));
+});
+
+describe("D1 frozen evidence and D4 organisation replay controls", () => {
+  it("requires the frozen build evidence even if substitute proof covers every label", () => {
+    const fixture = basePort();
+    const substitute = decodeWire(ProgrammeEvidence)(
+      evidenceWire({ evidenceId: "substitute", coverage: ["build", "test"] }),
+    );
+    expectReviewDenial(
+      {
+        review: decodeWire(ProgrammeReview)({ ...reviewWire, evidenceRefs: ["substitute"] }),
+        port: { ...fixture, resolveEvidenceRecord: () => ({ evidence: substitute, revision: 1 }) },
+      },
+      "ProgrammeEvidenceMissingError",
+    );
+  });
+  it("keeps the same operation key independent between organisations and principals", () => {
+    const context = makeMutationContext();
+    admitBuildComplete(admitInput({ context }));
+    const orgId = OrgId.make("org-2");
+    const principalId = PRINCIPAL_OTHER;
+    const port = {
+      ...basePort(),
+      resolveVerifiedActor: () => ({ principalId, orgId, memberId: member(BUILDER) }),
+      resolveRunRecord: () => ({ run: { ...BUILDER_RUN_DECODED, orgId }, revision: 1 }),
+      resolveApproval: () => ({ approval: { ...APPROVAL_DECODED, orgId }, revision: 2 }),
+    };
+    const result = admitBuildComplete(
+      admitInput({
+        context,
+        port,
+        requestingPrincipalId: principalId,
+        programme: { ...PROGRAMME, orgId },
+        workItem: { ...WORK_ITEM, orgId },
+        taskPacket: { ...TASK_PACKET, orgId },
+      }),
+    );
+    expect(result.workItem.orgId).toBe(orgId);
+    expect(context.replayRecords.size).toBe(2);
+    expect(context.aggregateKeyIndex.size).toBe(2);
+  });
+  it.each(["admit", "start", "record"])("denies changing project on %s replay", (operation) => {
+    if (operation === "admit") {
+      const input = admitInput();
+      admitBuildComplete(input);
+      expectTagged(
+        () =>
+          admitBuildComplete({ ...input, workItem: { ...input.workItem, projectId: PROJECT2_B } }),
+        "ProgrammeForbiddenError",
+      );
+    } else if (operation === "record") {
+      const input = reviewInput(queuedWorkItem());
+      recordReview(input);
+      expectTagged(
+        () => recordReview({ ...input, workItem: { ...input.workItem, projectId: PROJECT2_B } }),
+        "ProgrammeInvalidRequestError",
+      );
+    } else {
+      const admitted = admitBuildComplete(admitInput());
+      const input = {
+        port: basePort(),
+        context: makeMutationContext(),
+        requestingPrincipalId: PRINCIPAL_BUILDER,
+        workItem: admitted.workItem,
+        expectedRevision: 6,
+        idempotencyKey: "start",
+        payloadDigest: DIGEST_1,
+        now: LATER,
+      };
+      startReview(input);
+      expectTagged(
+        () => startReview({ ...input, workItem: { ...input.workItem, projectId: PROJECT2_B } }),
+        "ProgrammeIdempotencyConflictError",
+      );
+    }
+  });
+  it.each(["paused", "needsDecision", "blocked"])("denies %s hold on build replay", (hold) => {
+    const input = admitInput();
+    admitBuildComplete(input);
+    expectTagged(
+      () =>
+        admitBuildComplete({
+          ...input,
+          programme: { ...input.programme, holds: { [hold]: "active hold" } },
+        }),
+      "ProgrammeForbiddenError",
+    );
+    expect(input.context.replayRecords.size).toBe(1);
+  });
+});
+
+describe("D4 original review snapshot", () => {
+  it("preserves saved proof when the caller retains and changes a findings array", () => {
+    const findings: Array<ProgrammeReview["findings"][number]> = [];
+    const input = reviewInput(queuedWorkItem(), {
+      review: { ...decodeWire(ProgrammeReview)(reviewWire), findings },
+    });
+    recordReview(input);
+    findings.push({ severity: "major", description: "changed after acceptance", path: null });
+    const replay = recordReview(input);
+    expect(replay.review.findings).toEqual([]);
+    expect(replay.review.disposition).toBe("accepted");
+    expect(input.context.replayRecords.size).toBe(1);
   });
 });
