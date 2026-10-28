@@ -70,3 +70,4 @@ export * from "./secretRequest.ts";
 export * from "./clientRpcPermissions.ts";
 export * from "./programmeDomain.ts";
 export * from "./programmeIdentity.ts";
+export * from "./programmeRouting.ts";
