@@ -226,14 +226,14 @@ export const resolvePrincipalOrFail = (
 
 /**
  * The scoped project grant of this membership, or the explicit "none": a grant held for one
- * project never answers another project. Guest memberships never hold standing project grants
- * (guests act through live session grants per the PRD), so they always answer "none".
+ * project never answers another project. Inactive and guest memberships hold no standing grants
+ * (guests act through live session grants per the PRD).
  */
 export const effectiveProjectGrant = (
   membership: Membership,
   projectId: ProjectId,
 ): ProjectGrantKind | "none" => {
-  if (membership.organisationRole === "guest") return "none";
+  if (membership.status !== "active" || membership.organisationRole === "guest") return "none";
   const grant = membership.projectGrants.find((entry) => entry.projectId === projectId);
   return grant === undefined ? "none" : grant.grant;
 };

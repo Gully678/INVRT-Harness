@@ -368,3 +368,26 @@ describe("pure rule shape", () => {
     expect(agentPrincipal.kind).toBe("agent");
   });
 });
+
+describe("D5 inactive project grant denial", () => {
+  it.each([
+    ["suspended", "read"],
+    ["revoked", "read"],
+    ["suspended", "contribute"],
+    ["revoked", "contribute"],
+    ["suspended", "admin"],
+    ["revoked", "admin"],
+  ])("returns none for %s membership with %s grant", (status, grant) => {
+    const membership = decodeWire(Membership)(
+      membershipWire({ status, projectGrants: [{ projectId: PROJ_A, grant }] }),
+    );
+    expect(effectiveProjectGrant(membership, ProjectId.make(PROJ_A))).toBe("none");
+    expect(effectiveProjectGrant(membership, ProjectId.make(PROJ_B))).toBe("none");
+  });
+  it.each(["read", "contribute", "admin"])("preserves active %s grant", (grant) => {
+    const membership = decodeWire(Membership)(
+      membershipWire({ projectGrants: [{ projectId: PROJ_A, grant }] }),
+    );
+    expect(effectiveProjectGrant(membership, ProjectId.make(PROJ_A))).toBe(grant);
+  });
+});

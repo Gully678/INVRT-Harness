@@ -537,12 +537,61 @@ export type MutationReceipt = typeof MutationReceipt.Type;
 export interface ProgrammeReplayRecord {
   readonly receipt: MutationReceipt;
   readonly aggregate: WorkItem;
+  readonly authorityScope: string;
+  readonly review?: ProgrammeReview;
 }
+
+// Snapshot known mutable fields without adding validation to the mutation's existing gates.
+const snapshotReplayRecord = (record: ProgrammeReplayRecord): ProgrammeReplayRecord => ({
+  receipt: { ...record.receipt },
+  authorityScope: record.authorityScope,
+  aggregate: {
+    ...record.aggregate,
+    createdAt: DateTime.toUtc(record.aggregate.createdAt),
+    updatedAt: DateTime.toUtc(record.aggregate.updatedAt),
+    dueAt: record.aggregate.dueAt === null ? null : DateTime.toUtc(record.aggregate.dueAt),
+    requirementIds: [...record.aggregate.requirementIds],
+    acceptance: [...record.aggregate.acceptance],
+    dependencies: [...record.aggregate.dependencies],
+    sourceRefs: [...record.aggregate.sourceRefs],
+    ...(record.aggregate.buildCompletion == null
+      ? {}
+      : {
+          buildCompletion: {
+            ...record.aggregate.buildCompletion,
+            evidenceIds: [...record.aggregate.buildCompletion.evidenceIds],
+            admittedAt: DateTime.toUtc(record.aggregate.buildCompletion.admittedAt),
+          },
+        }),
+    ...(record.aggregate.testedMilestone == null
+      ? {}
+      : {
+          testedMilestone: {
+            ...record.aggregate.testedMilestone,
+            evidenceIds: [...record.aggregate.testedMilestone.evidenceIds],
+            recordedAt: DateTime.toUtc(record.aggregate.testedMilestone.recordedAt),
+          },
+        }),
+  },
+  ...(record.review === undefined
+    ? {}
+    : {
+        review: {
+          ...record.review,
+          createdAt: DateTime.toUtc(record.review.createdAt),
+          updatedAt: DateTime.toUtc(record.review.updatedAt),
+          scope: [...record.review.scope],
+          evidenceRefs: [...record.review.evidenceRefs],
+          findings: record.review.findings.map((finding) => ({ ...finding })),
+          coverage: [...record.review.coverage],
+        },
+      }),
+});
 
 /** Caller-owned context: replay records live only for the life of the calling process. */
 export interface ProgrammeMutationContext {
   readonly replayRecords: Map<string, ProgrammeReplayRecord>;
-  /** Secondary index, aggregate|operation|key -> principal, that denies cross-principal reuse. */
+  /** Organisation-scoped aggregate/operation/key tuple denying cross-principal reuse. */
   readonly aggregateKeyIndex: Map<string, PrincipalId>;
 }
 
@@ -558,13 +607,20 @@ const receiptScope = (input: {
   readonly operation: string;
   readonly operationKey: string;
 }) =>
-  `${input.principalId}|${input.orgId}|${input.aggregateId}|${input.operation}|${input.operationKey}`;
+  JSON.stringify([
+    input.principalId,
+    input.orgId,
+    input.aggregateId,
+    input.operation,
+    input.operationKey,
+  ]);
 
 const aggregateScope = (input: {
+  readonly orgId: OrgId;
   readonly aggregateId: string;
   readonly operation: string;
   readonly operationKey: string;
-}) => `${input.aggregateId}|${input.operation}|${input.operationKey}`;
+}) => JSON.stringify([input.orgId, input.aggregateId, input.operation, input.operationKey]);
 
 const expectRevision = (
   current: typeof NonNegativeInt.Type,
@@ -625,6 +681,8 @@ export const requireApprovalCovering = (input: {
       detail,
     });
   };
+  if (approval.approvalId !== input.approvalId || approval.orgId !== input.orgId)
+    return deny("resolved approval identity or organisation differs");
   if (approval.revokedAt !== null) return deny("approval revoked");
   if (isBeforeOrAt(approval.expiresAt, input.now)) return deny("approval expired");
   if (approval.specHash !== input.specHash)
@@ -659,9 +717,10 @@ export interface AdmitBuildCompleteInput {
   readonly now: IsoDateTime;
 }
 
-// Shared mutation plumbing: replay scope first, then CAS, then authority gates.
+// Scope and current authority precede replay; a replay does not repeat CAS or effects.
 
 interface MutationScope {
+  readonly authorityScope: string;
   readonly principalId: PrincipalId;
   readonly orgId: OrgId;
   readonly aggregateId: string;
@@ -675,7 +734,14 @@ interface MutationScope {
 const replayOrDeny = (scope: MutationScope): ProgrammeReplayRecord | null => {
   const existing = scope.context.replayRecords.get(receiptScope(scope));
   if (existing !== undefined) {
-    if (existing.receipt.payloadDigest === scope.payloadDigest) return existing;
+    if (existing.authorityScope !== scope.authorityScope) {
+      throw new ProgrammeIdempotencyConflictError({
+        message: "Replay target or authority differs from the original operation",
+        operationKey: scope.operationKey,
+      });
+    }
+    if (existing.receipt.payloadDigest === scope.payloadDigest)
+      return snapshotReplayRecord(existing);
     throw new ProgrammeIdempotencyConflictError({
       message: "Operation key was already used with a different payload",
       operationKey: scope.operationKey,
@@ -694,6 +760,7 @@ const replayOrDeny = (scope: MutationScope): ProgrammeReplayRecord | null => {
 const commitReceipt = (
   scope: MutationScope,
   aggregate: WorkItem,
+  review?: ProgrammeReview,
 ): { workItem: WorkItem; receipt: MutationReceipt } => {
   const receipt: MutationReceipt = {
     principalId: scope.principalId,
@@ -704,7 +771,15 @@ const commitReceipt = (
     payloadDigest: scope.payloadDigest,
     revisionAfter: aggregate.revision,
   };
-  scope.context.replayRecords.set(receiptScope(scope), { receipt, aggregate });
+  scope.context.replayRecords.set(
+    receiptScope(scope),
+    snapshotReplayRecord({
+      receipt,
+      aggregate,
+      authorityScope: scope.authorityScope,
+      ...(review === undefined ? {} : { review }),
+    }),
+  );
   scope.context.aggregateKeyIndex.set(aggregateScope(scope), scope.principalId);
   return { workItem: aggregate, receipt };
 };
@@ -721,10 +796,15 @@ const requireVerifiedActor = (
       detail: orgId,
     });
   }
+  if (actor.principalId !== requestingPrincipalId || actor.orgId !== orgId) {
+    throw new ProgrammeForbiddenError({
+      message: "Resolved actor differs from the requested principal or organisation",
+    });
+  }
   return actor;
 };
 
-/** A closed programme, or one carrying an active cancellation hold, cannot take new mutations. */
+/** Current programme holds prevent new build effects. */
 const requireProgrammeActive = (programme: Programme) => {
   if (programme.state === "closed") {
     throw new ProgrammeForbiddenError({
@@ -733,11 +813,14 @@ const requireProgrammeActive = (programme: Programme) => {
     });
   }
   if (
+    (programme.holds.paused ?? null) !== null ||
+    (programme.holds.needsDecision ?? null) !== null ||
+    (programme.holds.blocked ?? null) !== null ||
     (programme.holds.cancelled ?? null) !== null ||
     (programme.holds.cancelRequested ?? null) !== null
   ) {
     throw new ProgrammeForbiddenError({
-      message: "Programme carries an active cancellation hold",
+      message: "Programme carries an active hold",
       detail: programme.programmeId,
     });
   }
@@ -772,21 +855,30 @@ export const admitBuildComplete = (
     principalId: input.requestingPrincipalId,
     orgId: input.programme.orgId,
     aggregateId: input.workItem.workItemId,
+    authorityScope: JSON.stringify([
+      input.workItem.orgId,
+      input.workItem.projectId,
+      input.workItem.programmeId,
+      input.workItem.workItemId,
+      input.taskPacket.taskId,
+      input.requestingRun.runId,
+    ]),
     operation: "admitBuildComplete",
     operationKey: input.idempotencyKey,
     payloadDigest: input.payloadDigest,
     context: input.context,
   };
-  const replay = replayOrDeny(scope);
-  if (replay !== null) return { workItem: replay.aggregate, receipt: replay.receipt };
-
-  casOrFail(input.workItem, input.expectedRevision);
   requireProgrammeActive(input.programme);
   requireNonTerminal(input.workItem);
-  if (input.workItem.state !== "running" && input.workItem.state !== "fixing") {
-    throw new ProgrammeInvalidRequestError({
-      message: "admitBuildComplete requires state running or fixing",
-      detail: input.workItem.state,
+  if (
+    input.workItem.programmeId !== input.programme.programmeId ||
+    input.workItem.orgId !== input.programme.orgId ||
+    input.taskPacket.orgId !== input.workItem.orgId ||
+    input.taskPacket.projectId !== input.workItem.projectId ||
+    input.taskPacket.workItemId !== input.workItem.workItemId
+  ) {
+    throw new ProgrammeForbiddenError({
+      message: "Programme, work item and task packet scope differ",
     });
   }
 
@@ -811,6 +903,9 @@ export const admitBuildComplete = (
   }
   const run = resolvedRun.run;
   if (
+    run.runId !== input.requestingRun.runId ||
+    run.orgId !== input.workItem.orgId ||
+    run.projectId !== input.workItem.projectId ||
     run.role !== "builder" ||
     run.taskId !== input.taskPacket.taskId ||
     run.ownerMemberId !== actor.memberId ||
@@ -837,6 +932,16 @@ export const admitBuildComplete = (
     paths: input.taskPacket.allowedPaths,
     now: input.now,
   });
+
+  const replay = replayOrDeny(scope);
+  if (replay !== null) return { workItem: replay.aggregate, receipt: replay.receipt };
+  casOrFail(input.workItem, input.expectedRevision);
+  if (input.workItem.state !== "running" && input.workItem.state !== "fixing") {
+    throw new ProgrammeInvalidRequestError({
+      message: "admitBuildComplete requires state running or fixing",
+      detail: input.workItem.state,
+    });
+  }
 
   const attempts = input.port.resolveAttemptCount({
     taskId: run.taskId,
@@ -897,22 +1002,18 @@ export const startReview = (
     principalId: input.requestingPrincipalId,
     orgId: input.workItem.orgId,
     aggregateId: input.workItem.workItemId,
+    authorityScope: JSON.stringify([
+      input.workItem.orgId,
+      input.workItem.projectId,
+      input.workItem.programmeId,
+      input.workItem.workItemId,
+    ]),
     operation: "startReview",
     operationKey: input.idempotencyKey,
     payloadDigest: input.payloadDigest,
     context: input.context,
   };
-  const replay = replayOrDeny(scope);
-  if (replay !== null) return { workItem: replay.aggregate, receipt: replay.receipt };
-
-  casOrFail(input.workItem, input.expectedRevision);
   requireNonTerminal(input.workItem);
-  if (input.workItem.state !== "buildComplete") {
-    throw new ProgrammeInvalidRequestError({
-      message: "startReview requires state buildComplete",
-      detail: input.workItem.state,
-    });
-  }
   const actor = requireVerifiedActor(input.port, input.requestingPrincipalId, input.workItem.orgId);
   if (actor.orgId !== input.workItem.orgId) {
     throw new ProgrammeForbiddenError({ message: "Actor organisation differs from the work item" });
@@ -921,6 +1022,16 @@ export const startReview = (
     throw new ProgrammeForbiddenError({
       message: "Only the assignee may start the review",
       detail: actor.memberId,
+    });
+  }
+
+  const replay = replayOrDeny(scope);
+  if (replay !== null) return { workItem: replay.aggregate, receipt: replay.receipt };
+  casOrFail(input.workItem, input.expectedRevision);
+  if (input.workItem.state !== "buildComplete") {
+    throw new ProgrammeInvalidRequestError({
+      message: "startReview requires state buildComplete",
+      detail: input.workItem.state,
     });
   }
 
@@ -959,21 +1070,30 @@ export const recordReview = (
     principalId: input.requestingPrincipalId,
     orgId: input.workItem.orgId,
     aggregateId: input.review.reviewId,
+    authorityScope: JSON.stringify([
+      input.workItem.orgId,
+      input.workItem.projectId,
+      input.workItem.programmeId,
+      input.workItem.workItemId,
+      input.taskPacket.taskId,
+      input.review.builderRunId,
+      input.review.auditorRunId,
+    ]),
     operation: "recordReview",
     operationKey: input.idempotencyKey,
     payloadDigest: input.payloadDigest,
     context: input.context,
   };
-  const replay = replayOrDeny(scope);
-  if (replay !== null)
-    return { workItem: replay.aggregate, review: input.review, receipt: replay.receipt };
-
-  casOrFail(input.workItem, input.expectedRevision);
   requireNonTerminal(input.workItem);
-  if (input.workItem.state !== "reviewQueued" && input.workItem.state !== "reviewing") {
+  if (
+    input.taskPacket.workItemId !== input.workItem.workItemId ||
+    input.taskPacket.orgId !== input.workItem.orgId ||
+    input.taskPacket.projectId !== input.workItem.projectId ||
+    input.review.orgId !== input.workItem.orgId ||
+    input.review.projectId !== input.workItem.projectId
+  ) {
     throw new ProgrammeInvalidRequestError({
-      message: "recordReview requires state reviewQueued or reviewing",
-      detail: input.workItem.state,
+      message: "Review, task packet and work item scope differ",
     });
   }
   if (input.review.taskId !== input.taskPacket.taskId) {
@@ -1001,7 +1121,13 @@ export const recordReview = (
     });
   }
   const auditor = resolvedAuditor.run;
-  if (auditor.role !== "auditor" || auditor.taskId !== input.taskPacket.taskId) {
+  if (
+    auditor.runId !== input.review.auditorRunId ||
+    auditor.orgId !== input.workItem.orgId ||
+    auditor.projectId !== input.workItem.projectId ||
+    auditor.role !== "auditor" ||
+    auditor.taskId !== input.taskPacket.taskId
+  ) {
     throw new ProgrammeInvalidRequestError({
       message: "Recorded run is not the eligible auditor of this task",
       detail: auditor.runId,
@@ -1019,7 +1145,13 @@ export const recordReview = (
     });
   }
   const builder = resolvedBuilder.run;
-  if (builder.taskId !== input.taskPacket.taskId) {
+  if (
+    builder.runId !== input.review.builderRunId ||
+    builder.orgId !== input.workItem.orgId ||
+    builder.projectId !== input.workItem.projectId ||
+    builder.role !== "builder" ||
+    builder.taskId !== input.taskPacket.taskId
+  ) {
     throw new ProgrammeInvalidRequestError({
       message: "Builder run belongs to a different task packet",
       detail: builder.runId,
@@ -1044,13 +1176,47 @@ export const recordReview = (
     });
   }
 
+  const frozen = input.workItem.buildCompletion ?? null;
+  if (frozen === null) {
+    if (input.workItem.state !== "reviewQueued" && input.workItem.state !== "reviewing") {
+      throw new ProgrammeInvalidRequestError({
+        message: "recordReview requires state reviewQueued or reviewing",
+        detail: input.workItem.state,
+      });
+    }
+    throw new ProgrammeEvidenceMissingError({
+      message: "Work item carries no frozen build completion to review",
+      suggestedDisposition: "incomplete",
+    });
+  }
+  if (input.review.builderRunId !== frozen.builderRunId) {
+    throw new ProgrammeInvalidRequestError({
+      message: "Review builder differs from the frozen writer",
+    });
+  }
+  const replay = replayOrDeny(scope);
+  if (replay !== null) {
+    if (replay.review === undefined)
+      throw new ProgrammeIdempotencyConflictError({
+        message: "Original review result is unavailable",
+      });
+    return { workItem: replay.aggregate, review: replay.review, receipt: replay.receipt };
+  }
+  casOrFail(input.workItem, input.expectedRevision);
+  if (input.workItem.state !== "reviewQueued" && input.workItem.state !== "reviewing") {
+    throw new ProgrammeInvalidRequestError({
+      message: "recordReview requires state reviewQueued or reviewing",
+      detail: input.workItem.state,
+    });
+  }
+
   const builderIdentities = [
     builder.modelIdentity,
     ...builder.lineage.map((entry) => entry.modelIdentity),
   ];
-  if (auditor.modelIdentity === null) {
+  if (auditor.modelIdentity === null || builderIdentities.some((identity) => identity === null)) {
     throw new ProgrammeEvidenceMissingError({
-      message: "Auditor model/context identity is not recorded",
+      message: "Builder or auditor model/context identity is not recorded",
       suggestedDisposition: "incomplete",
     });
   }
@@ -1060,23 +1226,16 @@ export const recordReview = (
     builderIdentities.some(
       (identity) =>
         identity !== null &&
-        identity.model === auditorIdentity.model &&
-        identity.contextId === auditorIdentity.contextId,
+        (identity.model === auditorIdentity.model ||
+          identity.contextId === auditorIdentity.contextId),
     );
-  if (sameIdentity) {
+  if (sameIdentity || builder.lineage.some((entry) => entry.runId === auditor.runId)) {
     throw new ProgrammeForbiddenError({
       message: "Shared lineage denied: auditor model/context matches a builder lineage entry",
       detail: auditor.runId,
     });
   }
 
-  const frozen = input.workItem.buildCompletion ?? null;
-  if (frozen === null) {
-    throw new ProgrammeEvidenceMissingError({
-      message: "Work item carries no frozen build completion to review",
-      suggestedDisposition: "incomplete",
-    });
-  }
   if (input.review.exactCommit !== frozen.sourceCommit) {
     throw new ProgrammeInvalidRequestError({
       message: "Review exactCommit differs from the frozen source commit",
@@ -1093,6 +1252,11 @@ export const recordReview = (
       detail: input.workItem.projectId,
     });
   }
+  if (source.projectId !== input.workItem.projectId) {
+    throw new ProgrammeInvalidRequestError({
+      message: "Resolved source belongs to a different project",
+    });
+  }
   if (source.commit !== frozen.sourceCommit) {
     throw new ProgrammeSourceStaleError({
       message: "Authoritative source moved after the build was frozen",
@@ -1101,6 +1265,16 @@ export const recordReview = (
     });
   }
 
+  if (
+    input.taskPacket.evidencePlan.requireBuildEvidence &&
+    (frozen.evidenceIds.length === 0 ||
+      frozen.evidenceIds.some((id) => !input.review.evidenceRefs.includes(id)))
+  ) {
+    throw new ProgrammeEvidenceMissingError({
+      message: "Review omits frozen build evidence",
+      suggestedDisposition: "incomplete",
+    });
+  }
   const covered = new Set<string>();
   for (const evidenceId of input.review.evidenceRefs) {
     const resolvedEvidence = input.port.resolveEvidenceRecord({
@@ -1115,7 +1289,11 @@ export const recordReview = (
       });
     }
     const evidence = resolvedEvidence.evidence;
-    if (evidence.projectId !== input.workItem.projectId) {
+    if (
+      evidence.evidenceId !== evidenceId ||
+      evidence.orgId !== input.workItem.orgId ||
+      evidence.projectId !== input.workItem.projectId
+    ) {
       throw new ProgrammeInvalidRequestError({
         message: "Evidence belongs to a different project",
         detail: evidence.evidenceId,
@@ -1128,6 +1306,20 @@ export const recordReview = (
       throw new ProgrammeInvalidRequestError({
         message: "Evidence was not produced by the builder run lineage",
         detail: evidence.evidenceId,
+      });
+    }
+    // Every counted v1 proof is source-dependent, including artifact and log coverage.
+    if (evidence.result !== "pass" || evidence.sourceCommit === null) {
+      throw new ProgrammeEvidenceMissingError({
+        message: "Evidence lacks successful source-bound proof",
+        suggestedDisposition: "incomplete",
+      });
+    }
+    if (evidence.sourceCommit !== frozen.sourceCommit) {
+      throw new ProgrammeSourceStaleError({
+        message: "Evidence source differs from the frozen source",
+        frozenCommit: frozen.sourceCommit,
+        currentCommit: evidence.sourceCommit,
       });
     }
     for (const label of evidence.coverage) covered.add(label);
@@ -1164,6 +1356,13 @@ export const recordReview = (
     updatedAt: stampAt(input.now),
     state: "accepted",
   };
-  const committed = commitReceipt(scope, updated);
-  return { workItem: committed.workItem, review: input.review, receipt: committed.receipt };
+  const review: ProgrammeReview = {
+    ...input.review,
+    scope: [...input.review.scope],
+    evidenceRefs: [...input.review.evidenceRefs],
+    findings: input.review.findings.map((finding) => ({ ...finding })),
+    coverage: [...input.review.coverage],
+  };
+  const committed = commitReceipt(scope, updated, review);
+  return { workItem: committed.workItem, review, receipt: committed.receipt };
 };
