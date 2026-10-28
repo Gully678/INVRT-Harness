@@ -21,6 +21,9 @@ import {
   canonicalForgeTaskDigest,
   resolveForgeTaskInput,
   type ForgeFixturePorts,
+  type ForgeInputAuthority,
+  type ForgeExecutionBinding,
+  type ForgeTaskSelection,
 } from "./ForgeTaskInput.ts";
 
 vi.mock("node:child_process", () => {
@@ -99,9 +102,16 @@ async function setup() {
       };
     },
   };
+  const authority: {
+    source: ForgeInputAuthority["source"];
+    revalidate: ForgeInputAuthority["revalidate"];
+  } = {
+    source: "LABELLED-TEST-FIXTURE",
+    revalidate: async () => current,
+  };
   const input = {
     ...taskRecord,
-    authority: { source: "LABELLED-TEST-FIXTURE", revalidate: async () => current },
+    authority,
     snapshot: {
       routerRoot,
       contentRoot: root,
@@ -660,5 +670,131 @@ describe("quarantined FORGE fixture loader", () => {
       code: "router-timeout",
     });
     expect(fixture.calls).toHaveLength(1);
+  });
+  it("rejects a binding mutated by the authority callback during revalidation", async () => {
+    await using fixture = await setup();
+    fixture.input.authority.revalidate = async (binding) => {
+      Object.assign(binding, { cwd: "/fixture/other" });
+      return fixture.current;
+    };
+    const result = await resolveForgeTaskInput(fixture.input);
+    expect(result.status).toBe("unavailable");
+    expect(fixture.calls).toHaveLength(0);
+  });
+
+  const mutations: readonly {
+    label: string;
+    change: (binding: ForgeExecutionBinding, task: ForgeTaskSelection) => void;
+  }[] = [
+    {
+      label: "policy",
+      change: (binding) => {
+        Object.assign(binding.policy, { revision: binding.policy.revision + 1 });
+      },
+    },
+    {
+      label: "flag",
+      change: (_binding, task) => {
+        task.flags.review = true;
+      },
+    },
+    {
+      label: "task types",
+      change: (_binding, task) => {
+        task.taskTypes.push("audit");
+      },
+    },
+    {
+      label: "explicit requirements",
+      change: (_binding, task) => {
+        task.explicitRequired.push("api-designer");
+      },
+    },
+    {
+      label: "direct requirement",
+      change: (_binding, task) => {
+        task.directRequired[0]!.reason = "changed";
+      },
+    },
+    {
+      label: "prompt",
+      change: (_binding, task) => {
+        task.prompt = "changed";
+      },
+    },
+  ];
+  describe.each([1, 2])("authority check %i", (phase) => {
+    it.each(mutations)(
+      "rejects callback mutation of $label without content or further process",
+      async ({ change }) => {
+        await using fixture = await setup();
+        let checks = 0;
+        fixture.input.authority.revalidate = async (binding, task) => {
+          if (++checks === phase) change(binding, task);
+          return fixture.current;
+        };
+        const result = await resolveForgeTaskInput(fixture.input);
+        expect(result.status).toBe("unavailable");
+        expect(result).not.toHaveProperty("resources");
+        expect(fixture.calls).toHaveLength(phase - 1);
+        expect(() => buildCodexAdditionalContext({ model: "fixture" }, false, result)).toThrow();
+        expect(() =>
+          projectCodexForgeFixtureForTest({ model: "fixture" }, false, result),
+        ).toThrow();
+      },
+    );
+    it.each(["policy", "flag", "task types", "replacement"])(
+      "rejects external %s mutation while authority is awaited",
+      async (field) => {
+        await using fixture = await setup();
+        const entered = Promise.withResolvers<void>();
+        const release = Promise.withResolvers<void>();
+        let checks = 0;
+        fixture.input.authority.revalidate = async () => {
+          if (++checks === phase) {
+            entered.resolve();
+            await release.promise;
+          }
+          return fixture.current;
+        };
+        const pending = resolveForgeTaskInput(fixture.input);
+        await entered.promise;
+        if (field === "policy") fixture.input.binding.policy.revision++;
+        if (field === "flag") fixture.input.task.flags.review = true;
+        if (field === "task types") fixture.input.task.taskTypes.push("audit");
+        if (field === "replacement")
+          fixture.input.binding = { ...fixture.input.binding, cwd: "/fixture/other" };
+        release.resolve();
+        const result = await pending;
+        expect(result).toEqual({ status: "unavailable", code: "task-changed" });
+        expect(fixture.calls).toHaveLength(phase - 1);
+        expect(() => projectCodexForgeFixtureForTest({ model: "fixture" }, false, result)).toThrow(
+          "task-changed",
+        );
+      },
+    );
+  });
+
+  it("returns the same bound record identity checked by both authority calls", async () => {
+    await using fixture = await setup();
+    const digests: string[] = [];
+    fixture.input.authority.revalidate = async (binding, task) => {
+      digests.push(canonicalForgeTaskDigest({ schemaVersion: 1, binding, task }));
+      return fixture.current;
+    };
+    const result = await resolveForgeTaskInput(fixture.input);
+    if (result.status !== "ready") throw new Error(result.code);
+    expect(digests).toEqual([trust.taskRecordSha256, trust.taskRecordSha256]);
+    expect(
+      canonicalForgeTaskDigest({
+        schemaVersion: 1,
+        binding: result.binding,
+        task: fixture.input.task,
+      }),
+    ).toBe(result.taskDigest);
+    expect(() => Object.assign(result.binding.policy, { revision: 2 })).toThrow();
+    expect(projectCodexForgeFixtureForTest({ model: "fixture" }, false, result).kind).toBe(
+      "FIXTURE-ONLY-NON-NATIVE",
+    );
   });
 });

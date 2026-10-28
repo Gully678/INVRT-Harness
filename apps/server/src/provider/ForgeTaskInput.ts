@@ -553,6 +553,34 @@ const inputSchema = z.strictObject({
     })
     .optional(),
 });
+
+/** Bound records contain only validated plain objects, arrays and scalar values. */
+function freezeBoundRecord<T>(value: T): T {
+  if (value !== null && typeof value === "object") {
+    for (const child of Object.values(value)) freezeBoundRecord(child);
+    Object.freeze(value);
+  }
+  return value;
+}
+
+function requireTaskIntegrity(
+  input: unknown,
+  record: z.infer<typeof taskRecordSchema>,
+  taskDigest: string,
+): void {
+  const current = inputSchema.safeParse(input);
+  if (!current.success) fail("task-changed");
+  if (
+    canonicalForgeTaskDigest(record) !== taskDigest ||
+    canonicalForgeTaskDigest({
+      schemaVersion: 1,
+      binding: current.data.binding,
+      task: current.data.task,
+    }) !== taskDigest
+  )
+    fail("task-changed");
+}
+
 async function revalidate(
   authority: ForgeInputAuthority,
   binding: ForgeExecutionBinding,
@@ -562,7 +590,12 @@ async function revalidate(
 ): Promise<void> {
   let response: z.infer<typeof authorityResponse>;
   try {
-    response = authorityResponse.parse(await authority.revalidate(binding, task));
+    response = authorityResponse.parse(
+      await authority.revalidate(
+        freezeBoundRecord(structuredClone(binding)),
+        freezeBoundRecord(structuredClone(task)),
+      ),
+    );
   } catch {
     return fail("authority-unavailable");
   }
@@ -685,12 +718,14 @@ export async function resolveForgeTaskInput(input: unknown): Promise<ForgeTaskIn
   try {
     const parsed = inputSchema.safeParse(input);
     if (!parsed.success) return { status: "unavailable", code: "invalid-input" };
-    // Copy task/snapshot values before yielding so caller mutation cannot change an in-flight selection.
+    // Zod owns these copies; neither caller nor callback may change the record after hashing.
     const { binding, task, snapshot, authority, fixturePorts } = parsed.data;
-    const taskDigest = canonicalForgeTaskDigest({ schemaVersion: 1, binding, task });
+    const record = freezeBoundRecord({ schemaVersion: 1 as const, binding, task });
+    const taskDigest = canonicalForgeTaskDigest(record);
     const manifestDigest = snapshot.approvedManifestSha256;
     if (manifestDigest === undefined) fail("trust-anchor-missing");
     await revalidate(authority, binding, task, taskDigest, manifestDigest);
+    requireTaskIntegrity(input, record, taskDigest);
     if (!fixturePorts || authority.source !== "LABELLED-TEST-FIXTURE")
       return { status: "unavailable", code: "router-runtime-unavailable" };
     await checkPath(snapshot.routerRoot, true, "snapshot-unavailable");
@@ -764,6 +799,7 @@ export async function resolveForgeTaskInput(input: unknown): Promise<ForgeTaskIn
         .filter(([, enabled]) => enabled)
         .map(([flag]) => `--${flag}`),
     ];
+    requireTaskIntegrity(input, record, taskDigest);
     const response = await fixturePorts.runRouter({
       executable: snapshot.pythonExecutable,
       args,
@@ -820,6 +856,7 @@ export async function resolveForgeTaskInput(input: unknown): Promise<ForgeTaskIn
       await fixturePorts.afterResourceRead?.(resource.id);
     }
     await revalidate(authority, binding, task, taskDigest, manifestDigest);
+    requireTaskIntegrity(input, record, taskDigest);
     const result: VerifiedForgeTaskInput = {
       status: "ready",
       schemaVersion: 1,
