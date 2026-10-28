@@ -1,0 +1,18 @@
+---
+import mark from "../assets/brand/invrt-mark.svg?raw";
+import wordmark from "../assets/brand/invrt-wordmark.svg?raw";
+---
+<span class="invrt-lockup" role="img" aria-label="INVRT Code">
+  <span class="artwork" aria-hidden="true"><span class="mark" set:html={mark} /><span class="wordmark" set:html={wordmark} /></span>
+  <span class="product" aria-hidden="true">Code</span>
+</span>
+<style>
+  @font-face { font-family: "INVRT Inter"; src: url("../assets/brand/Inter-latin-600.woff2") format("woff2"); font-weight: 600; font-display: swap; }
+  .invrt-lockup { --cap: var(--invrt-lockup-cap, 14px); display: inline-flex; align-items: center; gap: calc(var(--cap) * .42); padding: calc(var(--cap) * .5); flex-shrink: 0; }
+  .artwork { position: relative; flex: none; width: calc(var(--cap) * 5.924044); height: calc(var(--cap) * 1.21); }
+  .mark, .wordmark { position: absolute; display: block; }
+  .mark { left: 0; top: 0; width: calc(var(--cap) * 1.455044); height: calc(var(--cap) * 1.21); }
+  .wordmark { left: calc(var(--cap) * 1.855044); top: calc(var(--cap) * .082164); width: calc(var(--cap) * 4.069); height: calc(var(--cap) * 1.0418519); }
+  .mark :global(svg), .wordmark :global(svg) { display: block; width: 100%; height: 100%; }
+  .product { font-family: "INVRT Inter", Inter, sans-serif; font-weight: 600; font-size: calc(var(--cap) * .86); letter-spacing: -.005em; line-height: 1.4069767442; white-space: nowrap; }
+</style>

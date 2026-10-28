@@ -187,7 +187,12 @@ export function AgentActivity(
     modifiers: typeof linkModifiers = [],
   ) => (
     <HStack
-      modifiers={[frame({ width: size, height: size }), foregroundStyle(color), ...modifiers]}
+      modifiers={[
+        frame({ width: size, height: size }),
+        foregroundStyle(color),
+        accessibilityLabel("INVRT Code"),
+        ...modifiers,
+      ]}
     >
       <Image systemName={systemName} modifiers={[resizable()]} />
     </HStack>
@@ -227,7 +232,12 @@ export function AgentActivity(
   // inherits.
   const renderLogo = (height: number, color: Foreground, modifiers: typeof linkModifiers = []) => (
     <HStack
-      modifiers={[frame({ width: height * 1.5, height }), foregroundStyle(color), ...modifiers]}
+      modifiers={[
+        frame({ width: height * (823.94 / 685.18), height }),
+        foregroundStyle(color),
+        accessibilityLabel("INVRT Code"),
+        ...modifiers,
+      ]}
     >
       <Image assetName="T3Mark" modifiers={[resizable()]} />
     </HStack>

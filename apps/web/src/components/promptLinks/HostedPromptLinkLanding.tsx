@@ -1,3 +1,4 @@
+import { InvrtLockup } from "../InvrtLockup";
 import {
   type LinkedPrompt,
   parseNewThreadLink,
@@ -114,7 +115,7 @@ function HostedPromptLinkLanding({
     return (
       <StandalonePage tone="error">
         <StandalonePageHeader
-          eyebrow={APP_DISPLAY_NAME}
+          eyebrow={<InvrtLockup cap={14} title={APP_DISPLAY_NAME} />}
           title="Could not open the link"
           description={summary.error}
         />
@@ -126,7 +127,7 @@ function HostedPromptLinkLanding({
   return (
     <StandalonePage tone="brand">
       <StandalonePageHeader
-        eyebrow={APP_DISPLAY_NAME}
+        eyebrow={<InvrtLockup cap={14} title={APP_DISPLAY_NAME} />}
         title="Open this prompt"
         description="It opens as a draft. Nothing runs until you press Send."
       />

@@ -1,3 +1,4 @@
+import { InvrtLockup } from "../components/InvrtLockup";
 import { type ServerLifecycleWelcomePayload } from "@t3tools/contracts";
 import { scopedProjectKey, scopeProjectRef } from "@t3tools/client-runtime/environment";
 import {
@@ -228,7 +229,7 @@ function RootRouteErrorView({ error }: ErrorComponentProps) {
   return (
     <StandalonePage tone="error">
       <StandalonePageHeader
-        eyebrow={APP_DISPLAY_NAME}
+        eyebrow={<InvrtLockup cap={14} title={APP_DISPLAY_NAME} />}
         title="Something went wrong."
         description={message}
       />

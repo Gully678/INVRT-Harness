@@ -34,7 +34,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import { InvrtMark } from "../InvrtMark";
+import { InvrtLockup } from "../InvrtLockup";
 import { TYPOGRAPHY_ADVANCED_STORAGE_KEY } from "../../appearanceFonts";
 import { useLocalStorage } from "../../hooks/useLocalStorage";
 import { hasCloudPublicConfig } from "../../cloud/publicConfig";
@@ -231,14 +231,7 @@ export function WelcomeWizard({
       >
         <WizardHeader
           title="Set up INVRT Code"
-          identity={
-            <div className="flex items-center gap-2" role="img" aria-label="INVRT Code">
-              <InvrtMark className="h-6 w-auto text-muted-foreground" aria-hidden />
-              <span className="text-2xl font-medium tracking-tight text-muted-foreground">
-                Code
-              </span>
-            </div>
-          }
+          identity={<InvrtLockup cap={18} className="text-foreground" />}
         >
           <WizardSteps
             steps={ONBOARDING_STAGES}

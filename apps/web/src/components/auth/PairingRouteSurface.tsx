@@ -1,3 +1,4 @@
+import { InvrtLockup } from "../InvrtLockup";
 import { Alert, AlertDescription } from "../ui/alert";
 import type { AuthSessionState } from "@t3tools/contracts";
 import { squashAtomCommandFailure } from "@t3tools/client-runtime/state/runtime";
@@ -20,7 +21,7 @@ export function PairingPendingSurface() {
   return (
     <StandalonePage tone="pairing">
       <StandalonePageHeader
-        eyebrow={APP_DISPLAY_NAME}
+        eyebrow={<InvrtLockup cap={14} title={APP_DISPLAY_NAME} />}
         title="Pairing with this environment"
         description="Validating the pairing link and preparing your session."
       />
@@ -86,7 +87,7 @@ export function PairingRouteSurface({
   return (
     <StandalonePage tone="pairing">
       <StandalonePageHeader
-        eyebrow={APP_DISPLAY_NAME}
+        eyebrow={<InvrtLockup cap={14} title={APP_DISPLAY_NAME} />}
         title="Pair with this environment"
         description={describeAuthGate(auth.bootstrapMethods)}
       />
@@ -210,7 +211,7 @@ export function HostedPairingRouteSurface() {
   return (
     <StandalonePage tone="pairing">
       <StandalonePageHeader
-        eyebrow={APP_DISPLAY_NAME}
+        eyebrow={<InvrtLockup cap={14} title={APP_DISPLAY_NAME} />}
         title={
           status === "paired"
             ? "Backend paired"

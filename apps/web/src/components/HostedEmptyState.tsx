@@ -9,6 +9,7 @@ import { hasCloudPublicConfig } from "~/cloud/publicConfig";
 import { isElectron } from "../env";
 import { isLocalEnvironmentDisabled } from "../localEnvironment";
 import { useRelayEnvironmentDiscovery } from "../state/environments";
+import { InvrtLockup } from "./InvrtLockup";
 import { CommandBlock } from "./CommandBlock";
 import { useT3ConnectAuthPrompt } from "./clerk/useT3ConnectAuthPrompt";
 import { CloudEnvironmentConnectRows } from "./cloud/CloudEnvironmentConnectList";
@@ -27,9 +28,7 @@ export function HostedEmptyState() {
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden bg-background">
         <WorkspacePageHeader electron={isElectron} className="border-b border-border">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-foreground md:text-muted-foreground/60">
-              {APP_DISPLAY_NAME}
-            </span>
+            <InvrtLockup cap={12} title={APP_DISPLAY_NAME} className="text-foreground" />
           </div>
         </WorkspacePageHeader>
 
