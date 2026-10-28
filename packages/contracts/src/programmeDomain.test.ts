@@ -4,12 +4,14 @@
  * makeLabelledFixtureAuthorityPort; no production verifier exists in this slice.
  */
 import { describe, expect, it } from "@effect/vitest";
+import * as DateTime from "effect/DateTime";
 import * as Schema from "effect/Schema";
 
 import {
   ApprovalId,
   EvidenceId,
   MemberId,
+  type MutationReceipt,
   OrgId,
   PrincipalId,
   Programme,
@@ -41,6 +43,9 @@ import { EnvironmentId, ProjectId, RunId } from "./baseSchemas.ts";
 // Wire helper: decodes JSON-shaped fixtures the same way production transports do.
 const decodeWire = <S extends Schema.Top>(schema: S) =>
   Schema.decodeUnknownSync(Schema.toCodecJson(schema) as never) as (value: unknown) => S["Type"];
+
+const encodeWorkItem = Schema.encodeSync(Schema.toCodecJson(WorkItem));
+const encodeReview = Schema.encodeSync(Schema.toCodecJson(ProgrammeReview));
 
 const expectTagged = (run: () => unknown, tag: string) => {
   let thrown: unknown;
@@ -1564,5 +1569,228 @@ describe("D4 original review snapshot", () => {
     expect(replay.review.findings).toEqual([]);
     expect(replay.review.disposition).toBe("accepted");
     expect(input.context.replayRecords.size).toBe(1);
+  });
+});
+
+describe("D4 replay result isolation", () => {
+  const operations = ["admitBuildComplete", "startReview", "recordReview"] as const;
+  const returnedCases = operations.flatMap((operation) =>
+    (["initial", "replay"] as const).map((returned) => ({ operation, returned })),
+  );
+
+  const setupReplay = (operation: (typeof operations)[number]) => {
+    const workItem = decodeWire(WorkItem)({
+      ...workItemWire,
+      dependencies: ["dependency-1"],
+      dueAt: LATER,
+      testedMilestone: { evidenceIds: [EV_TEST], recordedAt: NOW },
+      ...(operation === "admitBuildComplete"
+        ? {}
+        : {
+            state: operation === "startReview" ? "buildComplete" : "reviewQueued",
+            buildCompletion: {
+              sourceCommit: COMMIT_A,
+              builderRunId: BUILDER_RUN,
+              evidenceIds: [EV_BUILD, EV_TEST],
+              admittedAt: NOW,
+            },
+          }),
+    });
+    const context = makeMutationContext();
+    const review = decodeWire(ProgrammeReview)({
+      ...reviewWire,
+      findings: [{ severity: "note", description: "original note", path: "original.ts" }],
+    });
+    const buildEvidenceIds = [EV_BUILD_B, EV_TEST_B];
+    const admit = admitInput({ context, workItem, buildEvidenceIds });
+    const start = {
+      port: basePort(),
+      context,
+      requestingPrincipalId: PRINCIPAL_BUILDER,
+      workItem,
+      expectedRevision: workItem.revision,
+      idempotencyKey: "isolated-start",
+      payloadDigest: DIGEST_1,
+      now: LATER,
+    };
+    const record = reviewInput(workItem, { context, review });
+    const invoke = (): {
+      workItem: WorkItem;
+      receipt: MutationReceipt;
+      review?: ProgrammeReview;
+    } => {
+      switch (operation) {
+        case "admitBuildComplete":
+          return admitBuildComplete(admit);
+        case "startReview":
+          return startReview(start);
+        case "recordReview":
+          return recordReview(record);
+      }
+    };
+    return { context, workItem, review, buildEvidenceIds, invoke };
+  };
+
+  type ReplayResult = ReturnType<ReturnType<typeof setupReplay>["invoke"]>;
+  const encodeResult = (result: ReplayResult) =>
+    structuredClone({
+      workItem: encodeWorkItem(result.workItem),
+      receipt: { ...result.receipt },
+      ...(result.review !== undefined ? { review: encodeReview(result.review) } : {}),
+    });
+
+  const mutateWorkItem = (workItem: WorkItem) => {
+    Object.assign(workItem, { title: "changed", state: "running", revision: 999 });
+    Object.assign(workItem.acceptance, { 0: "changed" });
+    Object.assign(workItem.sourceRefs, { 0: "changed" });
+    Object.assign(workItem.requirementIds, { 0: "changed" });
+    Object.assign(workItem.dependencies, { 0: "changed" });
+    Object.assign(workItem.createdAt, { epochMilliseconds: 0 });
+    if (workItem.dueAt !== null) Object.assign(workItem.dueAt, { epochMilliseconds: 0 });
+    if (workItem.buildCompletion) {
+      Object.assign(workItem.buildCompletion, { sourceCommit: COMMIT_B });
+      Object.assign(workItem.buildCompletion.evidenceIds, { 0: EV_TEST_B });
+      Object.assign(workItem.buildCompletion.admittedAt, { epochMilliseconds: 0 });
+    }
+    if (workItem.testedMilestone) {
+      Object.assign(workItem.testedMilestone.evidenceIds, { 0: EV_BUILD_B });
+      Object.assign(workItem.testedMilestone.recordedAt, { epochMilliseconds: 0 });
+    }
+  };
+
+  const mutateReview = (review: ProgrammeReview) => {
+    Object.assign(review.scope, { 0: "changed" });
+    Object.assign(review.evidenceRefs, { 0: EV_TEST_B });
+    Object.assign(review.findings[0]!, { description: "changed", path: "changed.ts" });
+    Object.assign(review.coverage, { 0: "changed" });
+    Object.assign(review.createdAt, { epochMilliseconds: 0 });
+  };
+
+  const expectOriginalReplay = (
+    fixture: ReturnType<typeof setupReplay>,
+    expected: ReturnType<typeof encodeResult>,
+  ) => {
+    const replay = fixture.invoke();
+    expect(encodeResult(replay)).toEqual(expected);
+    expect(DateTime.isUtc(replay.workItem.createdAt)).toBe(true);
+    expect(DateTime.isUtc(replay.workItem.updatedAt)).toBe(true);
+    expect(DateTime.isUtc(replay.workItem.buildCompletion!.admittedAt)).toBe(true);
+    if (replay.review !== undefined) expect(DateTime.isUtc(replay.review.createdAt)).toBe(true);
+    expect(replay.workItem.revision).toBe(6);
+    expect(fixture.context.replayRecords.size).toBe(1);
+    expect(fixture.context.aggregateKeyIndex.size).toBe(1);
+  };
+
+  it.each(returnedCases)(
+    "$operation isolates work item nesting from its $returned return",
+    ({ operation, returned }) => {
+      const fixture = setupReplay(operation);
+      const initial = fixture.invoke();
+      const expected = encodeResult(initial);
+      mutateWorkItem(returned === "initial" ? initial.workItem : fixture.invoke().workItem);
+      expectOriginalReplay(fixture, expected);
+    },
+  );
+
+  it.each(returnedCases)(
+    "$operation isolates receipt fields from its $returned return",
+    ({ operation, returned }) => {
+      const fixture = setupReplay(operation);
+      const initial = fixture.invoke();
+      const expected = encodeResult(initial);
+      const result = returned === "initial" ? initial : fixture.invoke();
+      Object.assign(result.receipt, {
+        operation: "changed",
+        payloadDigest: DIGEST_2 === result.receipt.payloadDigest ? DIGEST_1 : DIGEST_2,
+        revisionAfter: 999,
+      });
+      expectOriginalReplay(fixture, expected);
+    },
+  );
+
+  it.each(["initial", "replay"] as const)(
+    "recordReview isolates nested review proof from its %s return",
+    (returned) => {
+      const fixture = setupReplay("recordReview");
+      const initial = fixture.invoke();
+      const expected = encodeResult(initial);
+      const result = returned === "initial" ? initial : fixture.invoke();
+      expect(result.review).toBeDefined();
+      if (result.review === undefined) throw new Error("review result required");
+      mutateReview(result.review);
+      expectOriginalReplay(fixture, expected);
+    },
+  );
+
+  it.each(operations)("%s snapshots caller-retained nested inputs at commit", (operation) => {
+    const fixture = setupReplay(operation);
+    const initial = fixture.invoke();
+    const expected = encodeResult(initial);
+    // Keep authority-relevant identity/state valid so the next call reaches replay lookup.
+    Object.assign(fixture.workItem.acceptance, { 0: "changed" });
+    Object.assign(fixture.workItem.sourceRefs, { 0: "changed" });
+    Object.assign(fixture.workItem.requirementIds, { 0: "changed" });
+    Object.assign(fixture.workItem.createdAt, { epochMilliseconds: 0 });
+    Object.assign(fixture.workItem.testedMilestone!.evidenceIds, { 0: EV_BUILD_B });
+    Object.assign(fixture.workItem.testedMilestone!.recordedAt, { epochMilliseconds: 0 });
+    if (fixture.workItem.buildCompletion) {
+      Object.assign(fixture.workItem.buildCompletion.evidenceIds, { 0: EV_TEST_B });
+      Object.assign(fixture.workItem.buildCompletion.admittedAt, { epochMilliseconds: 0 });
+    }
+    fixture.buildEvidenceIds[0] = EV_TEST_B;
+    mutateReview(fixture.review);
+    expectOriginalReplay(fixture, expected);
+  });
+});
+
+describe("D4 replay boundary compatibility", () => {
+  const cases = (["admitBuildComplete", "startReview", "recordReview"] as const).flatMap(
+    (operation) =>
+      (["operation key", "payload digest", "acceptance text"] as const).map((field) => ({
+        operation,
+        field,
+      })),
+  );
+
+  it.each(cases)("$operation preserves existing $field input behaviour", ({ operation, field }) => {
+    const context = makeMutationContext();
+    const originalWorkItem =
+      operation === "admitBuildComplete"
+        ? decodeWire(WorkItem)(workItemWire)
+        : operation === "startReview"
+          ? admitBuildComplete(admitInput()).workItem
+          : queuedWorkItem();
+    const workItem = {
+      ...originalWorkItem,
+      ...(field === "acceptance text" ? { acceptance: [""] } : {}),
+    };
+    const common = {
+      context,
+      workItem,
+      expectedRevision: workItem.revision,
+      idempotencyKey: field === "operation key" ? "" : "compatibility",
+      payloadDigest: field === "payload digest" ? "caller-supplied-digest" : DIGEST_1,
+    };
+    const invoke = () => {
+      switch (operation) {
+        case "admitBuildComplete":
+          return admitBuildComplete(admitInput(common));
+        case "startReview":
+          return startReview({
+            ...common,
+            port: basePort(),
+            requestingPrincipalId: PRINCIPAL_BUILDER,
+            now: LATER,
+          });
+        case "recordReview":
+          return recordReview(reviewInput(workItem, common));
+      }
+    };
+    const initial = invoke();
+    const replay = invoke();
+    expect(replay).toEqual(initial);
+    expect(replay.workItem.revision).toBe(workItem.revision + 1);
+    expect(context.replayRecords.size).toBe(1);
+    expect(context.aggregateKeyIndex.size).toBe(1);
   });
 });

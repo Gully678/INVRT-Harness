@@ -541,6 +541,22 @@ export interface ProgrammeReplayRecord {
   readonly review?: ProgrammeReview;
 }
 
+const replayRecordCodec = Schema.toCodecJson(
+  Schema.Struct({
+    receipt: MutationReceipt,
+    aggregate: WorkItem,
+    authorityScope: Schema.String,
+    review: Schema.optionalKey(ProgrammeReview),
+  }),
+);
+
+const encodeReplayRecord = Schema.encodeSync(replayRecordCodec);
+const decodeReplayRecord = Schema.decodeSync(replayRecordCodec);
+
+// Schema round trips isolate nested values and retain Effect DateTime representations.
+const snapshotReplayRecord = (record: ProgrammeReplayRecord): ProgrammeReplayRecord =>
+  decodeReplayRecord(encodeReplayRecord(record));
+
 /** Caller-owned context: replay records live only for the life of the calling process. */
 export interface ProgrammeMutationContext {
   readonly replayRecords: Map<string, ProgrammeReplayRecord>;
@@ -693,7 +709,8 @@ const replayOrDeny = (scope: MutationScope): ProgrammeReplayRecord | null => {
         operationKey: scope.operationKey,
       });
     }
-    if (existing.receipt.payloadDigest === scope.payloadDigest) return existing;
+    if (existing.receipt.payloadDigest === scope.payloadDigest)
+      return snapshotReplayRecord(existing);
     throw new ProgrammeIdempotencyConflictError({
       message: "Operation key was already used with a different payload",
       operationKey: scope.operationKey,
@@ -723,12 +740,15 @@ const commitReceipt = (
     payloadDigest: scope.payloadDigest,
     revisionAfter: aggregate.revision,
   };
-  scope.context.replayRecords.set(receiptScope(scope), {
-    receipt,
-    aggregate,
-    authorityScope: scope.authorityScope,
-    ...(review === undefined ? {} : { review }),
-  });
+  scope.context.replayRecords.set(
+    receiptScope(scope),
+    snapshotReplayRecord({
+      receipt,
+      aggregate,
+      authorityScope: scope.authorityScope,
+      ...(review === undefined ? {} : { review }),
+    }),
+  );
   scope.context.aggregateKeyIndex.set(aggregateScope(scope), scope.principalId);
   return { workItem: aggregate, receipt };
 };
