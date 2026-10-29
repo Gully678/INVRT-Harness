@@ -123,7 +123,8 @@ function redactRemoteUrl(remoteUrl: string): string {
     url.search = "";
     return url.toString();
   } catch {
-    return remoteUrl;
+    // Non-URI Git remotes (SCP and local paths) do not use the URL parser.
+    return remoteUrl.includes("://") ? "[invalid clone URL]" : remoteUrl;
   }
 }
 
@@ -315,6 +316,16 @@ export const make = Effect.gen(function* () {
         operation: "cloneRepository",
         provider,
         detail: "Enter a repository path or clone URL before cloning.",
+      });
+    }
+
+    // URL silently strips tabs/newlines; reject them rather than giving Git a different URI.
+    // Keep SCP and local Git paths outside URI validation.
+    if (remoteUrl.includes("://") && (/\s/.test(remoteUrl) || !URL.canParse(remoteUrl))) {
+      return yield* new SourceControlRepositoryError({
+        operation: "cloneRepository",
+        provider,
+        detail: "Enter a valid clone URL before cloning.",
       });
     }
 
