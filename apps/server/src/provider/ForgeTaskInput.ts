@@ -52,18 +52,33 @@ const codes = [
   "admission-channel-mismatch",
 ] as const;
 export type ForgeInputUnavailableCode = (typeof codes)[number];
+const diagnosticSchema = z.discriminatedUnion("phase", [
+  z.strictObject({ phase: z.literal("filesystem"), cause: z.literal("io-error") }),
+  z.strictObject({ phase: z.literal("router"), cause: z.literal("process-error") }),
+  z.strictObject({ phase: z.literal("internal"), cause: z.literal("unexpected-error") }),
+]);
+type ForgeDiagnostic = z.infer<typeof diagnosticSchema>;
 export class ForgeTaskInputUnavailableError extends Error {
   readonly code: ForgeInputUnavailableCode;
   readonly resourceId: string | undefined;
-  constructor(code: ForgeInputUnavailableCode, resourceId?: string) {
-    super(code);
+  readonly diagnostic: ForgeDiagnostic | undefined;
+  constructor(code: ForgeInputUnavailableCode, resourceId?: string, diagnostic?: ForgeDiagnostic) {
+    super(
+      code,
+      diagnostic ? { cause: new Error(`${diagnostic.phase}: ${diagnostic.cause}`) } : undefined,
+    );
     this.name = "ForgeTaskInputUnavailableError";
     this.code = code;
     this.resourceId = resourceId;
+    this.diagnostic = diagnostic;
   }
 }
-function fail(code: ForgeInputUnavailableCode, resourceId?: string): never {
-  throw new ForgeTaskInputUnavailableError(code, resourceId);
+function fail(
+  code: ForgeInputUnavailableCode,
+  resourceId?: string,
+  diagnostic?: ForgeDiagnostic,
+): never {
+  throw new ForgeTaskInputUnavailableError(code, resourceId, diagnostic);
 }
 const scalar = (text: string) => text.isWellFormed();
 const text = (max: number) => z.string().min(1).max(max).refine(scalar);
@@ -276,6 +291,7 @@ const unavailableSchema = z.strictObject({
   status: z.literal("unavailable"),
   code: z.enum(codes),
   resourceId: identifier.optional(),
+  diagnostic: diagnosticSchema.optional(),
 });
 export type VerifiedForgeTaskInput = z.infer<typeof readySchema>;
 export type ForgeTaskInputResult = VerifiedForgeTaskInput | z.infer<typeof unavailableSchema>;
@@ -433,7 +449,9 @@ async function checkPath(
     if ((await NodeFSP.realpath(path)) !== path) fail("unsafe-path", resourceId);
   } catch (error) {
     if (error instanceof ForgeTaskInputUnavailableError) throw error;
-    fail(missing, resourceId);
+    if (error instanceof Error && "code" in error && error.code === "ENOENT")
+      fail(missing, resourceId);
+    fail(missing, resourceId, { phase: "filesystem", cause: "io-error" });
   }
 }
 async function readVerified(
@@ -485,7 +503,9 @@ async function readVerified(
     }
   } catch (error) {
     if (error instanceof ForgeTaskInputUnavailableError) throw error;
-    return fail(missing, resourceId);
+    if (error instanceof Error && "code" in error && error.code === "ENOENT")
+      fail(missing, resourceId);
+    return fail(missing, resourceId, { phase: "filesystem", cause: "io-error" });
   }
 }
 
@@ -800,15 +820,20 @@ export async function resolveForgeTaskInput(input: unknown): Promise<ForgeTaskIn
         .map(([flag]) => `--${flag}`),
     ];
     requireTaskIntegrity(input, record, taskDigest);
-    const response = await fixturePorts.runRouter({
-      executable: snapshot.pythonExecutable,
-      args,
-      cwd: binding.cwd,
-      shell: false,
-      env: { LANG: "C.UTF-8" },
-      timeoutMs: 5000,
-      outputLimit: 262144,
-    });
+    let response: Awaited<ReturnType<ForgeFixturePorts["runRouter"]>>;
+    try {
+      response = await fixturePorts.runRouter({
+        executable: snapshot.pythonExecutable,
+        args,
+        cwd: binding.cwd,
+        shell: false,
+        env: { LANG: "C.UTF-8" },
+        timeoutMs: 5000,
+        outputLimit: 262144,
+      });
+    } catch {
+      fail("router-runtime-unavailable", undefined, { phase: "router", cause: "process-error" });
+    }
     if (response.status !== "exited")
       fail(response.status === "timeout" ? "router-timeout" : "router-output-limit");
     if (response.stdout.length + response.stderr.length > 262144) fail("router-output-limit");
@@ -890,15 +915,21 @@ export async function resolveForgeTaskInput(input: unknown): Promise<ForgeTaskIn
         status: "unavailable",
         code: error.code,
         ...(error.resourceId ? { resourceId: error.resourceId } : {}),
+        ...(error.diagnostic ? { diagnostic: error.diagnostic } : {}),
       };
-    return { status: "unavailable", code: "snapshot-unavailable" };
+    return {
+      status: "unavailable",
+      code: "snapshot-unavailable",
+      diagnostic: { phase: "internal", cause: "unexpected-error" },
+    };
   }
 }
 
 /** Require the unchanged output of an actual current loader resolution for fixture projection. */
 export function validateForgeFixtureProjectionInput(input: unknown): VerifiedForgeTaskInput {
   const result = validateForgeTaskInputResult(input);
-  if (result.status === "unavailable") return fail(result.code, result.resourceId);
+  if (result.status === "unavailable")
+    return fail(result.code, result.resourceId, result.diagnostic);
   if (result.admission.channel !== "synthetic-component-test") fail("fixture-input-forbidden");
   if (
     typeof input !== "object" ||

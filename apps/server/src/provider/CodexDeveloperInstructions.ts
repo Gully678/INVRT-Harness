@@ -58,7 +58,7 @@ export function buildCodexAdditionalContext(
   if (forgeTaskInput !== undefined) {
     const result = validateForgeTaskInputResult(forgeTaskInput);
     if (result.status === "unavailable") {
-      throw new ForgeTaskInputUnavailableError(result.code, result.resourceId);
+      throw new ForgeTaskInputUnavailableError(result.code, result.resourceId, result.diagnostic);
     }
     throw new ForgeTaskInputUnavailableError(
       result.admission.channel === "synthetic-component-test"

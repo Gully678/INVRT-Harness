@@ -5,6 +5,7 @@ import * as NodeCrypto from "node:crypto";
 // @effect-diagnostics-next-line nodeBuiltinImport:off -- Owned fixture paths.
 import * as NodePath from "node:path";
 import * as NodeOS from "node:os";
+import * as Cause from "effect/Cause";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vite-plus/test";
 // @effect-diagnostics-next-line nodeBuiltinImport:off -- Poison actual spawning to prove the component never uses it.
 import * as NodeChildProcess from "node:child_process";
@@ -25,6 +26,26 @@ import {
   type ForgeExecutionBinding,
   type ForgeTaskSelection,
 } from "./ForgeTaskInput.ts";
+
+const fsFault = vi.hoisted(() => ({
+  path: "",
+  openPath: "",
+  error: undefined as Error | undefined,
+}));
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs/promises")>();
+  return {
+    ...actual,
+    open: (...args: Parameters<typeof actual.open>) => {
+      if (args[0] === fsFault.openPath && fsFault.error) return Promise.reject(fsFault.error);
+      return actual.open(...args);
+    },
+    lstat: (...args: Parameters<typeof actual.lstat>) => {
+      if (args[0] === fsFault.path && fsFault.error) return Promise.reject(fsFault.error);
+      return actual.lstat(...args);
+    },
+  };
+});
 
 vi.mock("node:child_process", () => {
   const forbidden = () => {
@@ -150,6 +171,52 @@ async function setup() {
 
 // Controlled process responses exercise the actual loader. The real Python router is not executed or qualified.
 describe("quarantined FORGE fixture loader", () => {
+  it.each(["filesystem", "filesystem-read", "router"] as const)(
+    "retains redacted %s diagnostics through the consumer",
+    async (phase) => {
+      await using fixture = await setup();
+      const secret = "CANARY-secret /private/path task-content";
+      const sensitive = Object.assign(new Error(secret), { name: secret, code: "EIO" });
+      if (phase === "filesystem") {
+        fsFault.path = fixture.input.snapshot.contentRoot;
+        fsFault.error = sensitive;
+      } else if (phase === "filesystem-read") {
+        fsFault.openPath = fixture.manifestPath;
+        fsFault.error = sensitive;
+      } else
+        fixture.ports.runRouter = async () => {
+          throw sensitive;
+        };
+      let result;
+      try {
+        result = await resolveForgeTaskInput(fixture.input);
+      } finally {
+        fsFault.path = "";
+        fsFault.openPath = "";
+        fsFault.error = undefined;
+      }
+      expect(result).toMatchObject({
+        status: "unavailable",
+        code: phase !== "router" ? "snapshot-unavailable" : "router-runtime-unavailable",
+        diagnostic: {
+          phase: phase === "router" ? "router" : "filesystem",
+          cause: phase === "router" ? "process-error" : "io-error",
+        },
+      });
+      let thrown: unknown;
+      try {
+        buildCodexAdditionalContext({ model: "fixture" }, false, result);
+      } catch (error) {
+        thrown = error;
+      }
+      expect(thrown).toBeInstanceOf(Error);
+      const formatted = Cause.pretty(Cause.fail(thrown));
+      expect(formatted).toContain(phase === "router" ? "process-error" : "io-error");
+      expect(JSON.stringify(result) + formatted).not.toContain(secret);
+      expect(JSON.stringify(result) + formatted).not.toContain("CANARY-secret");
+      expect(JSON.stringify(result) + formatted).not.toContain("/private/path");
+    },
+  );
   it("keeps every admission variant out of the actual native context consumer", async () => {
     await using fixture = await setup();
     const result = await resolveForgeTaskInput(fixture.input);
