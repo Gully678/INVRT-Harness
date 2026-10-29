@@ -10,6 +10,10 @@ import type * as SourceControlHost from "@t3tools/source-control-core/server/Sou
 import { applyServerSettingsPatch } from "@t3tools/shared/serverSettings";
 import * as TestSourceControlHost from "@t3tools/source-control-testing/TestSourceControlHost";
 import * as GitHubCredentials from "./GitHubCredentials.ts";
+import * as GitHubRest from "./GitHubRest.ts";
+import * as GitHubQuota from "./GitHubQuota.ts";
+import * as SourceControlRateLimit from "@t3tools/source-control-core/server/SourceControlRateLimit";
+import { HttpClient, HttpClientResponse, type HttpClientRequest } from "effect/http";
 
 const TOKEN_VARIABLES = [
   "GH_TOKEN",
@@ -148,4 +152,64 @@ describe("GitHubCredentials", () => {
       );
     }).pipe(Effect.provide(layer));
   });
+
+  it.effect("never hands a token to a host that is not a plain hostname", () => {
+    vi.stubEnv("GH_TOKEN", "env-token");
+    const { layer, calls } = harness();
+    return Effect.gen(function* () {
+      const credentials = yield* GitHubCredentials.GitHubCredentials;
+      for (const host of ["evil.com#.ghe.com", "evil.com/.ghe.com", "user@x.ghe.com"]) {
+        expect(GitHubCredentials.environmentToken(host, { GH_TOKEN: "env-token" })).toBeNull();
+        expect((yield* Effect.flip(credentials.get(host)))._tag).toBe("GitHubNotSignedInError");
+      }
+      expect(calls).toEqual([]);
+    }).pipe(Effect.provide(layer));
+  });
 });
+
+it.effect(
+  "repository HTTP requests reject malformed hosts before forwarding any credential",
+  () => {
+    vi.stubEnv("GH_TOKEN", "fixture-env-token");
+    const malformedHosts = ["evil.com#.ghe.com", "evil.com/.ghe.com", "user@x.ghe.com"];
+    const { layer, calls } = harness(
+      {},
+      [],
+      Object.fromEntries(malformedHosts.map((host) => [host, "fixture-saved-token"])),
+    );
+    const requests: Array<HttpClientRequest.HttpClientRequest> = [];
+    const http = Layer.succeed(
+      HttpClient.HttpClient,
+      HttpClient.make((request) => {
+        requests.push(request);
+        return Effect.succeed(HttpClientResponse.fromWeb(request, Response.json({ id: 1 })));
+      }),
+    );
+    const restLayer = GitHubRest.layer.pipe(
+      Layer.provide(Layer.mergeAll(layer, http)),
+      Layer.provideMerge(GitHubQuota.layer),
+      Layer.provideMerge(SourceControlRateLimit.layer),
+    );
+    return Effect.gen(function* () {
+      const rest = yield* GitHubRest.GitHubRest;
+      for (const host of malformedHosts) {
+        const failure = yield* Effect.flip(
+          rest.rest({ host, operation: "repository lookup", path: "/repos/team/project" }),
+        );
+        expect(failure._tag).toBe("GitHubNotSignedInError");
+      }
+      expect(requests).toEqual([]);
+      expect(calls).toEqual([]);
+      expect(
+        (yield* rest.rest({
+          host: " GitHub.COM ",
+          operation: "repository lookup",
+          path: "/repos/team/project",
+        })).status,
+      ).toBe(200);
+      expect(requests).toHaveLength(1);
+      expect(requests[0]?.url).toBe("https://api.github.com/repos/team/project");
+      expect(requests[0]?.headers.authorization).toBe("Bearer fixture-env-token");
+    }).pipe(Effect.provide(restLayer));
+  },
+);
