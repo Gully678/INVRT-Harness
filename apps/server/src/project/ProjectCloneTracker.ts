@@ -479,9 +479,7 @@ function bootstrapProjectId(bootstrap: unknown): ProjectId | null {
 function describeCloneFailure(cause: Cause.Cause<unknown>): string {
   const error = Cause.squash(cause);
   if (isSourceControlRepositoryError(error)) return error.detail;
-  return error instanceof Error && error.message.trim().length > 0
-    ? error.message
-    : "The repository could not be cloned.";
+  return "The repository could not be cloned.";
 }
 
 export const layer = Layer.effect(ProjectCloneTracker, make);

@@ -62,6 +62,7 @@ export class SourceControlRepositoryService extends Context.Service<
 
 export interface SourceControlPreparedClone {
   readonly destinationPath: string;
+  /** Display metadata only; execution and retries use cloneUrl. */
   readonly remoteUrl: string;
   readonly cloneUrl: string;
   readonly repository: SourceControlRepositoryInfo | null;
@@ -75,6 +76,7 @@ export interface SourceControlCloneOptions {
 
 // Older/mobile synchronous RPCs need deadlines; tracked clones use progress and Cancel instead.
 const CLONE_TIMEOUT_MS = 120_000;
+const REDACTED_REMOTE_URL = "[redacted Git remote]";
 const CLONE_ENV = {
   // Force piped progress immediately; refuse credential prompts that would hang without a tty.
   GIT_PROGRESS_DELAY: "0",
@@ -112,23 +114,29 @@ function toRepositoryInfo(
 
 // Redact credentials from client clone snapshots; git still receives the credentials.
 function redactRemoteUrl(remoteUrl: string): string {
-  // Sanitise before parsing: malformed and opaque Git remotes can still carry credentials.
-  const withoutQuery = remoteUrl.replace(/\?.*$/s, "");
-  if (/^[a-z]:[/\\]/i.test(withoutQuery)) return withoutQuery;
-  const redacted = /^file:\/\/\//i.test(withoutQuery)
-    ? withoutQuery
-    : withoutQuery.replace(/^([a-z][a-z0-9+.-]*:\/*)[^/?#]+@/i, "$1");
+  const explicitUri =
+    /^file:\/\/(?:[^/]|\/(?:[^/]|$))/i.test(remoteUrl) ||
+    /^[a-z][a-z0-9+.-]*:\/\/[^/]/i.test(remoteUrl);
+  if (!explicitUri || /[\s\\]/.test(remoteUrl) || /^[a-z]:[/\\]/i.test(remoteUrl)) {
+    return REDACTED_REMOTE_URL;
+  }
   try {
-    const url = new URL(redacted);
-    if (redacted === remoteUrl && url.username.length === 0 && url.password.length === 0) {
+    const url = new URL(remoteUrl);
+    if (
+      url.username.length === 0 &&
+      url.password.length === 0 &&
+      url.search.length === 0 &&
+      url.hash.length === 0
+    ) {
       return remoteUrl;
     }
     url.username = "";
     url.password = "";
     url.search = "";
+    url.hash = "";
     return url.toString();
   } catch {
-    return redacted;
+    return REDACTED_REMOTE_URL;
   }
 }
 
@@ -323,24 +331,6 @@ export const make = Effect.gen(function* () {
       });
     }
 
-    // Git URI schemes remain URI inputs even when separators or quoting are malformed.
-    const isUri =
-      !/^[a-z]:[/\\]/i.test(remoteUrl) &&
-      (/^[\s'"]*(?:(?:https?|ssh|git|git\+ssh|ssh\+git|file|ftps?)\s*:|[a-z][a-z0-9+.-]+:[/\\])/i.test(
-        remoteUrl,
-      ) ||
-        remoteUrl.includes("://"));
-    const hasUriAuthority = /^file:/i.test(remoteUrl)
-      ? /^file:\/\/(?:[^/]|\/(?:[^/]|$))/i.test(remoteUrl)
-      : /^[a-z][a-z0-9+.-]*:\/\/[^/]/i.test(remoteUrl);
-    if (isUri && (/\s|\\/.test(remoteUrl) || !hasUriAuthority || !URL.canParse(remoteUrl))) {
-      return yield* new SourceControlRepositoryError({
-        operation: "cloneRepository",
-        provider,
-        detail: "Enter a valid clone URL before cloning.",
-      });
-    }
-
     return {
       destinationPath: preparedDestination.destinationPath,
       remoteUrl: redactRemoteUrl(remoteUrl),
@@ -353,18 +343,22 @@ export const make = Effect.gen(function* () {
     input: SourceControlCloneRepositoryInput,
     destinationPath: string,
     cloneUrl: string,
+    publicRemoteUrl: string,
     options?: SourceControlCloneOptions,
   ) {
     const onProgress = options?.onProgress;
     // Git mixes progress and diagnostics on stderr; retain non-progress tail lines for failure details.
     const stderrTail: Array<string> = [];
-    // Git can escape opaque credentials differently; use fixed failure text for those remotes.
-    const hasOpaqueCredentials =
-      !cloneUrl.includes("://") && redactRemoteUrl(cloneUrl) !== cloneUrl;
+    // Opaque and fragment diagnostics can echo private values in Git's escaped output.
+    const hasPrivateDiagnostics = publicRemoteUrl === REDACTED_REMOTE_URL || cloneUrl.includes("#");
     const onStderrLine = (line: string) => {
       const parsed = parseGitCloneProgressLine(line);
-      if (parsed) return onProgress ? onProgress(parsed) : Effect.void;
-      if (hasOpaqueCredentials) return Effect.void;
+      if (parsed) {
+        // Stage and percentage are structured; raw detail can repeat private remote credentials.
+        const progress = publicRemoteUrl === cloneUrl ? parsed : { ...parsed, detail: null };
+        return onProgress ? onProgress(progress) : Effect.void;
+      }
+      if (hasPrivateDiagnostics) return Effect.void;
       return Effect.sync(() => {
         const trimmed = line.trim();
         if (trimmed.length === 0 || trimmed.startsWith("Cloning into")) return;
@@ -398,8 +392,28 @@ export const make = Effect.gen(function* () {
                 stderrTail.length > 0
                   ? stderrTail.join(" ")
                   : "The repository could not be cloned.",
-              cause,
+              ...(isGitCommandError(cause)
+                ? {
+                    cause: new GitCommandError({
+                      operation: "SourceControlRepositoryService.cloneRepository",
+                      command: "git",
+                      cwd: path.dirname(destinationPath),
+                      detail: "Git clone failed.",
+                      ...(cause.reason === undefined ? {} : { reason: cause.reason }),
+                      ...(cause.exitCode === undefined ? {} : { exitCode: cause.exitCode }),
+                    }),
+                  }
+                : {}),
             }),
+        ),
+        Effect.catchDefect(() =>
+          Effect.fail(
+            new SourceControlRepositoryError({
+              operation: "cloneRepository",
+              provider: input.provider ?? SourceControlProviderKind.make("unknown"),
+              detail: "The repository could not be cloned.",
+            }),
+          ),
         ),
       );
   });
@@ -410,10 +424,15 @@ export const make = Effect.gen(function* () {
   ) {
     const prepared = yield* prepareClone(input);
     const httpsUrl = httpsFallbackUrl(input, prepared);
+    const fallbackRemoteUrl =
+      prepared.remoteUrl === REDACTED_REMOTE_URL || httpsUrl === null
+        ? REDACTED_REMOTE_URL
+        : redactRemoteUrl(httpsUrl);
     const remoteUrl = yield* runClone(
       input,
       prepared.destinationPath,
       prepared.cloneUrl,
+      prepared.remoteUrl,
       options,
     ).pipe(
       Effect.as(prepared.remoteUrl),
@@ -421,8 +440,8 @@ export const make = Effect.gen(function* () {
       Effect.catch((sshError) =>
         httpsUrl === null || !isSshRejection(sshError)
           ? Effect.fail(sshError)
-          : runClone(input, prepared.destinationPath, httpsUrl, options).pipe(
-              Effect.as(redactRemoteUrl(httpsUrl)),
+          : runClone(input, prepared.destinationPath, httpsUrl, fallbackRemoteUrl, options).pipe(
+              Effect.as(fallbackRemoteUrl),
               Effect.mapError(
                 (httpsError) =>
                   new SourceControlRepositoryError({

@@ -5,8 +5,9 @@ import * as NodePath from "@effect/platform-node/NodePath";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
+import * as Cause from "effect/Cause";
+import * as Exit from "effect/Exit";
 import * as Deferred from "effect/Deferred";
-import * as Fiber from "effect/Fiber";
 import * as Logger from "effect/Logger";
 import * as Stream from "effect/Stream";
 import * as FileSystem from "effect/FileSystem";
@@ -18,6 +19,7 @@ import { ChildProcessSpawner } from "effect/process";
 import {
   GitCommandError,
   SourceControlProviderError,
+  SourceControlRepositoryError,
   type SourceControlCloneRepositoryInput,
 } from "@t3tools/contracts";
 
@@ -237,7 +239,7 @@ it.effect.each(["--bare", "source.git"])(
     ),
 );
 
-it.effect("reports clone progress from git's stderr and keeps its error text on failure", () =>
+it.effect("reports clone progress and keeps opaque failure diagnostics private", () =>
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
@@ -287,13 +289,10 @@ it.effect("reports clone progress from git's stderr and keeps its error text on 
 
     assert.deepStrictEqual(progress, [
       { stage: "counting", percent: null, detail: null },
-      { stage: "receiving", percent: 40, detail: "1.00 MiB | 2.00 MiB/s" },
-      { stage: "receiving", percent: 100, detail: "2.50 MiB | 2.00 MiB/s" },
+      { stage: "receiving", percent: 40, detail: null },
+      { stage: "receiving", percent: 100, detail: null },
     ]);
-    assert.strictEqual(
-      error.detail,
-      "fatal: early EOF fatal: unable to access 'https://github.com/octocat/t3code.git/': could not resolve host",
-    );
+    assert.strictEqual(error.detail, "The repository could not be cloned.");
   }).pipe(Effect.provide(NodeServices.layer)),
 );
 
@@ -329,6 +328,7 @@ function rejectingSsh(
 const cloneInTemporaryDirectory = (
   git: Partial<GitVcsDriver.GitVcsDriver["Service"]>,
   input: Omit<SourceControlCloneRepositoryInput, "destinationPath">,
+  options?: SourceControlRepositoryService.SourceControlCloneOptions,
 ) =>
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
@@ -338,10 +338,13 @@ const cloneInTemporaryDirectory = (
       .pipe(Effect.orDie);
     return yield* Effect.gen(function* () {
       const service = yield* SourceControlRepositoryService.SourceControlRepositoryService;
-      return yield* service.cloneRepository({
-        ...input,
-        destinationPath: path.join(parent, "t3code"),
-      });
+      return yield* service.cloneRepository(
+        {
+          ...input,
+          destinationPath: path.join(parent, "t3code"),
+        },
+        options,
+      );
     }).pipe(Effect.provide(layer({ git }).pipe(Layer.orDie)));
   }).pipe(Effect.provide(NodeServices.layer));
 
@@ -353,7 +356,7 @@ it.effect("retries a clone over HTTPS when the SSH login is refused", () =>
     });
 
     assert.deepStrictEqual(urls, [CLONE_URLS.sshUrl, "https://github.com/octocat/t3code.git"]);
-    assert.strictEqual(result.remoteUrl, "https://github.com/octocat/t3code.git");
+    assert.strictEqual(result.remoteUrl, "[redacted Git remote]");
   }),
 );
 
@@ -367,7 +370,7 @@ it.effect("reports both failures when the HTTPS retry fails too", () =>
     assert.strictEqual(urls.length, 2);
     assert.strictEqual(
       error.detail,
-      "git@github.com: Permission denied (publickey). Cloning over HTTPS instead also failed: fatal: could not read Username for 'https://github.com': terminal prompts disabled",
+      "The repository could not be cloned. Cloning over HTTPS instead also failed: The repository could not be cloned.",
     );
   }),
 );
@@ -721,7 +724,7 @@ it.effect("publish succeeds with status remote_added when the local repo has no 
   );
 });
 
-const malformedCloneUrls = [
+const privateCloneRemotes = [
   String.raw`https://\user:CANARY@example.com/repo?token=CANARY`,
   ...["http", "https", "ssh", "git", "git+ssh", "ssh+git", "ftp", "ftps"].flatMap((scheme) =>
     ["", "/", "///", "////"].map(
@@ -745,45 +748,98 @@ const malformedCloneUrls = [
   "https://user:CANARY@exa mple.com/repo?token=CANARY",
   "https://example.com/repo?token=CANARY\ncontinued",
   "https://example.com/repo?token=CANARY\tcontinued",
+  "git:team/repo.git",
+  "ssh:team/repo.git",
+  "http:team/repo.git",
+  "git:/absolute/repo.git",
+  "git@example.com:team/repo.git",
+  "../local repo.git",
+  "../https:local@repo.git",
+  "file:////local@repo.git",
+  "C:/work/local repo.git",
+  "C:\\work\\local@repo.git",
+  "'custom:user:CANARY@example.com/repo'",
+  '"custom:user:CANARY@example.com/repo"',
+  "ht\ttps:/user:CANARY@example.com:invalid/repo",
+  "h t t p s:/user:CANARY@example.com:invalid/repo",
+  "custom user:user:CANARY@example.com/repo",
+  "custom:user:secret CANARY@example.com/repo?token=CANARY",
 ];
 
-it.effect.each(malformedCloneUrls)("rejects malformed clone URI %s before Git", (remoteUrl) => {
+const REDACTED_DISPLAY = "[redacted Git remote]";
+
+function cloneBoundaryTest(remoteUrl: string, expectedDisplay: string) {
+  const calls: Array<string> = [];
   const logs: Array<unknown> = [];
-  let gitCalls = 0;
+  const launched = Deferred.makeUnsafe<void>();
   return Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
-    const root = yield* fs.makeTempDirectoryScoped({ prefix: "clone-uri-rejection-" });
+    const root = yield* fs.makeTempDirectoryScoped({ prefix: "clone-public-boundary-" });
     const service = yield* SourceControlRepositoryService.SourceControlRepositoryService;
     const input = { remoteUrl, destinationPath: path.join(root, "repo") };
-    for (const operation of [
-      service.prepareClone(input).pipe(Effect.asVoid),
-      service.cloneRepository(input).pipe(Effect.asVoid),
-    ]) {
-      const error = yield* operation.pipe(
-        Effect.match({ onSuccess: () => null, onFailure: (error) => error }),
-      );
-      assert.isNotNull(error);
-      if (!error) return yield* Effect.die("Malformed clone URI was accepted");
-      assert.equal(error._tag, "SourceControlRepositoryError");
-      assert.equal(error.operation, "cloneRepository");
-      assert.equal(error.detail, "Enter a valid clone URL before cloning.");
-      assert.notInclude(JSON.stringify(error), "CANARY");
+    const prepared = yield* service.prepareClone(input);
+    assert.equal(prepared.cloneUrl, remoteUrl.trim());
+    assert.equal(prepared.remoteUrl, expectedDisplay);
+    const result = yield* service.cloneRepository(input);
+    assert.equal(result.cwd, input.destinationPath);
+    assert.equal(result.remoteUrl, expectedDisplay);
+    assert.notInclude(JSON.stringify(result), "CANARY");
+    const tracker = yield* ProjectCloneTracker.ProjectCloneTracker;
+    const subscribed = yield* Deferred.make<void>();
+    const published = yield* Deferred.make<void>();
+    const snapshots: Array<unknown> = [];
+    yield* tracker.stream.pipe(
+      Stream.runForEach((snapshot) =>
+        Effect.gen(function* () {
+          snapshots.push(snapshot);
+          yield* Deferred.succeed(subscribed, undefined);
+          if (snapshot.length > 0) yield* Deferred.succeed(published, undefined);
+        }),
+      ),
+      Effect.forkChild,
+    );
+    yield* Deferred.await(subscribed);
+    const projectId = ProjectId.make("public-boundary");
+    const started = yield* tracker.start(
+      { ...input, projectId, title: "clone", createdAt: "2026-01-01T00:00:00.000Z" },
+      { createProject: () => Effect.void, onCloned: () => Effect.void },
+    );
+    yield* Deferred.await(launched);
+    yield* Deferred.await(published);
+    assert.equal(started.remoteUrl, expectedDisplay);
+    const snapshot = yield* tracker.get(projectId);
+    assert.equal(snapshot?.remoteUrl, expectedDisplay);
+    if (remoteUrl.includes("CANARY")) {
+      assert.equal(snapshot?.stage, "receiving");
+      assert.equal(snapshot?.percent, 50);
+      assert.isNull(snapshot?.detail);
     }
-    assert.equal(gitCalls, 0);
-    assert.isFalse(yield* fs.exists(input.destinationPath));
-    assert.notInclude(JSON.stringify(logs), "CANARY");
+    assert.notInclude(JSON.stringify([started, snapshot, snapshots, logs]), "CANARY");
+    assert.deepStrictEqual(calls, [remoteUrl.trim(), remoteUrl.trim()]);
   }).pipe(
     Effect.provide([
-      layer({
-        git: {
-          execute: () =>
-            Effect.sync(() => {
-              gitCalls++;
-              return processOutput();
-            }),
-        },
-      }),
+      ProjectCloneTracker.layer.pipe(
+        Layer.provideMerge(
+          layer({
+            git: {
+              execute: (input) => {
+                calls.push(input.args.at(-2)!);
+                const progress = remoteUrl.includes("CANARY")
+                  ? (input.progress?.onStderrLine?.("Receiving objects: 50% (1/2), CANARY") ??
+                    Effect.void)
+                  : Effect.void;
+                return calls.length === 1
+                  ? Effect.succeed(processOutput())
+                  : progress.pipe(
+                      Effect.andThen(Deferred.succeed(launched, undefined)),
+                      Effect.andThen(Effect.never),
+                    );
+              },
+            },
+          }),
+        ),
+      ),
       NodeServices.layer,
       Logger.layer([
         Logger.make(({ message }) => {
@@ -792,66 +848,159 @@ it.effect.each(malformedCloneUrls)("rejects malformed clone URI %s before Git", 
       ]),
     ]),
   );
-});
+}
 
-it.effect("keeps malformed credentials out of actual tracker state and its stream", () => {
-  let gitCalls = 0;
-  let created = 0;
+it.effect.each(privateCloneRemotes)(
+  "keeps opaque or unparseable remote %s private and cloneable",
+  (remoteUrl) => cloneBoundaryTest(remoteUrl, REDACTED_DISPLAY),
+);
+
+it.effect.each([
+  ["https://example.com/team/repo.git", "https://example.com/team/repo.git"],
+  ["ssh://git@example.com:2222/team/repo.git", "ssh://example.com:2222/team/repo.git"],
+  ["git://example.com/team/repo.git", "git://example.com/team/repo.git"],
+  ["file:///tmp/local@repo.git", "file:///tmp/local@repo.git"],
+  ["file://localhost/tmp/local-repo.git", "file://localhost/tmp/local-repo.git"],
+  ["https://user:CANARY@example.com/repo?token=CANARY", "https://example.com/repo"],
+  ["https://example.com/repo?token=CA'NARY", "https://example.com/repo"],
+  ['https://example.com/repo?token=CA"NARY', "https://example.com/repo"],
+  ["https://example.com/repo#token=CANARY", "https://example.com/repo"],
+] as const)(
+  "sanitises explicit validated URI %s without changing Git input",
+  ([remoteUrl, display]) => cloneBoundaryTest(remoteUrl, display),
+);
+
+it.effect.each(["typed", "defect"] as const)(
+  "keeps opaque %s error causes and tracker failures private",
+  (kind) =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const root = yield* fs.makeTempDirectoryScoped({ prefix: "clone-private-failure-" });
+      const input = {
+        remoteUrl: "'custom:user:CANARY@example.com/repo'",
+        destinationPath: path.join(root, "repo"),
+      };
+      const service = yield* SourceControlRepositoryService.SourceControlRepositoryService;
+      const exit = yield* service.cloneRepository(input).pipe(Effect.exit);
+      assert.isTrue(Exit.isFailure(exit));
+      if (!Exit.isFailure(exit)) return yield* Effect.die("Missing clone failure");
+      const error = Cause.squash(exit.cause);
+      assert.instanceOf(error, SourceControlRepositoryError);
+      assert.notInclude(Cause.pretty(exit.cause), "CANARY");
+      assert.notInclude(JSON.stringify(error), "CANARY");
+      const tracker = yield* ProjectCloneTracker.ProjectCloneTracker;
+      const failed = yield* Deferred.make<void>();
+      const published: Array<unknown> = [];
+      yield* tracker.stream.pipe(
+        Stream.runForEach((snapshots) =>
+          Effect.gen(function* () {
+            published.push(snapshots);
+            if (snapshots.some((snapshot) => snapshot.phase === "failed"))
+              yield* Deferred.succeed(failed, undefined);
+          }),
+        ),
+        Effect.forkChild,
+      );
+      const projectId = ProjectId.make("private-failure");
+      const started = yield* tracker.start(
+        { ...input, projectId, title: "clone", createdAt: "2026-01-01T00:00:00.000Z" },
+        { createProject: () => Effect.void, onCloned: () => Effect.void },
+      );
+      yield* Deferred.await(failed);
+      assert.equal((yield* tracker.get(projectId))?.error, "The repository could not be cloned.");
+      assert.notInclude(
+        JSON.stringify([started, yield* tracker.get(projectId), published]),
+        "CANARY",
+      );
+    }).pipe(
+      Effect.provide([
+        ProjectCloneTracker.layer.pipe(
+          Layer.provideMerge(
+            layer({
+              git: {
+                execute: (input) =>
+                  kind === "defect"
+                    ? Effect.die(new Error("CANARY unknown failure"))
+                    : Effect.fail(
+                        new GitCommandError({
+                          operation: input.operation,
+                          command: "git",
+                          cwd: input.cwd,
+                          detail: "CANARY raw stderr",
+                          reason: "remote_unreachable",
+                          cause: new Error("CANARY nested failure"),
+                        }),
+                      ),
+              },
+            }),
+          ),
+        ),
+        NodeServices.layer,
+      ]),
+    ),
+);
+
+it.effect("retry uses private Git input rather than the public redacted display", () => {
+  const calls: Array<string> = [];
   return Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
-    const root = yield* fs.makeTempDirectoryScoped({ prefix: "clone-tracker-rejection-" });
+    const root = yield* fs.makeTempDirectoryScoped({ prefix: "clone-private-retry-" });
     const tracker = yield* ProjectCloneTracker.ProjectCloneTracker;
-    const subscribed = yield* Deferred.make<void>();
+    const failed = yield* Deferred.make<void>();
+    const done = yield* Deferred.make<void>();
     const snapshots: Array<unknown> = [];
     yield* tracker.stream.pipe(
-      Stream.runForEach((snapshot) =>
+      Stream.runForEach((list) =>
         Effect.gen(function* () {
-          snapshots.push(snapshot);
-          yield* Deferred.succeed(subscribed, undefined);
+          snapshots.push(list);
+          if (list.some((snapshot) => snapshot.phase === "failed"))
+            yield* Deferred.succeed(failed, undefined);
+          if (list.some((snapshot) => snapshot.phase === "done"))
+            yield* Deferred.succeed(done, undefined);
         }),
       ),
       Effect.forkChild,
     );
-    yield* Deferred.await(subscribed);
-    for (const [index, remoteUrl] of malformedCloneUrls.entries()) {
-      const projectId = ProjectId.make(`invalid-clone-${index}`);
-      const error = yield* tracker
-        .start(
-          {
-            projectId,
-            title: "safe clone",
-            createdAt: "2026-01-01T00:00:00.000Z",
-            remoteUrl,
-            destinationPath: path.join(root, `repo-${index}`),
-          },
-          {
-            createProject: () =>
-              Effect.sync(() => {
-                created++;
-              }),
-            onCloned: () => Effect.void,
-          },
-        )
-        .pipe(Effect.match({ onSuccess: () => null, onFailure: (error) => error }));
-      assert.isNotNull(error);
-      assert.notInclude(JSON.stringify(error), "CANARY");
-      assert.isNull(yield* tracker.get(projectId));
-    }
-    assert.equal(created, 0);
-    assert.equal(gitCalls, 0);
-    assert.deepStrictEqual(snapshots, [[]]);
+    const projectId = ProjectId.make("private-retry");
+    yield* tracker.start(
+      {
+        projectId,
+        title: "clone",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        remoteUrl: "git:team/repo.git",
+        destinationPath: path.join(root, "repo"),
+      },
+      { createProject: () => Effect.void, onCloned: () => Effect.void },
+    );
+    yield* Deferred.await(failed);
+    assert.isTrue(yield* tracker.retry(projectId));
+    yield* Deferred.await(done);
+    assert.deepStrictEqual(calls, ["git:team/repo.git", "git:team/repo.git"]);
+    assert.equal((yield* tracker.get(projectId))?.remoteUrl, REDACTED_DISPLAY);
+    assert.notInclude(JSON.stringify(snapshots), "CANARY");
   }).pipe(
     Effect.provide([
       ProjectCloneTracker.layer.pipe(
         Layer.provide(
           layer({
             git: {
-              execute: () =>
-                Effect.sync(() => {
-                  gitCalls++;
-                  return processOutput();
-                }),
+              execute: (input) => {
+                calls.push(input.args.at(-2)!);
+                return calls.length > 1
+                  ? Effect.succeed(processOutput())
+                  : Effect.fail(
+                      new GitCommandError({
+                        operation: input.operation,
+                        command: "git",
+                        cwd: input.cwd,
+                        detail: "CANARY first attempt",
+                        reason: "remote_unreachable",
+                        cause: new Error("CANARY nested failure"),
+                      }),
+                    );
+              },
             },
           }),
         ),
@@ -861,93 +1010,45 @@ it.effect("keeps malformed credentials out of actual tracker state and its strea
   );
 });
 
-it.effect.each([
-  ["git@example.com:team/repo.git", "git@example.com:team/repo.git"],
-  ["ssh://git@example.com:2222/team/repo.git", "ssh://example.com:2222/team/repo.git"],
-  ["git://example.com/team/repo.git", "git://example.com/team/repo.git"],
-  ["https://example.com/team/repo.git", "https://example.com/team/repo.git"],
-  ["file:///tmp/local-repo.git", "file:///tmp/local-repo.git"],
-  ["../local repo.git", "../local repo.git"],
-  ["../local@repo.git", "../local@repo.git"],
-  ["../https:local@repo.git", "../https:local@repo.git"],
-  ["file:///local@repo.git", "file:///local@repo.git"],
-  ["C:/work/local repo.git", "C:/work/local repo.git"],
-  ["C:\\work\\local@repo.git", "C:\\work\\local@repo.git"],
-  ["file://localhost/tmp/local-repo.git", "file://localhost/tmp/local-repo.git"],
-  ["git@example.com:team/repo.git?token=CANARY", "git@example.com:team/repo.git"],
-  ["../local-repo.git?token=CANARY", "../local-repo.git"],
-  ["C:\\work\\repo.git?token=CANARY", "C:\\work\\repo.git"],
-  ["custom:user:CANARY@example.com/team/repo?token=CANARY", "custom:example.com/team/repo"],
-  ["custom:user:secret CANARY@example.com/team/repo?token=CANARY", "custom:example.com/team/repo"],
-  ["custom:user:CANARY@example.com/team/repo", "custom:example.com/team/repo"],
-
-  [
-    "  https://user:CANARY@example.com/team/repo.git?token=CANARY  ",
-    "https://example.com/team/repo.git",
-  ],
-  ["https://example.com/team/repo's.git?token=CA'NARY", "https://example.com/team/repo's.git"],
-  ['https://example.com/team/repo.git?token=CA"NARY', "https://example.com/team/repo.git"],
-] as const)(
-  "preserves valid Git remote %s and redacts the real tracker stream",
-  ([remoteUrl, expected]) =>
-    Effect.gen(function* () {
-      const fs = yield* FileSystem.FileSystem;
-      const path = yield* Path.Path;
-      const root = yield* fs.makeTempDirectoryScoped({ prefix: "clone-tracker-valid-" });
-      const service = yield* SourceControlRepositoryService.SourceControlRepositoryService;
-      const prepared = yield* service.prepareClone({
-        remoteUrl,
-        destinationPath: path.join(root, "repo"),
-      });
-      assert.equal(prepared.cloneUrl, remoteUrl.trim());
-      const tracker = yield* ProjectCloneTracker.ProjectCloneTracker;
-      const subscribed = yield* Deferred.make<void>();
-      const snapshotReady = yield* Deferred.make<void>();
-      const snapshots: Array<unknown> = [];
-      const subscriber = yield* tracker.stream.pipe(
-        Stream.runForEach((snapshot) =>
+it.effect("HTTPS fallback preserves the privacy of an opaque original remote", () => {
+  const calls: Array<string> = [];
+  const progress: Array<unknown> = [];
+  return Effect.gen(function* () {
+    const result = yield* cloneInTemporaryDirectory(
+      {
+        execute: (input) =>
           Effect.gen(function* () {
-            snapshots.push(snapshot);
-            yield* Deferred.succeed(subscribed, undefined);
-            if (snapshot.length > 0) yield* Deferred.succeed(snapshotReady, undefined);
+            calls.push(input.args.at(-2)!);
+            yield* (
+              input.progress?.onStderrLine?.("Receiving objects: 50% (1/2), CANARY") ?? Effect.void
+            );
+            if (calls.length === 1)
+              return yield* new GitCommandError({
+                operation: input.operation,
+                command: "git",
+                cwd: input.cwd,
+                detail: "CANARY SSH failure",
+                reason: "authentication_failed",
+                cause: new Error("CANARY nested"),
+              });
+            return processOutput();
           }),
-        ),
-        Effect.forkChild,
-      );
-      yield* Deferred.await(subscribed);
-      const projectId = ProjectId.make("valid-clone");
-      const result = yield* tracker.start(
-        {
-          projectId,
-          title: "safe clone",
-          createdAt: "2026-01-01T00:00:00.000Z",
-          remoteUrl,
-          destinationPath: path.join(root, "repo"),
-        },
-        { createProject: () => Effect.void, onCloned: () => Effect.void },
-      );
-      yield* Deferred.await(snapshotReady);
-      assert.equal(result.remoteUrl, expected);
-      assert.equal((yield* tracker.get(projectId))?.remoteUrl, expected);
-      assert.notInclude(JSON.stringify(snapshots), "NARY");
-      yield* Fiber.interrupt(subscriber);
-    }).pipe(
-      Effect.provide([
-        ProjectCloneTracker.layer.pipe(
-          Layer.provideMerge(layer({ git: { execute: () => Effect.never } })),
-        ),
-        NodeServices.layer,
-      ]),
-    ),
-);
+      },
+      { remoteUrl: "git:user:CANARY" },
+      {
+        onProgress: (line) =>
+          Effect.sync(() => {
+            progress.push(line);
+          }),
+      },
+    );
+    assert.deepStrictEqual(calls, ["git:user:CANARY", "https://git/user:CANARY"]);
+    assert.equal(result.remoteUrl, REDACTED_DISPLAY);
+    assert.notInclude(JSON.stringify([result, progress]), "CANARY");
+  });
+});
 
-it.effect.each([
-  "git@example.com:team/repo.git?token=CANARY",
-  "../local-repo.git?token=CANARY",
-  "custom:user:CANARY@example.com/team/repo?token=CANARY",
-  "custom:user:secret CANARY@example.com/team/repo?token=CANARY",
-  "../local-repo.git?token=CANARY\ncontinued",
-])("redacts unparseable or opaque Git remote %s from clone diagnostics", (remoteUrl) =>
+it.effect("keeps a URI fragment private in clone failure diagnostics", () =>
   Effect.gen(function* () {
     const error = yield* cloneInTemporaryDirectory(
       {
@@ -955,19 +1056,19 @@ it.effect.each([
           Effect.gen(function* () {
             yield* (
               input.progress?.onStderrLine?.(
-                `fatal: failed to clone '${remoteUrl.replaceAll("\n", "\\n")}'`,
+                "fatal: failed https://example.com/repo#token=CANARY",
               ) ?? Effect.void
             );
             return yield* new GitCommandError({
               operation: input.operation,
               command: "git",
               cwd: input.cwd,
-              detail: "Git command exited with a non-zero status.",
-              exitCode: 128,
+              detail: "CANARY nested fragment",
+              reason: "remote_unreachable",
             });
           }),
       },
-      { remoteUrl },
+      { remoteUrl: "https://example.com/repo#token=CANARY" },
     ).pipe(Effect.flip);
     assert.notInclude(JSON.stringify(error), "CANARY");
     assert.equal(error.detail, "The repository could not be cloned.");

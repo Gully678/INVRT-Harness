@@ -336,3 +336,21 @@ describe("parseGitCloneProgressLine", () => {
     expect(parseGitCloneProgressLine("fatal: repository not found")).toBeNull();
   });
 });
+
+it.effect("keeps an unexpected clone defect out of published snapshots", () => {
+  const harness = makeHarness({
+    clone: () => Effect.die(new Error("CANARY unknown clone failure")),
+  });
+  return Effect.gen(function* () {
+    const tracker = yield* ProjectCloneTracker.ProjectCloneTracker;
+    const lists = yield* tracker.stream.pipe(
+      Stream.takeUntil((snapshots) => snapshots.some((snapshot) => snapshot.phase === "failed")),
+      Stream.runCollect,
+      Effect.forkChild,
+    );
+    yield* tracker.start(startInput, harness.hooks);
+    const snapshots = yield* Fiber.join(lists);
+    expect((yield* tracker.get(projectId))?.error).toBe("The repository could not be cloned.");
+    expect(JSON.stringify(snapshots)).not.toContain("CANARY");
+  }).pipe(Effect.provide(harness.layer));
+});
