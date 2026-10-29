@@ -112,10 +112,15 @@ function toRepositoryInfo(
 
 // Redact credentials from client clone snapshots; git still receives the credentials.
 function redactRemoteUrl(remoteUrl: string): string {
+  // Sanitise before parsing: malformed and opaque Git remotes can still carry credentials.
+  const withoutQuery = remoteUrl.replace(/\?.*$/s, "");
+  if (/^[a-z]:[/\\]/i.test(withoutQuery)) return withoutQuery;
+  const redacted = /^file:\/\/\//i.test(withoutQuery)
+    ? withoutQuery
+    : withoutQuery.replace(/^([a-z][a-z0-9+.-]*:\/*)[^/?#]+@/i, "$1");
   try {
-    const url = new URL(remoteUrl);
-    // Clone URLs have no legitimate query; when one is present it is a token.
-    if (url.username.length === 0 && url.password.length === 0 && url.search.length === 0) {
+    const url = new URL(redacted);
+    if (redacted === remoteUrl && url.username.length === 0 && url.password.length === 0) {
       return remoteUrl;
     }
     url.username = "";
@@ -123,8 +128,7 @@ function redactRemoteUrl(remoteUrl: string): string {
     url.search = "";
     return url.toString();
   } catch {
-    // Non-URI Git remotes (SCP and local paths) do not use the URL parser.
-    return remoteUrl.includes("://") ? "[invalid clone URL]" : remoteUrl;
+    return redacted;
   }
 }
 
@@ -319,9 +323,17 @@ export const make = Effect.gen(function* () {
       });
     }
 
-    // URL silently strips tabs/newlines; reject them rather than giving Git a different URI.
-    // Keep SCP and local Git paths outside URI validation.
-    if (remoteUrl.includes("://") && (/\s/.test(remoteUrl) || !URL.canParse(remoteUrl))) {
+    // Git URI schemes remain URI inputs even when separators or quoting are malformed.
+    const isUri =
+      !/^[a-z]:[/\\]/i.test(remoteUrl) &&
+      (/^[\s'"]*(?:(?:https?|ssh|git|git\+ssh|ssh\+git|file|ftps?)\s*:|[a-z][a-z0-9+.-]+:[/\\])/i.test(
+        remoteUrl,
+      ) ||
+        remoteUrl.includes("://"));
+    const hasUriAuthority = /^file:/i.test(remoteUrl)
+      ? /^file:\/\/(?:[^/]|\/(?:[^/]|$))/i.test(remoteUrl)
+      : /^[a-z][a-z0-9+.-]*:\/\/[^/]/i.test(remoteUrl);
+    if (isUri && (/\s|\\/.test(remoteUrl) || !hasUriAuthority || !URL.canParse(remoteUrl))) {
       return yield* new SourceControlRepositoryError({
         operation: "cloneRepository",
         provider,
@@ -346,9 +358,13 @@ export const make = Effect.gen(function* () {
     const onProgress = options?.onProgress;
     // Git mixes progress and diagnostics on stderr; retain non-progress tail lines for failure details.
     const stderrTail: Array<string> = [];
+    // Git can escape opaque credentials differently; use fixed failure text for those remotes.
+    const hasOpaqueCredentials =
+      !cloneUrl.includes("://") && redactRemoteUrl(cloneUrl) !== cloneUrl;
     const onStderrLine = (line: string) => {
       const parsed = parseGitCloneProgressLine(line);
       if (parsed) return onProgress ? onProgress(parsed) : Effect.void;
+      if (hasOpaqueCredentials) return Effect.void;
       return Effect.sync(() => {
         const trimmed = line.trim();
         if (trimmed.length === 0 || trimmed.startsWith("Cloning into")) return;

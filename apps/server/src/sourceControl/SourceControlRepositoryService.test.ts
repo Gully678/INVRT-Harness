@@ -722,6 +722,21 @@ it.effect("publish succeeds with status remote_added when the local repo has no 
 });
 
 const malformedCloneUrls = [
+  String.raw`https://\user:CANARY@example.com/repo?token=CANARY`,
+  ...["http", "https", "ssh", "git", "git+ssh", "ssh+git", "ftp", "ftps"].flatMap((scheme) =>
+    ["", "/", "///", "////"].map(
+      (slashes) => `${scheme}:${slashes}user:CANARY@example.com:invalid/repo?token=CANARY`,
+    ),
+  ),
+  "file:user:CANARY@example.com/repo?token=CANARY",
+  "file:/user:CANARY@example.com/repo?token=CANARY",
+  "file:////user:CANARY@example.com/repo?token=CANARY",
+  "custom:/user:CANARY@example.com:invalid/repo?token=CANARY",
+  "custom:\\user:CANARY@example.com:invalid/repo?token=CANARY",
+  " HTTPS:/user:CANARY@example.com:invalid/repo?token=CANARY ",
+  "'https:user:CANARY@example.com:invalid/repo?token=CANARY'",
+  '"ssh:/user:CANARY@example.com:invalid/repo?token=CANARY"',
+  "https :/user:CANARY@example.com:invalid/repo?token=CANARY",
   "https://example.com:invalid/repo?access_token=CANARY",
   "https://user:CANARY@example.com:invalid/repo",
   "ssh://user:CANARY@example.com:invalid/repo?token=CANARY",
@@ -853,6 +868,19 @@ it.effect.each([
   ["https://example.com/team/repo.git", "https://example.com/team/repo.git"],
   ["file:///tmp/local-repo.git", "file:///tmp/local-repo.git"],
   ["../local repo.git", "../local repo.git"],
+  ["../local@repo.git", "../local@repo.git"],
+  ["../https:local@repo.git", "../https:local@repo.git"],
+  ["file:///local@repo.git", "file:///local@repo.git"],
+  ["C:/work/local repo.git", "C:/work/local repo.git"],
+  ["C:\\work\\local@repo.git", "C:\\work\\local@repo.git"],
+  ["file://localhost/tmp/local-repo.git", "file://localhost/tmp/local-repo.git"],
+  ["git@example.com:team/repo.git?token=CANARY", "git@example.com:team/repo.git"],
+  ["../local-repo.git?token=CANARY", "../local-repo.git"],
+  ["C:\\work\\repo.git?token=CANARY", "C:\\work\\repo.git"],
+  ["custom:user:CANARY@example.com/team/repo?token=CANARY", "custom:example.com/team/repo"],
+  ["custom:user:secret CANARY@example.com/team/repo?token=CANARY", "custom:example.com/team/repo"],
+  ["custom:user:CANARY@example.com/team/repo", "custom:example.com/team/repo"],
+
   [
     "  https://user:CANARY@example.com/team/repo.git?token=CANARY  ",
     "https://example.com/team/repo.git",
@@ -901,7 +929,7 @@ it.effect.each([
       yield* Deferred.await(snapshotReady);
       assert.equal(result.remoteUrl, expected);
       assert.equal((yield* tracker.get(projectId))?.remoteUrl, expected);
-      assert.notInclude(JSON.stringify(snapshots), "CANARY");
+      assert.notInclude(JSON.stringify(snapshots), "NARY");
       yield* Fiber.interrupt(subscriber);
     }).pipe(
       Effect.provide([
@@ -911,4 +939,37 @@ it.effect.each([
         NodeServices.layer,
       ]),
     ),
+);
+
+it.effect.each([
+  "git@example.com:team/repo.git?token=CANARY",
+  "../local-repo.git?token=CANARY",
+  "custom:user:CANARY@example.com/team/repo?token=CANARY",
+  "custom:user:secret CANARY@example.com/team/repo?token=CANARY",
+  "../local-repo.git?token=CANARY\ncontinued",
+])("redacts unparseable or opaque Git remote %s from clone diagnostics", (remoteUrl) =>
+  Effect.gen(function* () {
+    const error = yield* cloneInTemporaryDirectory(
+      {
+        execute: (input) =>
+          Effect.gen(function* () {
+            yield* (
+              input.progress?.onStderrLine?.(
+                `fatal: failed to clone '${remoteUrl.replaceAll("\n", "\\n")}'`,
+              ) ?? Effect.void
+            );
+            return yield* new GitCommandError({
+              operation: input.operation,
+              command: "git",
+              cwd: input.cwd,
+              detail: "Git command exited with a non-zero status.",
+              exitCode: 128,
+            });
+          }),
+      },
+      { remoteUrl },
+    ).pipe(Effect.flip);
+    assert.notInclude(JSON.stringify(error), "CANARY");
+    assert.equal(error.detail, "The repository could not be cloned.");
+  }),
 );
