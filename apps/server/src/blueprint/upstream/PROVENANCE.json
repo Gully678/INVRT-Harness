@@ -1,0 +1,89 @@
+{
+  "skill": "invrt-blueprint",
+  "product": "INVRT Blueprint",
+  "upstream": {
+    "repository": "https://github.com/Gully678/grill-with-ui",
+    "commit": "c8f699d3dd99eaf7af168e21acb355184a354f1b",
+    "fork_parent": "https://github.com/jasonku09/grill-with-ui"
+  },
+  "licence": {
+    "spdx": "MIT",
+    "copyright": "Copyright (c) 2026 Jason Ku",
+    "text": "skills/invrt-blueprint/LICENSE.upstream"
+  },
+  "retrieved": {
+    "date": "2026-10-13",
+    "method": "gh api repos/Gully678/grill-with-ui/contents/<path>?ref=<commit>, base64 decoded; each file checked with git hash-object against the upstream tree before copying; nothing fetched was executed"
+  },
+  "files": [
+    {
+      "upstream_path": "server.mjs",
+      "vendored_path": "skills/invrt-blueprint/server.mjs",
+      "upstream_git_blob": "6a1986702ee63945a4c17dce26a818bb62fef1ce",
+      "upstream_sha256": "cafdfd3c85bd69c8baa3f6d6921fcbb7efcfd2b84b6c772f841680cbf2e9da98",
+      "upstream_bytes": 27154,
+      "vendored": "byte-identical to upstream",
+      "upstream_mode": "100755"
+    },
+    {
+      "upstream_path": "page.html",
+      "vendored_path": "skills/invrt-blueprint/page.html",
+      "upstream_git_blob": "ff86cbc2aeec566a9cbe8bad713805685d6c3d48",
+      "upstream_sha256": "2e86a76b0c2ebbe412fa25a7be2beec8f903559c8ccd97de163a5dac0fae7e99",
+      "upstream_bytes": 56132,
+      "vendored": "byte-identical to upstream",
+      "upstream_mode": "100644"
+    },
+    {
+      "upstream_path": "SKILL.md",
+      "vendored_path": "skills/invrt-blueprint/SKILL.md",
+      "upstream_git_blob": "edd34b4a261d20fc46f4dfbb00fc862b7e222f82",
+      "upstream_sha256": "8b2e689c00941dc11106ce2fd3a02ba5b07e90e4873cab349ab79745c9235cc6",
+      "upstream_bytes": 31630,
+      "vendored": "modified",
+      "vendored_git_blob": "fc91e0d90511191ec37cab9c19d84866e12d13c1",
+      "vendored_sha256": "3e82d0741b69ccd8858f4c573f2e245fd775a032086b6a72b3c7c477aa1b0518",
+      "upstream_mode": "100644"
+    },
+    {
+      "upstream_path": "visual-brief.md",
+      "vendored_path": "skills/invrt-blueprint/visual-brief.md",
+      "upstream_git_blob": "154d2a0004472ea0c196f2a31c30745d954fad4d",
+      "upstream_sha256": "1d1d23b4265bc4496f98c8b9fc7769e7790ef4fef1ccb3aaa52b5fb718946673",
+      "upstream_bytes": 4330,
+      "vendored": "byte-identical to upstream",
+      "upstream_mode": "100644"
+    },
+    {
+      "upstream_path": "LICENSE",
+      "vendored_path": "skills/invrt-blueprint/LICENSE.upstream",
+      "upstream_git_blob": "40e58caad406cbf998628883dece5e767ee6b4b7",
+      "upstream_sha256": "06a4e46b26cf4f552944921ac335cd524d8516347d13bbc3df2202c1ce72f3c0",
+      "upstream_bytes": 1065,
+      "vendored": "byte-identical to upstream",
+      "upstream_mode": "100644"
+    }
+  ],
+  "modifications": [
+    {
+      "path": "skills/invrt-blueprint/SKILL.md",
+      "change": "adapted: frontmatter name set to invrt-blueprint, description rewritten for natural-language triggers, allowed-tools added; body retitled INVRT Blueprint with software and marketing domains, anonymous Coterai synthesis, optional visual page, record rules from contract.mjs, reference evidence rules and a start-and-stop instruction for the local server; the upstream interview method, patch rules and visual handling are kept in shortened form",
+      "reason": "natural-language-first routing (Mark, 12 Oct 2026), scanner advisory findings LP3 and RA2, and tests/test_render.py T1 (name equals folder)"
+    },
+    {
+      "path": "skills/invrt-blueprint/server.mjs",
+      "change": "file mode stored as 100644 (upstream 100755); content byte-identical",
+      "reason": "the skill invokes it through node; no executable bit is needed in the skill tree"
+    }
+  ],
+  "not_imported": [
+    "README.md",
+    ".gitignore",
+    ".no-mistakes.yaml",
+    ".github/",
+    "design/",
+    "docs/",
+    "test/"
+  ],
+  "note": "Hashes under files describe the import at this commit. Later INVRT edits to the vendored files are recorded in git history and in skills/PACKS.json, not here."
+}
