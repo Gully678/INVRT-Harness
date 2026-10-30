@@ -7,7 +7,13 @@ import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 import { ForgePlanningError } from "@t3tools/contracts";
 import * as Authority from "./ForgeLocalPlanningAuthority.ts";
-import { firstUseTrust as trust, reviewedPythonQualification } from "./ForgeFirstUseTrust.ts";
+import {
+  firstUseTrust as trust,
+  reviewedPythonQualification,
+  reviewedGuardedExecutionQualification,
+  guardedLauncherPath,
+} from "./ForgeFirstUseTrust.ts";
+import { guardedMetadataSchema, buildGuardPolicy } from "./ForgeGuardedExecution.ts";
 import {
   checkPath,
   requireAbsent,
@@ -18,6 +24,7 @@ import {
   safePath,
   orderResourceClosure,
   ForgeTaskInputUnavailableError,
+  diagnosticSchema,
 } from "./ForgeInputFiles.ts";
 import * as ZipArchive from "../zipArchive.ts";
 import * as Python from "./ForgePythonRuntime.ts";
@@ -117,7 +124,12 @@ export interface AdmittedLocalPlanningInput {
 }
 export type LocalPlanningInputResult =
   | AdmittedLocalPlanningInput
-  | { readonly status: "unavailable"; readonly code: string; readonly resourceId?: string };
+  | {
+      readonly status: "unavailable";
+      readonly code: string;
+      readonly resourceId?: string;
+      readonly diagnostic?: z.infer<typeof diagnosticSchema>;
+    };
 export const isAdmittedLocalPlanningInput = (value: unknown): value is AdmittedLocalPlanningInput =>
   typeof value === "object" && value !== null && admitted.has(value);
 export class ForgeLocalPlanningInput extends Context.Service<
@@ -129,10 +141,12 @@ export class ForgeLocalPlanningInput extends Context.Service<
 class InputUnavailable extends Error {
   readonly code: string;
   readonly resourceId: string | undefined;
-  constructor(code: string, resourceId?: string) {
+  readonly diagnostic: z.infer<typeof diagnosticSchema> | undefined;
+  constructor(code: string, resourceId?: string, diagnostic?: z.infer<typeof diagnosticSchema>) {
     super(code);
     this.code = code;
     this.resourceId = resourceId;
+    this.diagnostic = diagnostic;
   }
 }
 const isPlanningError = Schema.is(ForgePlanningError);
@@ -140,7 +154,10 @@ const isPythonError = Schema.is(Python.ForgePythonError);
 const inputError = (error: unknown): InputUnavailable | ForgeTaskInputUnavailableError =>
   error instanceof InputUnavailable || error instanceof ForgeTaskInputUnavailableError
     ? error
-    : new InputUnavailable("capability_unavailable");
+    : new InputUnavailable("capability_unavailable", undefined, {
+        phase: "internal",
+        cause: "unexpected-error",
+      });
 const fail = (code: string, resourceId?: string): never => {
   throw new InputUnavailable(code, resourceId);
 };
@@ -441,6 +458,8 @@ export const make = Effect.gen(function* () {
       if (!qualification) return { status: "unavailable", code: "runtime_unqualified" };
       if (cwd !== qualification.cwd)
         return { status: "unavailable", code: "runtime_cwd_unqualified" };
+      const guarded = reviewedGuardedExecutionQualification();
+      if (!guarded) return { status: "unavailable", code: "runtime_guard_unqualified" };
       const readAbsolute = (path: string, expected: string, limit = 1048576) =>
         Effect.tryPromise({
           try: async () => {
@@ -466,9 +485,15 @@ export const make = Effect.gen(function* () {
         yield* readAbsolute(qualification.baselinePath, qualification.baselineSha256),
         Python.observationSchema,
       );
-      const probe = decodeUtf8(
-        yield* readAbsolute(qualification.probePath, qualification.probeSha256),
+      yield* readAbsolute(guarded.verdictPath, guarded.verdictSha256);
+      const guardedMetadata = yield* parse(
+        yield* readAbsolute(guarded.metadataPath, guarded.metadataSha256),
+        guardedMetadataSchema,
+        "guarded-runtime",
       );
+      const launcher = decodeUtf8(yield* readAbsolute(guardedLauncherPath, guarded.launcherSha256));
+      if (guardedMetadata.launcherSha256 !== guarded.launcherSha256)
+        return yield* Effect.fail(new InputUnavailable("runtime_guard_unqualified"));
       if (
         expected.cwd !== cwd ||
         expected.modules.length !== 81 ||
@@ -505,16 +530,29 @@ export const make = Effect.gen(function* () {
       });
       yield* verifyRuntime;
       yield* checkpoint;
-      const observation = yield* python.run("observe", cwd, probe);
+      const guardFiles = [
+        ...runtimeFiles,
+        ...runtime.modules,
+        ...[...manifest.routerFiles, ...catalogue.files].map((file) => ({
+          ...file,
+          path: NodePath.join(trust.routerRoot, file.path),
+        })),
+      ];
+      const policy = yield* Effect.try({
+        try: () =>
+          buildGuardPolicy(
+            expected,
+            baseline,
+            guardedMetadata,
+            guardFiles,
+            manifest.routerFiles.find((file) => file.path === "tools/route_skills.py")!.sha256,
+          ),
+        catch: () => new InputUnavailable("runtime_guard_unqualified"),
+      });
+      if (hash(policy) !== guarded.policySha256)
+        return yield* Effect.fail(new InputUnavailable("runtime_guard_unqualified"));
       yield* checkpoint;
-      if (observation.exitCode !== 0 || observation.stderr.length !== 0)
-        return yield* Effect.fail(new InputUnavailable("runtime_unqualified"));
-      const observed = yield* parse(observation.stdout, Python.observationSchema);
-      if (!Python.matchesObservation(observed, expected, baseline))
-        return yield* Effect.fail(new InputUnavailable("runtime_unqualified"));
-      yield* verifyRuntime;
-      yield* checkpoint;
-      const routed = yield* python.run("route", cwd);
+      const routed = yield* python.run(cwd, launcher, policy);
       yield* checkpoint;
       if (routed.exitCode !== 0 || routed.stderr.length !== 0)
         return yield* Effect.fail(new InputUnavailable("routing_mismatch"));
@@ -536,19 +574,6 @@ export const make = Effect.gen(function* () {
         )
       )
         return yield* Effect.fail(new InputUnavailable("routing_mismatch"));
-      yield* verifyRuntime;
-      const restoredObservation = yield* python.run("observe", cwd, probe);
-      yield* checkpoint;
-      if (
-        restoredObservation.exitCode !== 0 ||
-        restoredObservation.stderr.length !== 0 ||
-        !Python.matchesObservation(
-          yield* parse(restoredObservation.stdout, Python.observationSchema),
-          expected,
-          baseline,
-        )
-      )
-        return yield* Effect.fail(new InputUnavailable("runtime_unqualified"));
       yield* verifyRuntime;
       for (const file of receipt.files)
         yield* read(
@@ -617,15 +642,21 @@ export const make = Effect.gen(function* () {
               ...(error instanceof InputUnavailable && error.resourceId
                 ? { resourceId: error.resourceId }
                 : {}),
+              ...((error instanceof InputUnavailable || isPythonError(error)) && error.diagnostic
+                ? { diagnostic: diagnosticSchema.parse(error.diagnostic) }
+                : {}),
             });
           if (error instanceof ForgeTaskInputUnavailableError)
             return Effect.succeed({
               status: "unavailable" as const,
               code:
-                error.code === "reference-missing"
-                  ? "reference_incomplete"
-                  : error.code.replaceAll("-", "_"),
+                error.diagnostic?.phase === "filesystem"
+                  ? "filesystem_io_unavailable"
+                  : error.code === "reference-missing"
+                    ? "reference_incomplete"
+                    : error.code.replaceAll("-", "_"),
               ...(error.resourceId ? { resourceId: error.resourceId } : {}),
+              ...(error.diagnostic ? { diagnostic: diagnosticSchema.parse(error.diagnostic) } : {}),
             });
           return Effect.logWarning(
             "FORGE local planning input storage or metadata unavailable",

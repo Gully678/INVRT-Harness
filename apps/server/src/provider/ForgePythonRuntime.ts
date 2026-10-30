@@ -3,7 +3,12 @@ import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
-import { firstUseTrust as trust, reviewedPythonQualification } from "./ForgeFirstUseTrust.ts";
+import {
+  firstUseTrust as trust,
+  reviewedPythonQualification,
+  reviewedGuardedExecutionQualification,
+} from "./ForgeFirstUseTrust.ts";
+import { logicalRouterArgs } from "./ForgeGuardedExecution.ts";
 import { hash } from "./ForgeInputFiles.ts";
 
 export class ForgePythonError extends Schema.TaggedError<ForgePythonError>()("ForgePythonError", {
@@ -12,56 +17,68 @@ export class ForgePythonError extends Schema.TaggedError<ForgePythonError>()("Fo
     "runtime_timeout",
     "runtime_output_limit",
     "runtime_process_unavailable",
+    "runtime_spawn_unavailable",
+    "runtime_guard_unqualified",
+    "runtime_guard_denied",
   ]),
   cause: Schema.optionalKey(Schema.Defect()),
 }) {
   override get message(): string {
     return `FORGE Python unavailable: ${this.code}.`;
   }
+  get diagnostic(): { readonly phase: "router"; readonly cause: "process-error" } | undefined {
+    return this.code === "runtime_process_unavailable" || this.code === "runtime_spawn_unavailable"
+      ? { phase: "router", cause: "process-error" }
+      : undefined;
+  }
 }
 const isPythonError = Schema.is(ForgePythonError);
 export const make = Effect.gen(function* () {
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
   const run = Effect.fn("ForgePythonRuntime.run")(
-    function* (mode: "observe" | "route", cwd: string, probeSource?: string) {
+    function* (cwd: string, launcherSource: string, policy: string) {
       const qualification = reviewedPythonQualification();
+      const guarded = reviewedGuardedExecutionQualification();
       if (
         !qualification ||
         cwd !== qualification.cwd ||
-        (mode === "observe" && (!probeSource || hash(probeSource) !== qualification.probeSha256))
+        !guarded ||
+        hash(launcherSource) !== guarded.launcherSha256 ||
+        hash(policy) !== guarded.policySha256
       )
-        return yield* new ForgePythonError({ code: "runtime_unqualified" });
-      const args =
-        mode === "observe"
-          ? ["-I", "-S", "-B", "-c", probeSource!]
-          : [
-              "-I",
-              "-S",
-              "-B",
-              `${trust.routerRoot}/tools/route_skills.py`,
-              `--prompt=${trust.taskPrompt}`,
-              `--cwd=${cwd}`,
-              "--task-type=planning",
-              "--review",
-              "--llm",
-              "--done",
-            ];
-      const child = yield* spawner.spawn(
-        ChildProcess.make(trust.executable, args, {
-          cwd,
-          shell: false,
-          env: { LANG: "C", LC_ALL: "C" },
-          extendEnv: false,
-          stdin: "ignore",
-          stdout: "pipe",
-          stderr: "pipe",
-          detached: true,
-          killSignal: "SIGKILL",
-        }),
-      );
+        return yield* new ForgePythonError({ code: "runtime_guard_unqualified" });
+      const args = [
+        "-I",
+        "-S",
+        "-B",
+        "-c",
+        launcherSource,
+        policy,
+        guarded.policySha256,
+        ...logicalRouterArgs(cwd),
+      ];
+      const child = yield* spawner
+        .spawn(
+          ChildProcess.make(trust.executable, args, {
+            cwd,
+            shell: false,
+            env: { LANG: "C", LC_ALL: "C" },
+            extendEnv: false,
+            stdin: "ignore",
+            stdout: "pipe",
+            stderr: "pipe",
+            detached: true,
+            killSignal: "SIGKILL",
+          }),
+        )
+        .pipe(
+          Effect.mapError(
+            (cause) => new ForgePythonError({ code: "runtime_spawn_unavailable", cause }),
+          ),
+        );
       yield* Effect.annotateCurrentSpan({
         "forge.python.pid": child.pid,
-        "forge.python.mode": mode,
+        "forge.python.mode": "same-process-guarded-route",
       });
       const stdout: Uint8Array[] = [];
       const stderr: Uint8Array[] = [];
@@ -81,6 +98,8 @@ export const make = Effect.gen(function* () {
         ),
       );
       const [, exitCode] = yield* Effect.all([drain, child.exitCode], { concurrency: 2 });
+      if (Number(exitCode) === 78)
+        return yield* new ForgePythonError({ code: "runtime_guard_denied" });
       return {
         pid: child.pid,
         exitCode,

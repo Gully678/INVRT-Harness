@@ -90,3 +90,21 @@ const reviewedRuntime: ReviewedPythonQualification = Object.freeze({
 export function reviewedPythonQualification(): ReviewedPythonQualification | undefined {
   return reviewedRuntime;
 }
+
+export interface ReviewedGuardedExecutionQualification {
+  readonly metadataPath: string;
+  readonly metadataSha256: string;
+  readonly verdictPath: string;
+  readonly verdictSha256: string;
+  readonly launcherSha256: string;
+  readonly policySha256: string;
+}
+// The old separate-process observation cannot admit the new actual-process boundary.
+// New bootstrap/router/caller fingerprints require a separate exact verdict and source review.
+export function reviewedGuardedExecutionQualification():
+  | ReviewedGuardedExecutionQualification
+  | undefined {
+  return undefined;
+}
+export const guardedLauncherPath =
+  "/Users/mac/Repos/.worktrees/invrt-code-20261030-donor/apps/server/src/provider/ForgeGuardedLauncher.py";

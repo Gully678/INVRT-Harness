@@ -7,11 +7,26 @@ import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Stream from "effect/Stream";
 import { ChildProcessSpawner } from "effect/process";
-import { firstUseTrust as trust } from "./ForgeFirstUseTrust.ts";
+import {
+  firstUseTrust as trust,
+  reviewedGuardedExecutionQualification,
+} from "./ForgeFirstUseTrust.ts";
 import { observationSchema } from "./ForgePythonRuntime.ts";
 import * as Authority from "./ForgeLocalPlanningAuthority.ts";
 import * as Input from "./ForgeLocalPlanningInput.ts";
 import { fixture, request, run, blocked } from "./ForgeNativePlanning.test-support.ts";
+
+const fsFault = vi.hoisted(() => ({ path: "", error: undefined as Error | undefined }));
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs/promises")>();
+  return {
+    ...actual,
+    lstat: (...args: Parameters<typeof actual.lstat>) =>
+      args[0] === fsFault.path && fsFault.error
+        ? Promise.reject(fsFault.error)
+        : actual.lstat(...args),
+  };
+});
 
 const manifestResources = z.object({
   resources: z.array(
@@ -31,6 +46,41 @@ const runtimeCandidate = z
 it.layer(NodeServices.layer, { excludeTestServices: true })(
   "FORGE real local planning input",
   (it) => {
+    it.effect.each(["ENOENT", "EACCES"] as const)(
+      "actual file boundary keeps safe %s category",
+      (code) =>
+        run(
+          Effect.gen(function* () {
+            const { current, authority } = yield* fixture;
+            const prepared = yield* authority.begin(request, current);
+            const binding = yield* authority.revalidate(prepared.binding.runId, 1, current);
+            const input = yield* Input.make.pipe(
+              Effect.provideService(Authority.ForgeLocalPlanningAuthority, authority),
+            );
+            const sensitive = "PRIVATE-PATH /credential/token owner-task-text";
+            fsFault.path = `${trust.packageRoot}/MANIFEST.json`;
+            fsFault.error = Object.assign(new Error(sensitive), { code });
+            try {
+              const result = yield* input.resolve(binding);
+              expect(result).toEqual(
+                code === "ENOENT"
+                  ? { status: "unavailable", code: "snapshot_unavailable" }
+                  : {
+                      status: "unavailable",
+                      code: "filesystem_io_unavailable",
+                      diagnostic: { phase: "filesystem", cause: "io-error" },
+                    },
+              );
+              expect(JSON.stringify(result)).not.toContain(sensitive);
+              expect(JSON.stringify(result)).not.toContain(trust.packageRoot);
+              expect(blocked).toEqual([]);
+            } finally {
+              fsFault.path = "";
+              fsFault.error = undefined;
+            }
+          }),
+        ),
+    );
     it.effect("revoked native session cannot reach content admission", () =>
       run(
         Effect.gen(function* () {
@@ -136,13 +186,15 @@ it.layer(NodeServices.layer, { excludeTestServices: true })(
             expect(gotchas?.aliases).toContain(
               "production-guardrails/references/gotchas-catalog.md",
             );
-            expect(children).toHaveLength(3);
+            expect(children).toHaveLength(1);
             for (const child of children) expect(yield* child.isRunning).toBe(false);
-            expect(args[1]).toEqual([
-              "-I",
-              "-S",
-              "-B",
-              `${trust.routerRoot}/tools/route_skills.py`,
+            const qualification = reviewedGuardedExecutionQualification();
+            if (!qualification) throw new Error("guard qualification required");
+            expect(args[0]?.slice(0, 4)).toEqual(["-I", "-S", "-B", "-c"]);
+            expect(Files.hash(args[0]![4]!)).toBe(qualification.launcherSha256);
+            expect(Files.hash(args[0]![5]!)).toBe(qualification.policySha256);
+            expect(args[0]![6]).toBe(qualification.policySha256);
+            expect(args[0]?.slice(7)).toEqual([
               `--prompt=${trust.taskPrompt}`,
               "--cwd=/Users/mac/Repos/.worktrees/invrt-code-20261030-donor",
               "--task-type=planning",
@@ -209,11 +261,7 @@ it.layer(NodeServices.layer, { excludeTestServices: true })(
               native.spawn(command).pipe(
                 Effect.map((child) => {
                   children.push(child);
-                  if (
-                    command._tag !== "StandardCommand" ||
-                    command.args[3] !== `${trust.routerRoot}/tools/route_skills.py`
-                  )
-                    return child;
+                  if (command._tag !== "StandardCommand" || command.args[3] !== "-c") return child;
                   routed = true;
                   if (fault === "revoked_after_router")
                     return {
@@ -253,7 +301,7 @@ it.layer(NodeServices.layer, { excludeTestServices: true })(
               code: fault === "revoked_after_router" ? "revoked" : "routing_mismatch",
             });
             expect(routed).toBe(true);
-            expect(children).toHaveLength(2);
+            expect(children).toHaveLength(1);
             for (const child of children) expect(yield* child.isRunning).toBe(false);
             expect(blocked).toEqual([]);
             expect(
