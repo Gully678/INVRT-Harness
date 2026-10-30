@@ -31,7 +31,7 @@ const MANIFEST = "baf90ec84e458e703b5ca84d3beb330988bd0a4b83f9f6a5ea3a09d4aaf4c7
 const TASK = "f750b1a33f27869ead78387309b31f8d11f4fe0b90684c1796810ff256419ee8";
 const POLICY = "b11f942d543d2501b5e06a2b8f5d45a175ff8521ad12d31389c3725acff1880d";
 // Rotate this compiled compatibility revision with any reviewed authority/trust change.
-const SOURCE = "first-use-planning-real-v5/forge-local-planning-authority-v1";
+const SOURCE = "first-use-planning-real-v5/forge-local-planning-authority-v2";
 const isPlanningError = Schema.is(ForgePlanningError);
 const decodeBegin = Schema.decodeEffect(ForgeBeginPlanningInput);
 const decodeStart = Schema.decodeEffect(ForgeStartPlanningInput);
@@ -39,6 +39,10 @@ const NATIVE_QUALIFICATIONS: readonly never[] = Object.freeze([]);
 const bindingBrand: unique symbol = Symbol("LocalPlanningBinding");
 export type LocalPlanningBinding = ForgePlanningBinding & { readonly [bindingBrand]: true };
 const constructed = new WeakSet<object>();
+const bindingContexts = new WeakMap<
+  object,
+  { readonly current: AuthenticatedSession; readonly cwd: string }
+>();
 export const isLocalPlanningBinding = (value: unknown): value is LocalPlanningBinding =>
   typeof value === "object" && value !== null && constructed.has(value);
 const digest = (value: unknown) =>
@@ -56,6 +60,12 @@ export class ForgeLocalPlanningAuthority extends Context.Service<
       revision: number,
       current: AuthenticatedSession,
     ) => Effect.Effect<LocalPlanningBinding, ForgePlanningError>;
+    readonly revalidateBinding: (
+      binding: LocalPlanningBinding,
+    ) => Effect.Effect<
+      { readonly binding: LocalPlanningBinding; readonly cwd: string },
+      ForgePlanningError
+    >;
     readonly start: (
       input: ForgeStartPlanningInput,
       current: AuthenticatedSession,
@@ -92,7 +102,7 @@ const Row = Schema.Struct({
 });
 type Row = typeof Row.Type;
 const decodeRows = Schema.decodeUnknownEffect(Schema.Array(Row));
-const brand = (row: Row): LocalPlanningBinding => {
+const brand = (row: Row, current: AuthenticatedSession, cwd: string): LocalPlanningBinding => {
   const binding: LocalPlanningBinding = Object.freeze({
     [bindingBrand]: true as const,
     purpose: "local-native-planning-v1",
@@ -115,6 +125,10 @@ const brand = (row: Row): LocalPlanningBinding => {
     nativeTurnHeld: true,
   });
   constructed.add(binding);
+  bindingContexts.set(binding, {
+    current: Object.freeze({ ...current, scopes: Object.freeze([...current.scopes]) }),
+    cwd,
+  });
   return binding;
 };
 const prepared = (binding: LocalPlanningBinding): ForgePlanningPrepared => ({
@@ -197,6 +211,7 @@ export const make = Effect.gen(function* () {
     if ((yield* registry.getSelectionRevision(providerId)) !== selectionRevision)
       return yield* new ForgePlanningError({ code: "wrong_binding" });
     return {
+      cwd: project.value.workspaceRoot,
       project: digest([
         project.value.projectId,
         project.value.workspaceRoot,
@@ -264,7 +279,7 @@ export const make = Effect.gen(function* () {
     );
     if (selected.provider !== row.provider_binding || selected.project !== row.project_binding)
       return yield* new ForgePlanningError({ code: "wrong_binding" });
-    return brand(row);
+    return brand(row, current, selected.cwd);
   });
   const begin = Effect.fn("ForgeLocalPlanning.begin")(
     function* (input: ForgeBeginPlanningInput, current: AuthenticatedSession) {
@@ -321,6 +336,17 @@ export const make = Effect.gen(function* () {
     sql.withTransaction,
     unavailable,
   );
+  const revalidateBinding = Effect.fn("ForgeLocalPlanning.revalidateBinding")(function* (
+    binding: LocalPlanningBinding,
+  ) {
+    const context = bindingContexts.get(binding);
+    if (!isLocalPlanningBinding(binding) || !context)
+      return yield* new ForgePlanningError({ code: "wrong_binding" });
+    const current = yield* revalidate(binding.runId, binding.revision, context.current);
+    const checked = bindingContexts.get(current);
+    if (!checked) return yield* new ForgePlanningError({ code: "wrong_binding" });
+    return { binding: current, cwd: checked.cwd };
+  });
   const start = Effect.fn("ForgeLocalPlanning.start")(
     function* (input: ForgeStartPlanningInput, current: AuthenticatedSession) {
       const request = yield* decodeStart(input).pipe(
@@ -344,6 +370,6 @@ export const make = Effect.gen(function* () {
     sql.withTransaction,
     unavailable,
   );
-  return ForgeLocalPlanningAuthority.of({ begin, revalidate, start });
+  return ForgeLocalPlanningAuthority.of({ begin, revalidate, revalidateBinding, start });
 });
 export const layer = Layer.effect(ForgeLocalPlanningAuthority, make);
