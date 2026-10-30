@@ -393,3 +393,306 @@ it.effect.each(["settings", "env"] as const)(
     }).pipe(Effect.provide(held.layer));
   },
 );
+
+it.effect("independent malformed unrelated host cannot erase explicit account", () => {
+  vi.stubEnv("GH_TOKEN", "fixture-env-token");
+  const requests: Array<HttpClientRequest.HttpClientRequest> = [];
+  const host = TestSourceControlHost.layer({
+    settings: applyServerSettingsPatch(DEFAULT_SERVER_SETTINGS, {
+      sourceControlHosts: {
+        github: {
+          hosts: {
+            "github.com": { account: "work", enabled: true },
+            "other.test": { account: 42, enabled: true },
+          },
+          tokens: {},
+        },
+      },
+    }),
+  });
+  const creds = GitHubCredentials.layer.pipe(
+    Layer.provideMerge(host),
+    Layer.provide(NodeCrypto.layer),
+  );
+  const http = Layer.succeed(
+    HttpClient.HttpClient,
+    HttpClient.make((request) => {
+      requests.push(request);
+      return Effect.succeed(HttpClientResponse.fromWeb(request, Response.json({ id: 1 })));
+    }),
+  );
+  const layer = GitHubRest.layer.pipe(
+    Layer.provideMerge(Layer.mergeAll(creds, http)),
+    Layer.provideMerge(GitHubQuota.layer),
+    Layer.provideMerge(SourceControlRateLimit.layer),
+  );
+  return Effect.gen(function* () {
+    const rest = yield* GitHubRest.GitHubRest;
+    const result = yield* Effect.result(
+      rest.rest({
+        host: "github.com",
+        operation: "createPullRequest",
+        method: "POST",
+        path: "/repos/team/project/pulls",
+      }),
+    );
+    expect(result._tag).toBe("Failure");
+    expect(requests).toEqual([]);
+  }).pipe(Effect.provide(layer), Effect.ensuring(Effect.sync(() => vi.unstubAllEnvs())));
+});
+
+import { VcsProcessTimeoutError } from "@t3tools/contracts";
+it.effect("independent selected-login timeout preserves the CLI failure", () => {
+  const calls: string[] = [];
+  const requests: Array<HttpClientRequest.HttpClientRequest> = [];
+  const host = TestSourceControlHost.layer({
+    settings: applyServerSettingsPatch(DEFAULT_SERVER_SETTINGS, {
+      sourceControlHosts: {
+        github: { hosts: hostSettings({ "github.com": { account: "work" } }), tokens: {} },
+      },
+    }),
+    process: {
+      run: (input) => {
+        calls.push(input.args.join(" "));
+        return Effect.fail(
+          new VcsProcessTimeoutError({
+            operation: input.operation,
+            command: input.command,
+            cwd: input.cwd,
+            timeoutMs: 1,
+          }),
+        );
+      },
+    },
+  });
+  const credentials = GitHubCredentials.layer.pipe(
+    Layer.provideMerge(host),
+    Layer.provide(NodeCrypto.layer),
+  );
+  const http = Layer.succeed(
+    HttpClient.HttpClient,
+    HttpClient.make((request) => {
+      requests.push(request);
+      return Effect.succeed(HttpClientResponse.fromWeb(request, Response.json({ id: 1 })));
+    }),
+  );
+  const layer = GitHubRest.layer.pipe(
+    Layer.provideMerge(Layer.mergeAll(credentials, http)),
+    Layer.provideMerge(GitHubQuota.layer),
+    Layer.provideMerge(SourceControlRateLimit.layer),
+  );
+  return Effect.gen(function* () {
+    const rest = yield* GitHubRest.GitHubRest;
+    const error = yield* Effect.flip(
+      rest.rest({
+        host: "github.com",
+        operation: "createPullRequest",
+        method: "POST",
+        path: "/repos/team/project/pulls",
+      }),
+    );
+    expect(requests).toEqual([]);
+    expect(calls).toEqual(["auth token --hostname github.com --user work"]);
+    expect(error._tag).toBe("GitHubCliFailedError");
+  }).pipe(Effect.provide(layer));
+});
+
+import * as PlatformError from "effect/PlatformError";
+import {
+  VcsProcessSpawnError,
+  VcsProcessOutputReadError,
+  SourceControlProviderKind,
+  type VcsError,
+} from "@t3tools/contracts";
+import * as GitHubSourceControlProvider from "./GitHubSourceControlProvider.ts";
+
+function boundaryHarness(raw: Record<string, unknown> | undefined, failure?: VcsError) {
+  const calls: Array<ReadonlyArray<string>> = [];
+  const requests: Array<HttpClientRequest.HttpClientRequest> = [];
+  const host = TestSourceControlHost.layer({
+    settings: {
+      ...DEFAULT_SERVER_SETTINGS,
+      sourceControlHosts: raw === undefined ? {} : { github: raw },
+    },
+    process: {
+      run: (input) =>
+        Effect.sync(() => calls.push(input.args)).pipe(
+          Effect.andThen(
+            input.args.includes("--version")
+              ? Effect.succeed(TestSourceControlHost.processOutput("gh fixture"))
+              : failure !== undefined
+                ? Effect.fail(failure)
+                : Effect.succeed(
+                    TestSourceControlHost.processOutput(
+                      input.args.includes("--user")
+                        ? "fixture-selected-token"
+                        : "fixture-active-token",
+                    ),
+                  ),
+          ),
+        ),
+    },
+  });
+  const credentials = GitHubCredentials.layer.pipe(
+    Layer.provideMerge(host),
+    Layer.provide(NodeCrypto.layer),
+  );
+  const http = Layer.succeed(
+    HttpClient.HttpClient,
+    HttpClient.make((request) => {
+      requests.push(request);
+      return Effect.succeed(HttpClientResponse.fromWeb(request, Response.json({ id: 1 })));
+    }),
+  );
+  const layer = GitHubRest.layer.pipe(
+    Layer.provideMerge(Layer.mergeAll(credentials, http)),
+    Layer.provideMerge(GitHubQuota.layer),
+    Layer.provideMerge(SourceControlRateLimit.layer),
+  );
+  return { layer, calls, requests };
+}
+
+it.effect.each([
+  { hosts: { "github.com": { account: 42 } } },
+  { hosts: { "github.com": { account: "work" }, "other.test": { account: 42 } } },
+  { hosts: { "github.com": { account: "work" } }, tokens: { "other.test": 42 } },
+  { hosts: { "github.com": { account: { credential: "fixture-sensitive-value" } } } },
+  { hosts: { "other.test": { account: 42 } }, tokens: { "github.com": "fixture-saved-token" } },
+  { hosts: null },
+])("blocks malformed GitHub settings across POST, media and discovery", (raw) => {
+  vi.stubEnv("GH_TOKEN", "fixture-env-token");
+  const held = boundaryHarness(raw);
+  return Effect.gen(function* () {
+    const rest = yield* GitHubRest.GitHubRest;
+    const error = yield* Effect.flip(post(rest));
+    expect(error._tag).toBe("ServerSettingsError");
+    expect(JSON.stringify(error)).not.toContain("fixture-sensitive-value");
+    expect(held.calls).toEqual([]);
+    const media = yield* GitHubMediaFetch.make;
+    const mediaError = yield* Effect.flip(
+      media({ url: "https://raw.githubusercontent.com/team/project/main/image.png", headers: {} }),
+    );
+    expect(mediaError._tag).toBe("HttpClientError");
+    const discovery = yield* GitHubSourceControlProvider.makeDiscovery;
+    const result = yield* discovery.probe("/fixture");
+    expect(result.auth.status).toBe("unknown");
+    expect(result.auth.account._tag).toBe("None");
+    expect(held.calls).toEqual([["--version"]]);
+    expect(held.requests).toEqual([]);
+  }).pipe(Effect.provide(held.layer), Effect.scoped);
+});
+
+it.effect.each([undefined, {}])(
+  "preserves genuinely absent/default GitHub token settings",
+  (raw) => {
+    vi.stubEnv("GH_TOKEN", "fixture-env-token");
+    const held = boundaryHarness(raw);
+    return Effect.gen(function* () {
+      const rest = yield* GitHubRest.GitHubRest;
+      yield* post(rest);
+      expect(held.requests[0]?.headers.authorization).toBe("Bearer fixture-env-token");
+      expect(held.calls).toEqual([]);
+    }).pipe(Effect.provide(held.layer));
+  },
+);
+
+it.effect.each(
+  [true, false].flatMap((selected) =>
+    ["timeout", "missing", "read"].map((kind) => ({ selected, kind })),
+  ),
+)(
+  "preserves $kind error for selected=$selected across request/media/refinement",
+  ({ selected, kind }) => {
+    const context = { operation: "fixture.credentials", command: "gh", cwd: "/fixture" };
+    const failure =
+      kind === "timeout"
+        ? new VcsProcessTimeoutError({ ...context, timeoutMs: 1 })
+        : kind === "missing"
+          ? new VcsProcessSpawnError({
+              ...context,
+              cause: PlatformError.systemError({
+                _tag: "NotFound",
+                module: "ChildProcess",
+                method: "spawn",
+              }),
+            })
+          : new VcsProcessOutputReadError({
+              ...context,
+              stream: "stdout",
+              cause: new Error("fixture read failure"),
+            });
+    const held = boundaryHarness(
+      { hosts: selected ? { "github.com": { account: "work" } } : {} },
+      failure,
+    );
+    return Effect.gen(function* () {
+      const rest = yield* GitHubRest.GitHubRest;
+      const expected = kind === "missing" ? "GitHubCliMissingError" : "GitHubCliFailedError";
+      const error = yield* Effect.flip(post(rest));
+      expect(error._tag).toBe(expected);
+      expect("cause" in error ? error.cause : undefined).toBe(failure);
+      expect("account" in error ? error.account : undefined).toBe(selected ? "work" : undefined);
+      if (kind !== "missing") {
+        yield* Effect.flip(post(rest));
+        expect(held.calls).toHaveLength(2);
+      }
+      expect(held.requests).toEqual([]);
+      const media = yield* GitHubMediaFetch.make;
+      const fetched = yield* Effect.result(
+        media({
+          url: "https://raw.githubusercontent.com/team/project/main/image.png",
+          headers: {},
+        }),
+      );
+      const defaultAnonymous = !selected && kind === "missing";
+      expect(fetched._tag).toBe(defaultAnonymous ? "Success" : "Failure");
+      expect(held.requests).toHaveLength(defaultAnonymous ? 1 : 0);
+      expect(held.requests[0]?.headers.authorization).toBeUndefined();
+      const discovery = yield* GitHubSourceControlProvider.makeDiscovery;
+      const refined = yield* Effect.result(
+        discovery.refineUnknownRemote({
+          cwd: "/fixture",
+          context: {
+            provider: {
+              kind: SourceControlProviderKind.make("unknown"),
+              name: "Unknown",
+              baseUrl: "https://github.com",
+            },
+            remoteName: "origin",
+            remoteUrl: "https://github.com/team/project",
+          },
+        }),
+      );
+      expect(refined._tag).toBe(defaultAnonymous ? "Success" : "Failure");
+      if (refined._tag === "Failure") expect(refined.failure._tag).toBe(expected);
+      const probe = yield* discovery.probe("/fixture");
+      expect(probe.auth.status).toBe("unknown");
+      for (const args of held.calls.filter((args) => args[1] === "token"))
+        expect(args).toEqual([
+          "auth",
+          "token",
+          "--hostname",
+          "github.com",
+          ...(selected ? ["--user", "work"] : []),
+        ]);
+    }).pipe(Effect.provide(held.layer), Effect.scoped);
+  },
+);
+
+it.effect("invalid settings block a previously cached selected identity", () => {
+  vi.stubEnv("GH_TOKEN", "fixture-env-token");
+  const held = transportHarness([{ "github.com": { account: "work" } }]);
+  return Effect.gen(function* () {
+    const rest = yield* GitHubRest.GitHubRest;
+    yield* post(rest);
+    expect(held.requests[0]?.headers.authorization).toBe("Bearer token-for-work");
+    const settings = yield* TestSourceControlHost.TestSourceControlHostSettings;
+    yield* settings.update({
+      sourceControlHosts: {
+        github: { hosts: { "github.com": { account: "work" }, "other.test": { account: 42 } } },
+      },
+    });
+    expect((yield* Effect.flip(post(rest)))._tag).toBe("ServerSettingsError");
+    expect(held.requests).toHaveLength(1);
+  }).pipe(Effect.provide(held.layer));
+});

@@ -40,6 +40,7 @@ export const make = Effect.gen(function* () {
     Effect.catchIf(
       (error) =>
         error._tag !== "ServerSettingsError" &&
+        error._tag !== "GitHubCliFailedError" &&
         !("account" in error && error.account !== undefined),
       () => Effect.succeed(null),
     ),

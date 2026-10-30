@@ -11,7 +11,7 @@ export {
   type ChangeRequestLink,
   type ChangeRequestTerminology,
   type HostAccountChoice,
-  type HostCredentialSettings,
+  HostCredentialSettings,
   type ParsedChangeRequestUrl,
   type ReferenceAutolink,
   type SourceControlDefinition,

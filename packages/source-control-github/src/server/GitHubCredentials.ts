@@ -14,8 +14,7 @@ import * as Schema from "effect/Schema";
 import * as HostProcess from "@t3tools/shared/HostProcess";
 
 import * as SourceControlHost from "@t3tools/source-control-core/server/SourceControlHost";
-import { readSourceControlHostSettings } from "@t3tools/source-control-core/shared/definition";
-import type { ServerSettings, ServerSettingsError } from "@t3tools/contracts";
+import { type ServerSettings, ServerSettingsError } from "@t3tools/contracts";
 
 import * as GitHubClient from "../shared/definition.ts";
 
@@ -40,9 +39,15 @@ export interface GitHubCredential {
 
 export class GitHubCliMissingError extends Schema.TaggedError<GitHubCliMissingError>()(
   "GitHubCliMissingError",
-  { host: Schema.String },
+  {
+    host: Schema.String,
+    account: Schema.optional(Schema.String),
+    cause: Schema.optional(Schema.Defect()),
+  },
 ) {
   override get message(): string {
+    if (this.account !== undefined)
+      return `The GitHub CLI is required for the selected login on ${this.host}. Install it and sign in to that login, or explicitly choose another account in Settings → Source Control.`;
     return `No GitHub credential for ${this.host}: set GH_TOKEN, or install the GitHub CLI and run \`gh auth login\`.`;
   }
 }
@@ -69,7 +74,7 @@ export class GitHubHostDisabledError extends Schema.TaggedError<GitHubHostDisabl
 
 export class GitHubCliFailedError extends Schema.TaggedError<GitHubCliFailedError>()(
   "GitHubCliFailedError",
-  { host: Schema.String, cause: Schema.Defect() },
+  { host: Schema.String, account: Schema.optional(Schema.String), cause: Schema.Defect() },
 ) {
   override get message(): string {
     return `The GitHub CLI could not hand over a credential for ${this.host}. Check \`gh auth status\` on the server.`;
@@ -159,6 +164,23 @@ export function environmentToken(
   return null;
 }
 
+const decodeGitHubSettings = Schema.decodeOption(GitHubClient.settings);
+
+/** Invalid GitHub settings must not become an unselected identity. Never retain raw decode input. */
+export const readGitHubSettings = Effect.fn("GitHubCredentials.readSettings")(function* (
+  settings: ServerSettings,
+) {
+  const raw = settings.sourceControlHosts[GitHubClient.definition.kind];
+  const decoded = decodeGitHubSettings(raw === undefined ? {} : raw);
+  if (decoded._tag === "None")
+    return yield* new ServerSettingsError({
+      settingsPath: "sourceControlHosts.github",
+      operation: "normalize",
+      cause: new Error("Invalid GitHub host credential settings; values redacted."),
+    });
+  return decoded.value;
+});
+
 /** @public */
 export const make = Effect.gen(function* () {
   const sourceControlHost = yield* SourceControlHost.SourceControlHost;
@@ -200,11 +222,19 @@ export const make = Effect.gen(function* () {
           error._tag === "VcsProcessSpawnError" &&
           error.cause instanceof PlatformError.PlatformError &&
           error.cause.reason._tag === "NotFound"
-            ? new GitHubCliMissingError({ host })
+            ? new GitHubCliMissingError({
+                host,
+                ...(account === undefined ? {} : { account }),
+                cause: error,
+              })
             : // gh exits non-zero with "no oauth token" when it has no login for the host.
               error._tag === "VcsProcessExitError"
               ? new GitHubNotSignedInError({ host, ...(account === undefined ? {} : { account }) })
-              : new GitHubCliFailedError({ host, cause: error }),
+              : new GitHubCliFailedError({
+                  host,
+                  ...(account === undefined ? {} : { account }),
+                  cause: error,
+                }),
         ),
         Effect.map((output) => output.stdout.trim()),
         Effect.filterOrFail(
@@ -212,12 +242,6 @@ export const make = Effect.gen(function* () {
           () => new GitHubNotSignedInError({ host, ...(account === undefined ? {} : { account }) }),
         ),
       );
-
-  const readSettings = (settings: ServerSettings) =>
-    readSourceControlHostSettings(
-      GitHubClient.settings,
-      settings.sourceControlHosts[GitHubClient.definition.kind],
-    );
 
   const cacheKey = (host: string, account: string | undefined) =>
     account === undefined ? host : `${host}\u0000${account}`;
@@ -227,13 +251,7 @@ export const make = Effect.gen(function* () {
     const host = separator === -1 ? key : key.slice(0, separator);
     const choice = separator === -1 ? undefined : key.slice(separator + 1);
     const fromEnv = choice === undefined ? environmentToken(host, environment) : null;
-    const token =
-      fromEnv ??
-      (yield* fromGh(host, choice).pipe(
-        Effect.mapError((error) =>
-          choice === undefined ? error : new GitHubNotSignedInError({ host, account: choice }),
-        ),
-      ));
+    const token = fromEnv ?? (yield* fromGh(host, choice));
     return {
       host,
       token: Redacted.make(token),
@@ -258,7 +276,9 @@ export const make = Effect.gen(function* () {
     get: Effect.fn("GitHubCredentials.get")(function* (rawHost) {
       const host = normalizeHost(rawHost);
       if (!isGitHubHost(rawHost)) return yield* new GitHubNotSignedInError({ host });
-      const settings = readSettings(yield* sourceControlHost.settings.get);
+      const settings = yield* sourceControlHost.settings.get.pipe(
+        Effect.flatMap(readGitHubSettings),
+      );
       const choice = settings.hosts[host];
       if (choice?.enabled === false) {
         return yield* new GitHubHostDisabledError({

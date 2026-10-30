@@ -1,10 +1,12 @@
 import type { EnvironmentId } from "@t3tools/contracts";
 import { ExternalLinkIcon } from "lucide-react";
 import { useState } from "react";
+import * as Schema from "effect/Schema";
 
 import { useEnvironmentSettings } from "../../hooks/useSettings";
 import {
   readHostCredentialSettings,
+  HostCredentialSettings,
   type SourceControlDefinition,
   type SourceControlHostCredentials,
 } from "@t3tools/client-runtime/source-control-clients";
@@ -14,6 +16,8 @@ import { Button, InlineButton } from "../ui/button";
 import { Input } from "../ui/input";
 import { SecretInput } from "./SecretInput";
 import { Label } from "../ui/label";
+
+const decodeHostCredentialSettings = Schema.decodeOption(HostCredentialSettings);
 
 export function SourceControlTokenSettings({
   environmentId,
@@ -26,8 +30,17 @@ export function SourceControlTokenSettings({
   readonly credentials: SourceControlHostCredentials;
   readonly onSaved: () => void;
 }) {
-  const { tokens, hosts } = useEnvironmentSettings(environmentId, (settings) =>
-    readHostCredentialSettings(settings, definition.kind),
+  const { tokens, hosts, invalidGitHubSettings } = useEnvironmentSettings(
+    environmentId,
+    (settings) => {
+      const raw = settings.sourceControlHosts[definition.kind];
+      return {
+        ...readHostCredentialSettings(settings, definition.kind),
+        invalidGitHubSettings:
+          definition.kind === "github" &&
+          decodeHostCredentialSettings(raw === undefined ? {} : raw)._tag === "None",
+      };
+    },
   );
   const updateSettings = useAtomCommand(serverEnvironment.updateSettings, {
     label: `save ${definition.label} token`,
@@ -61,6 +74,14 @@ export function SourceControlTokenSettings({
       onSaved();
     }
   };
+
+  if (invalidGitHubSettings) {
+    return (
+      <p role="alert" className="text-xs text-warning">
+        GitHub account settings are invalid. Requests are blocked until those settings are repaired.
+      </p>
+    );
+  }
 
   return (
     <form

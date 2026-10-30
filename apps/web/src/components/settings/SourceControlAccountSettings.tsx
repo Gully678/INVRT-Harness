@@ -1,6 +1,7 @@
 import type { EnvironmentId, SourceControlProviderAuth } from "@t3tools/contracts";
 import { EyeIcon, EyeOffIcon } from "lucide-react";
 import { useState } from "react";
+import * as Schema from "effect/Schema";
 
 import { useEnvironmentSettings } from "../../hooks/useSettings";
 import { serverEnvironment } from "../../state/server";
@@ -11,10 +12,13 @@ import { Switch } from "../ui/switch";
 import { groupHostAccounts, nextHostAccountChoices } from "./SourceControlAccountSettings.logic";
 import {
   readHostCredentialSettings,
+  HostCredentialSettings,
   type SourceControlDefinition,
   type SourceControlHostCredentials,
 } from "@t3tools/client-runtime/source-control-clients";
 import { redactedPlaceholder } from "./RedactedSensitiveText";
+
+const decodeHostCredentialSettings = Schema.decodeOption(HostCredentialSettings);
 
 /** Sentinel select value for "follow the CLI's active login"; logins never contain spaces. */
 const ACTIVE_ACCOUNT = "active cli account";
@@ -49,9 +53,15 @@ export function SourceControlAccountSettings({
   readonly auth: SourceControlProviderAuth;
   readonly onSaved: () => void;
 }) {
-  const { hosts } = useEnvironmentSettings(environmentId, (settings) =>
-    readHostCredentialSettings(settings, definition.kind),
-  );
+  const { hosts, invalidGitHubSettings } = useEnvironmentSettings(environmentId, (settings) => {
+    const raw = settings.sourceControlHosts[definition.kind];
+    return {
+      ...readHostCredentialSettings(settings, definition.kind),
+      invalidGitHubSettings:
+        definition.kind === "github" &&
+        decodeHostCredentialSettings(raw === undefined ? {} : raw)._tag === "None",
+    };
+  });
   const { label } = definition;
   const { cliName } = credentials;
   const updateSettings = useAtomCommand(serverEnvironment.updateSettings, {
@@ -92,6 +102,14 @@ export function SourceControlAccountSettings({
     setSaving(false);
     if (result._tag === "Success") onSaved();
   };
+
+  if (invalidGitHubSettings) {
+    return (
+      <p role="alert" className="text-xs text-warning">
+        GitHub account settings are invalid. Requests are blocked until those settings are repaired.
+      </p>
+    );
+  }
 
   if (groups.length === 0) {
     return (

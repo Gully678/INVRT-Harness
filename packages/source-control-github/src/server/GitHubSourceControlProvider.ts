@@ -29,6 +29,7 @@ import { isSshRemoteUrl } from "@t3tools/shared/sourceControl";
 import {
   GH_PROCESS_CONCURRENCY,
   GITHUB_CLI_WITHOUT_ENVIRONMENT_TOKENS,
+  readGitHubSettings,
 } from "./GitHubCredentials.ts";
 import * as GitHubRest from "./GitHubRest.ts";
 import * as GitHubRequestPolicy from "./GitHubRequestPolicy.ts";
@@ -57,6 +58,7 @@ import * as SourceControlProvider from "@t3tools/source-control-core/server/Sour
 import {
   combinedAuthOutput,
   firstSafeAuthLine,
+  firstNonEmptyLine,
   probeSourceControlProvider,
   providerAuth,
   type SourceControlAuthProbeInput,
@@ -240,16 +242,44 @@ export const makeDiscovery = Effect.gen(function* () {
     label: discovery.label,
     installHint: discovery.installHint,
     probe: Effect.fn("GitHubSourceControlProvider.discovery")(function* (cwd: string) {
-      const settingsResult = yield* sourceControlHost.settings.get.pipe(Effect.result);
-      const settings = readSourceControlHostSettings(
-        GitHubClient.settings,
-        Result.isSuccess(settingsResult)
-          ? settingsResult.success.sourceControlHosts[GitHubClient.definition.kind]
-          : undefined,
+      const settingsResult = yield* sourceControlHost.settings.get.pipe(
+        Effect.flatMap(readGitHubSettings),
+        Effect.result,
       );
-      const isolateTokenEnvironment =
-        Result.isFailure(settingsResult) ||
-        Object.values(settings.hosts).some((choice) => choice.account !== undefined);
+      if (Result.isFailure(settingsResult)) {
+        const version = yield* process
+          .run({
+            operation: "source-control.discovery.probe",
+            command: discovery.executable,
+            args: discovery.versionArgs,
+            cwd,
+            timeoutMs: 5_000,
+            maxOutputBytes: 8_000,
+            concurrency: GH_PROCESS_CONCURRENCY,
+            env: { GH_DEBUG: "", ...GITHUB_CLI_WITHOUT_ENVIRONMENT_TOKENS },
+          })
+          .pipe(Effect.result);
+        const detail =
+          "Could not read or validate GitHub account settings. Requests are blocked until settings are repaired.";
+        return {
+          kind: discovery.kind,
+          label: discovery.label,
+          executable: discovery.executable,
+          status: Result.isSuccess(version) ? ("available" as const) : ("missing" as const),
+          version: Result.isSuccess(version)
+            ? Option.orElse(firstNonEmptyLine(version.success.stdout), () =>
+                firstNonEmptyLine(version.success.stderr),
+              )
+            : Option.none<string>(),
+          installHint: discovery.installHint,
+          detail: Option.some(detail),
+          auth: providerAuth({ status: "unknown", detail }),
+        };
+      }
+      const settings = settingsResult.success;
+      const isolateTokenEnvironment = Object.values(settings.hosts).some(
+        (choice) => choice.account !== undefined,
+      );
       const cli = yield* probeSourceControlProvider({
         cwd,
         process: {
@@ -264,16 +294,6 @@ export const makeDiscovery = Effect.gen(function* () {
         },
         spec: { ...discovery, parseAuth: (input) => parseGitHubAuth(input, settings) },
       });
-      if (Result.isFailure(settingsResult)) {
-        return {
-          ...cli,
-          auth: providerAuth({
-            status: "unknown",
-            detail:
-              "Could not read GitHub account settings. Requests are blocked until settings are available.",
-          }),
-        };
-      }
       if (settings.hosts["github.com"]?.account !== undefined) return cli;
       const savedToken = (settings.tokens["github.com"] ?? "").trim() !== "";
       const variable = environmentTokenVariable(environment);
@@ -324,7 +344,8 @@ export const makeDiscovery = Effect.gen(function* () {
       return api.credential(url.host).pipe(
         Effect.as(true),
         Effect.catchTags({
-          GitHubCliMissingError: () => Effect.succeed(false),
+          GitHubCliMissingError: (error) =>
+            error.account === undefined ? Effect.succeed(false) : Effect.fail(error),
           GitHubHostDisabledError: () => Effect.succeed(true),
           GitHubNotSignedInError: (error) => Effect.succeed(error.account !== undefined),
         }),
@@ -359,7 +380,9 @@ function fromGitHubApiError(
   switch (error._tag) {
     case "GitHubCliMissingError":
       return failure(
-        "No GitHub credential on the server. Set GH_TOKEN, or install the GitHub CLI and run `gh auth login`.",
+        error.account === undefined
+          ? "No GitHub credential on the server. Set GH_TOKEN, or install the GitHub CLI and run `gh auth login`."
+          : error.message,
         error,
       );
     case "GitHubNotSignedInError":
