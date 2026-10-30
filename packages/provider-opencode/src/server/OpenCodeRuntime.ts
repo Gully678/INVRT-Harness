@@ -576,6 +576,29 @@ function ensureRuntimeError(
     : new OpenCodeRuntimeError({ operation, detail, cause });
 }
 
+// Keep native error types and diagnostic fields, but never retain a known startup secret.
+function redactStartupDiagnostic<A>(value: A, password: string | undefined): A {
+  if (!password) return value;
+  const seen = new WeakMap<object, object>();
+  const redact = (input: unknown): unknown => {
+    if (typeof input === "string") return input.split(password).join("[REDACTED]");
+    if (input === null || typeof input !== "object") return input;
+    const previous = seen.get(input);
+    if (previous !== undefined) return previous;
+    const result = Array.isArray(input) ? [] : Object.create(Object.getPrototypeOf(input));
+    seen.set(input, result);
+    for (const key of Reflect.ownKeys(input)) {
+      const descriptor = Object.getOwnPropertyDescriptor(input, key);
+      if (descriptor === undefined) continue;
+      // Native process errors carry data properties. Do not retain opaque accessor closures.
+      if (!("value" in descriptor)) continue;
+      Object.defineProperty(result, key, { ...descriptor, value: redact(descriptor.value) });
+    }
+    return result;
+  };
+  return redact(value) as A;
+}
+
 const makeOpenCodeRuntime = Effect.gen(function* () {
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
   const netService = yield* NetService.NetService;
@@ -790,10 +813,12 @@ const makeOpenCodeRuntime = Effect.gen(function* () {
           if (Option.isNone(drained)) {
             yield* Fiber.interruptAll([stdoutFiber, stderrFiber]);
           }
-          const stdout = (yield* Ref.get(stdoutRef)) ?? "";
-          const stderr = (yield* Ref.get(stderrRef)) ?? "";
+          const rawStdout = (yield* Ref.get(stdoutRef)) ?? "";
+          const rawStderr = (yield* Ref.get(stderrRef)) ?? "";
           const exitCode = Number(code);
-          const reason = classifyStartupExit(stderr);
+          const reason = classifyStartupExit(rawStderr);
+          const stdout = redactStartupDiagnostic(rawStdout, serverPassword);
+          const stderr = redactStartupDiagnostic(rawStderr, serverPassword);
           yield* Deferred.fail(
             readyDeferred,
             new OpenCodeRuntimeError({
@@ -889,6 +914,12 @@ const makeOpenCodeRuntime = Effect.gen(function* () {
           schedule: Schedule.spaced("250 millis"),
           while: (error) => error.reason === "databaseLocked",
         }),
+        Effect.mapError((error) =>
+          redactStartupDiagnostic(
+            error,
+            resolveOpenCodeServerPassword({ external: false, ...input }),
+          ),
+        ),
       );
     });
 
