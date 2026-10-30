@@ -32,9 +32,43 @@ def text(value: str) -> str:
 def launch() -> None:
     if len(sys.argv) < 4:
         deny("contract")
-    policy_text, expected_hash = sys.argv[1:3]
-    if len(policy_text.encode("utf-8")) > 196608 or sha256(policy_text.encode("utf-8")) != expected_hash:
+    policy_path, expected_hash = sys.argv[1:3]
+    descriptor = -1
+    try:
+        if not policy_path.startswith("/") or any(part in ("", ".", "..") for part in policy_path.split("/")[1:]):
+            deny("policy")
+        current = ""
+        parts = policy_path.split("/")[1:]
+        for index, part in enumerate(parts):
+            current += "/" + part
+            mode = posix.lstat(current).st_mode & 0o170000
+            if mode != (0o100000 if index == len(parts) - 1 else 0o040000):
+                deny("policy")
+        descriptor = posix.open(policy_path, posix.O_RDONLY | posix.O_NOFOLLOW)
+        before = posix.fstat(descriptor)
+        if before.st_size > 1048576:
+            deny("policy")
+        chunks: list[bytes] = []
+        length = 0
+        while length <= 1048576:
+            chunk = posix.read(descriptor, min(65536, 1048577 - length))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            length += len(chunk)
+        data = b"".join(chunks)
+        after = posix.fstat(descriptor)
+        linked = posix.lstat(policy_path)
+        identities = [(item.st_dev, item.st_ino, item.st_size, item.st_mtime_ns, item.st_ctime_ns)
+                      for item in (before, after, linked)]
+        if identities[0] != identities[1] or identities[0] != identities[2] or len(data) > 1048576 or sha256(data) != expected_hash:
+            deny("policy")
+        policy_text = data.decode("utf-8", "strict")
+    except (OSError, UnicodeError):
         deny("policy")
+    finally:
+        if descriptor != -1:
+            posix.close(descriptor)
     rows = [line.split("\t") for line in policy_text.splitlines()]
     if not rows or rows[0] != ["version", "1"]:
         deny("policy")

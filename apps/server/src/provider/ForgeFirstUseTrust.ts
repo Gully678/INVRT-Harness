@@ -98,6 +98,7 @@ export interface ReviewedGuardedExecutionQualification {
   readonly verdictSha256: string;
   readonly launcherSha256: string;
   readonly policySha256: string;
+  readonly policyPath: string;
 }
 // The old separate-process observation cannot admit the new actual-process boundary.
 // New bootstrap/router/caller fingerprints require a separate exact verdict and source review.

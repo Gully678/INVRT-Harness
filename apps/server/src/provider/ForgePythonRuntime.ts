@@ -53,7 +53,7 @@ export const make = Effect.gen(function* () {
         "-B",
         "-c",
         launcherSource,
-        policy,
+        guarded.policyPath,
         guarded.policySha256,
         ...logicalRouterArgs(cwd),
       ];

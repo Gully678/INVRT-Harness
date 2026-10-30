@@ -40,7 +40,7 @@ it.layer(NodeServices.layer, { excludeTestServices: true })(
               expect(command.command).toBe(firstUseTrust.executable);
               expect(command.args.slice(0, 4)).toEqual(["-I", "-S", "-B", "-c"]);
               expect(hash(command.args[4]!)).toBe(qualification.launcherSha256);
-              expect(hash(command.args[5]!)).toBe(qualification.policySha256);
+              expect(command.args[5]).toBe(qualification.policyPath);
               expect(command.options).toMatchObject({
                 shell: false,
                 extendEnv: false,
