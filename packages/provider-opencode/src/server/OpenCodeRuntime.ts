@@ -582,7 +582,11 @@ function redactStartupDiagnostic<A>(value: A, password: string | undefined): A {
   if (!password) return value;
   const seen = new WeakMap<object, object>();
   const redact = (input: unknown): unknown => {
-    if (typeof input === "string") return input.split(password).join("[REDACTED]");
+    if (typeof input === "string") {
+      const stripped = input.split(password).join("");
+      // Removal can join retained fragments into the secret. Drop that scalar in one bounded pass.
+      return stripped.includes(password) ? "" : stripped;
+    }
     if (input === null || typeof input !== "object") return input;
     const previous = seen.get(input);
     if (previous !== undefined) return previous;

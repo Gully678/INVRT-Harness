@@ -15,12 +15,31 @@ import { SpawnExecutableResolution } from "@t3tools/shared/shell";
 import * as OpenCodeRuntime from "./OpenCodeRuntime.ts";
 import * as OpenCodeServerLedger from "./OpenCodeServerLedger.ts";
 
-it.live.each(["explicit", "environment", "overlap", "spawn"] as const)(
+it.live.each([
+  "explicit",
+  "environment",
+  "overlap",
+  "spawn",
+  "marker",
+  "bracket-marker",
+  "single",
+  "joining",
+] as const)(
   "redacts full managed failed-start diagnostics and finalises %s credentials",
   (source) =>
     Effect.gen(function* () {
       const password =
-        source === "overlap" ? "OpenCodeRuntimeError" : `fixture-${source}-private-value`;
+        source === "overlap"
+          ? "OpenCodeRuntimeError"
+          : source === "marker"
+            ? "REDACTED"
+            : source === "bracket-marker"
+              ? "[REDACTED]"
+              : source === "single"
+                ? "D"
+                : source === "joining"
+                  ? "abc"
+                  : `fixture-${source}-private-value`;
       const kills: string[] = [];
       let tracked = 0;
       let forgotten = 0;
@@ -48,8 +67,12 @@ it.live.each(["explicit", "environment", "overlap", "spawn"] as const)(
               ChildProcessSpawner.makeHandle({
                 // This identifier never enters an OS signalling port: platform and kill are mocked.
                 pid: ChildProcessSpawner.ProcessId(123),
-                stdout: output(`startup diagnostic ${password}`),
-                stderr: output(`configuration rejected ${password}`),
+                stdout: output(source === "joining" ? "ababcc" : `startup diagnostic ${password}`),
+                stderr: output(
+                  source === "joining"
+                    ? "configuration rejected ababcc"
+                    : `configuration rejected ${password}`,
+                ),
                 all: Stream.empty,
                 exitCode: Effect.succeed(ChildProcessSpawner.ExitCode(9)),
                 isRunning: Effect.succeed(false),
@@ -100,7 +123,8 @@ it.live.each(["explicit", "environment", "overlap", "spawn"] as const)(
       NodeAssert.equal(error.operation, "startOpenCodeServerProcess");
       const diagnostics = NodeUtil.inspect(exit, { depth: null, showHidden: true });
       // Boolean assertions avoid printing the synthetic password on an OLD RED failure.
-      if (source !== "overlap") NodeAssert.equal(diagnostics.includes(password), false);
+      if (source !== "overlap" && source !== "single")
+        NodeAssert.equal(diagnostics.includes(password), false);
       // Static native tags can coincide with a password; they are not credential payloads.
       NodeAssert.equal(error.detail.includes(password), false);
       NodeAssert.equal(NodeUtil.inspect(error.cause, { depth: null }).includes(password), false);
@@ -113,11 +137,11 @@ it.live.each(["explicit", "environment", "overlap", "spawn"] as const)(
         NodeAssert.equal(streamsClosed, 0);
         return;
       }
-      NodeAssert.ok(error.detail.includes("configuration rejected [REDACTED]"));
+      NodeAssert.ok(error.detail.includes("code: 9"));
       NodeAssert.deepEqual(error.cause, {
         exitCode: 9,
-        stdout: "startup diagnostic [REDACTED]",
-        stderr: "configuration rejected [REDACTED]",
+        stdout: source === "joining" ? "" : "startup diagnostic ",
+        stderr: source === "joining" ? "" : "configuration rejected ",
       });
       NodeAssert.deepEqual(kills, ["SIGTERM", "SIGKILL"]);
       NodeAssert.equal(tracked, 1);
