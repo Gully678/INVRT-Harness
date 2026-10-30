@@ -1,6 +1,11 @@
+import type { ProviderDriver, ProviderInstance } from "@t3tools/provider-core/server/driver";
+import * as Schema from "effect/Schema";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
 import {
+  WsForgeBeginPlanningRpc,
+  WsForgeStartPlanningRpc,
+  type ForgePlanningPrepared,
   AuthSessionId,
   EnvironmentId,
   ProjectId,
@@ -885,5 +890,158 @@ it.effect("thread resume across compacted history keeps message order and final 
         Layer.provideMerge(ReplayTestLayer),
       ),
     ),
+  ),
+);
+
+it.effect("native first-use RPC prepares a real durable run and keeps native startup held", () =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    const auth = yield* EnvironmentAuth.EnvironmentAuth;
+    const sessions = yield* SessionStore.SessionStore;
+    const identity = yield* ServerEnvironment.ServerEnvironmentIdentity;
+    const projectId = ProjectId.make("forge-native-rpc");
+    yield* sql`INSERT INTO projection_projects (project_id,title,workspace_root,scripts_json,created_at,updated_at) VALUES (${projectId},'FORGE',${process.cwd()},'[]','2026-01-01T00:00:00.000Z','2026-01-01T00:00:00.000Z')`;
+    const pairing = yield* auth.issuePairingCredential({ scopes: ["orchestration:operate"] });
+    const issued = yield* auth.createBrowserSession(pairing.credential, { deviceType: "desktop" });
+    const current = yield* auth.authenticateHttpRequest({
+      cookies: { [sessions.cookieName]: issued.sessionToken },
+      headers: {},
+    } as Parameters<typeof auth.authenticateHttpRequest>[0]);
+    let effects = 0;
+    const driver: ProviderDriver<{ readonly enabled?: boolean }> = {
+      driverKind: ProviderDriverKind.make("codex"),
+      metadata: { displayName: "Inert native fixture" },
+      configSchema: Schema.Struct({ enabled: Schema.optionalKey(Schema.Boolean) }),
+      defaultConfig: () => ({}),
+      create: ({ instanceId, enabled }) => {
+        const blocked = (): never => {
+          effects++;
+          throw new Error("Native effect attempted by held RPC");
+        };
+        const instance: ProviderInstance = {
+          instanceId,
+          driverKind: ProviderDriverKind.make("codex"),
+          enabled,
+          displayName: undefined,
+          continuationIdentity: {
+            driverKind: ProviderDriverKind.make("codex"),
+            continuationKey: "codex:native-fixture",
+          },
+          snapshot: {
+            getSnapshot: Effect.succeed({
+              instanceId,
+              driver: ProviderDriverKind.make("codex"),
+              enabled,
+              installed: false,
+              version: null,
+              status: "ready",
+              auth: { status: "unknown" },
+              checkedAt: "1970-01-01T00:00:00.000Z",
+              models: [],
+              slashCommands: [],
+              skills: [],
+            }),
+            resolveMaintenance: blocked,
+            refresh: Effect.sync(blocked),
+            streamChanges: Stream.empty,
+            applyUsageLimits: blocked,
+          },
+          get orchestrationAdapter(): never {
+            return blocked();
+          },
+          get textGeneration(): never {
+            return blocked();
+          },
+          get auth(): never {
+            return blocked();
+          },
+          snapshotForCwd: blocked,
+          refreshModels: blocked,
+        };
+        return Effect.succeed(instance);
+      },
+    };
+    const instanceId = ProviderInstanceId.make("codex");
+    const { registry } = yield* ProviderInstanceRegistry.makeProviderInstanceRegistry({
+      drivers: [driver],
+      configMap: {
+        [instanceId]: { driver: ProviderDriverKind.make("codex"), enabled: true, config: {} },
+      },
+    });
+    const responses = yield* Queue.unbounded<ForgePlanningPrepared>();
+    const services = Layer.mergeAll(
+      layerUnusedConfigRpcServices,
+      Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({ namedProjectsRoot: process.cwd() }),
+      Layer.mock(ExternalLauncher.ExternalLauncher)({}),
+      Layer.mock(RemoteOpenTargets.RemoteOpenTargets)({}),
+      Layer.mock(DirectEndpoints.DirectEndpoints)({}),
+      Layer.mock(ProviderRegistry.ProviderRegistry)({}),
+      Layer.mock(UsageLimitSources.UsageLimitSources)({}),
+      Layer.succeed(ProviderInstanceRegistry.ProviderInstanceRegistry, registry),
+      Layer.mock(ServerEnvironment.ServerEnvironment)({
+        getEnvironmentId: identity.getEnvironmentId,
+      }),
+    );
+    const server = yield* RpcServer.makeNoSerialization(
+      RpcGroup.make(WsForgeBeginPlanningRpc, WsForgeStartPlanningRpc),
+      {
+        ...WS_RPC_SERVER_OPTIONS,
+        onFromServer: (response) =>
+          response._tag === "Exit"
+            ? response.exit._tag === "Success"
+              ? Queue.offer(responses, response.exit.value).pipe(Effect.asVoid)
+              : Effect.die("Unexpected first-use RPC failure")
+            : Effect.void,
+      },
+    ).pipe(
+      Effect.provide(
+        layerWsRpc(
+          current,
+          {},
+          {},
+          yield* PreviewAutomationBroker.PreviewAutomationBroker,
+          yield* ServerBrowser.ServerBrowser,
+        ).pipe(Layer.provide(services)),
+      ),
+    );
+    yield* server.write(0, {
+      _tag: "Request",
+      id: RpcMessage.RequestId("forge-prepare"),
+      tag: WS_METHODS.forgeBeginPlanning,
+      payload: { projectId, providerInstanceId: instanceId, operationId: "native-prepare" },
+      headers: Headers.empty,
+    });
+    const prepared = yield* Queue.take(responses);
+    assert.equal(prepared.nativeTurnHeld, true);
+    assert.equal(prepared.binding.humanVerified, false);
+    yield* server.write(0, {
+      _tag: "Request",
+      id: RpcMessage.RequestId("forge-start"),
+      tag: WS_METHODS.forgeStartPlanning,
+      payload: {
+        runId: prepared.binding.runId,
+        revision: prepared.binding.revision,
+        operationId: "native-start",
+      },
+      headers: Headers.empty,
+    });
+    const held = yield* Queue.take(responses);
+    assert.deepEqual(held, prepared);
+    assert.equal(effects, 0);
+    assert.lengthOf(yield* sql`SELECT run_id FROM forge_local_planning_runs`, 1);
+    assert.lengthOf(yield* sql`SELECT thread_id FROM orchestration_v2_projection_threads`, 0);
+    assert.lengthOf(yield* sql`SELECT command_id FROM orchestration_v2_command_receipts`, 0);
+  }).pipe(
+    Effect.provide(
+      Layer.mergeAll(
+        EnvironmentAuth.layer.pipe(
+          Layer.provide(ServerSecretStore.layer),
+          Layer.provideMerge(ServerEnvironment.layerIdentity),
+        ),
+        Layer.mock(PreviewAutomationBroker.PreviewAutomationBroker)({}),
+        Layer.mock(ServerBrowser.ServerBrowser)({}),
+      ).pipe(Layer.provideMerge(layerConfigSources)),
+    ),
+    Effect.scoped,
   ),
 );

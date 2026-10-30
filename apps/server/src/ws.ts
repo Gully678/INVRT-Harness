@@ -1,3 +1,4 @@
+import * as ForgeLocalPlanningAuthority from "./provider/ForgeLocalPlanningAuthority.ts";
 import { OrchestrationDispatchCommandError } from "@t3tools/contracts";
 import * as Context from "effect/Context";
 import * as Crypto from "effect/Crypto";
@@ -1347,6 +1348,14 @@ export const layerWsRpc = (
       const workspaceEntries = yield* WorkspaceEntries.WorkspaceEntries;
       const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
       const serverEnvironment = yield* ServerEnvironment.ServerEnvironment;
+      const forgeLocalPlanning = ForgeLocalPlanningAuthority.ForgeLocalPlanningAuthority.pipe(
+        Effect.provide(ForgeLocalPlanningAuthority.layer),
+        Effect.provideService(SqlClient.SqlClient, sql),
+        Effect.provideService(ProviderInstanceRegistry.ProviderInstanceRegistry, providerInstances),
+        Effect.provideService(ServerEnvironment.ServerEnvironmentIdentity, {
+          getEnvironmentId: serverEnvironment.getEnvironmentId,
+        }),
+      );
       const backgroundPolicy = yield* BackgroundPolicy.BackgroundPolicy;
       const rpcClientIds = yield* Ref.make(new Set<RpcClientId>());
       yield* Effect.addFinalizer(() =>
@@ -1902,6 +1911,14 @@ export const layerWsRpc = (
       });
 
       const handlers = ServerWsRpcGroup.of({
+        [WS_METHODS.forgeBeginPlanning]: (input) =>
+          forgeLocalPlanning.pipe(
+            Effect.flatMap((authority) => authority.begin(input, currentSession)),
+          ),
+        [WS_METHODS.forgeStartPlanning]: (input) =>
+          forgeLocalPlanning.pipe(
+            Effect.flatMap((authority) => authority.start(input, currentSession)),
+          ),
         [ORCHESTRATION_V2_WS_METHODS.dispatchCommand]: (command) =>
           Effect.annotateCurrentSpan({
             "orchestration_v2.command_id": command.commandId,

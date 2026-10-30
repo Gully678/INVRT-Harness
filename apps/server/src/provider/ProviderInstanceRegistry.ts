@@ -1,3 +1,5 @@
+// @effect-diagnostics-next-line nodeBuiltinImport:off -- Opaque registry incarnation IDs contain no credentials.
+import * as NodeCrypto from "node:crypto";
 import {
   providerInstanceConfigEnabledFlag,
   ProviderInstanceId,
@@ -27,6 +29,10 @@ export class ProviderInstanceRegistry extends Context.Service<
     readonly getInstance: (
       instanceId: ProviderInstanceId,
     ) => Effect.Effect<ProviderInstance | undefined>;
+    /** Metadata only. Rebuild/reconfigure rotates this opaque identity; no credential digest. */
+    readonly getSelectionRevision?: (
+      instanceId: ProviderInstanceId,
+    ) => Effect.Effect<string | undefined>;
     readonly listInstances: Effect.Effect<ReadonlyArray<ProviderInstance>>;
     readonly listUnavailable: Effect.Effect<ReadonlyArray<ServerProvider>>;
     /** streamChanges subscribes on consumption; use subscribeChanges before forking to avoid missing the next publish. */
@@ -36,6 +42,7 @@ export class ProviderInstanceRegistry extends Context.Service<
 >()("t3/provider/ProviderInstanceRegistry") {}
 
 interface LiveEntry {
+  readonly selectionRevision: string;
   readonly instance: ProviderInstance;
   readonly scope: Scope.Closeable;
   readonly entry: ProviderInstanceConfig;
@@ -144,6 +151,7 @@ const buildEntry = Effect.fn("ProviderInstanceRegistry.buildEntry")(function* <R
   return {
     kind: "live" as const,
     live: {
+      selectionRevision: NodeCrypto.randomUUID(),
       instance: createResult.success,
       scope: childScope,
       entry,
@@ -288,6 +296,8 @@ export const makeProviderInstanceRegistry = Effect.fn(
 
   const registry: ProviderInstanceRegistry["Service"] = {
     getInstance: (id) => Ref.get(entries).pipe(Effect.map((map) => map.get(id)?.instance)),
+    getSelectionRevision: (id) =>
+      Ref.get(entries).pipe(Effect.map((map) => map.get(id)?.selectionRevision)),
     listInstances: Ref.get(entries).pipe(
       Effect.map(
         (map) =>

@@ -103,6 +103,44 @@ export interface AuthenticatedSession {
   readonly expiresAt?: DateTime.DateTime;
 }
 
+/** Metadata check shared by native preparation and transport-derived sessions.
+ * The caller must load the live record; a transport snapshot alone is insufficient.
+ */
+export const validateNativeSessionMetadata = (
+  session: AuthenticatedSession,
+  row: import("../persistence/AuthSessions.ts").AuthSessionRecord,
+  now: number,
+): "unauthenticated" | "forbidden" | "expired" | "revoked" | undefined => {
+  if (row.revokedAt !== null) return "revoked";
+  const issued = row.issuedAt.epochMilliseconds;
+  const expires = row.expiresAt.epochMilliseconds;
+  if (!Number.isFinite(issued) || !Number.isFinite(expires) || issued > now || expires <= issued)
+    return "unauthenticated";
+  if (expires <= now) return "expired";
+  if (
+    session.sessionId !== row.sessionId ||
+    session.subject !== row.subject ||
+    session.method !== row.method
+  )
+    return "unauthenticated";
+  if (
+    row.subject.startsWith("mcp-client") ||
+    row.subject.startsWith("reusable-dev-token") ||
+    row.subject === INTERNAL_ADMINISTRATIVE_BOOTSTRAP_SUBJECT
+  )
+    return "forbidden";
+  if (!session.expiresAt || DateTime.toEpochMillis(session.expiresAt) !== expires)
+    return "unauthenticated";
+  if (
+    !session.scopes.includes(AuthOrchestrationOperateScope) ||
+    !row.scopes.includes(AuthOrchestrationOperateScope) ||
+    session.scopes.length !== row.scopes.length ||
+    !session.scopes.every((scope) => row.scopes.includes(scope))
+  )
+    return "forbidden";
+  return undefined;
+};
+
 const serverAuthInternalErrorContext = {
   cause: Schema.Defect(),
 };

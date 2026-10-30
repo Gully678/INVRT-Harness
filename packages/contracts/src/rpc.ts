@@ -1,4 +1,10 @@
 import {
+  ForgeBeginPlanningInput,
+  ForgeStartPlanningInput,
+  ForgePlanningPrepared,
+  ForgePlanningError,
+} from "./forgeFirstUse.ts";
+import {
   OrchestrationV2SearchThreadError,
   OrchestrationV2SearchThreadInput,
   OrchestrationV2SearchThreadResult,
@@ -382,6 +388,8 @@ import { VcsError } from "./vcs.ts";
 import { Project, ProjectMutation, ProjectMutationError } from "./project.ts";
 
 export const WS_METHODS = {
+  forgeBeginPlanning: "forge.firstUse.beginPlanning",
+  forgeStartPlanning: "forge.firstUse.startPlanning",
   projectsList: "projects.list",
   projectsAdd: "projects.add",
   projectsRemove: "projects.remove",
@@ -1914,7 +1922,20 @@ export class RpcScopeAuthorization extends RpcMiddleware.Service<RpcScopeAuthori
   { error: EnvironmentAuthorizationError },
 ) {}
 
+export const WsForgeBeginPlanningRpc = Rpc.make(WS_METHODS.forgeBeginPlanning, {
+  payload: ForgeBeginPlanningInput,
+  success: ForgePlanningPrepared,
+  error: ForgePlanningError,
+});
+export const WsForgeStartPlanningRpc = Rpc.make(WS_METHODS.forgeStartPlanning, {
+  payload: ForgeStartPlanningInput,
+  success: ForgePlanningPrepared,
+  error: ForgePlanningError,
+});
+
 export const WsRpcGroup = RpcGroup.make(
+  WsForgeBeginPlanningRpc,
+  WsForgeStartPlanningRpc,
   WsGuestShareCreateRpc,
   WsServerProbeRpc,
   WsServerGetConfigRpc,
