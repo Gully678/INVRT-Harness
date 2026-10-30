@@ -23,6 +23,7 @@ import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as P from "effect/Predicate";
+import * as PlatformError from "effect/PlatformError";
 import * as Ref from "effect/Ref";
 import * as Result from "effect/Result";
 import * as Scope from "effect/Scope";
@@ -592,7 +593,18 @@ function redactStartupDiagnostic<A>(value: A, password: string | undefined): A {
       if (descriptor === undefined) continue;
       // Native process errors carry data properties. Do not retain opaque accessor closures.
       if (!("value" in descriptor)) continue;
-      Object.defineProperty(result, key, { ...descriptor, value: redact(descriptor.value) });
+      const typedMetadata =
+        (input instanceof OpenCodeRuntimeError &&
+          (key === "_tag" || key === "operation" || key === "reason")) ||
+        (input instanceof PlatformError.PlatformError &&
+          (key === "_tag" || key === "~effect/PlatformError")) ||
+        ((input instanceof PlatformError.SystemError ||
+          input instanceof PlatformError.BadArgument) &&
+          (key === "_tag" || key === "module" || key === "method"));
+      Object.defineProperty(result, key, {
+        ...descriptor,
+        value: typedMetadata ? descriptor.value : redact(descriptor.value),
+      });
     }
     return result;
   };
