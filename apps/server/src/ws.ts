@@ -99,6 +99,12 @@ import {
   type PullRequestRef,
   WS_METHODS,
   WsRpcGroup,
+  WsForgeBeginPlanningRpc,
+  WsForgeStartPlanningRpc,
+  ForgeBeginPlanningInput,
+  ForgeStartPlanningInput,
+  ForgePlanningError,
+  RpcScopeAuthorization,
 } from "@t3tools/contracts";
 import {
   HttpRouter,
@@ -556,7 +562,19 @@ function projectFileFailureContext(
 const PROVIDER_STATUS_DEBOUNCE_MS = 200;
 
 // Middleware added later wraps middleware added earlier, so instrumentation wraps authorization.
-const ServerWsRpcGroup = WsRpcGroup.middleware(RpcInstrumentation);
+// Effect encodes payload-schema failures as defects; decode these two inputs after scope
+// middleware so malformed planning requests use the declared typed error channel.
+export const ServerWsRpcGroup = WsRpcGroup.omit(
+  WS_METHODS.forgeBeginPlanning,
+  WS_METHODS.forgeStartPlanning,
+)
+  .add(
+    WsForgeBeginPlanningRpc.setPayload(Schema.Unknown).middleware(RpcScopeAuthorization),
+    WsForgeStartPlanningRpc.setPayload(Schema.Unknown).middleware(RpcScopeAuthorization),
+  )
+  .middleware(RpcInstrumentation);
+const decodeForgeBeginPlanning = Schema.decodeUnknownEffect(ForgeBeginPlanningInput);
+const decodeForgeStartPlanning = Schema.decodeUnknownEffect(ForgeStartPlanningInput);
 
 // RpcGroup.toLayer derives each handler's requirements by scanning every RPC in
 // the group, so its type cost grows with handlers × RPCs. Near 200 methods that
@@ -1912,12 +1930,22 @@ export const layerWsRpc = (
 
       const handlers = ServerWsRpcGroup.of({
         [WS_METHODS.forgeBeginPlanning]: (input) =>
-          forgeLocalPlanning.pipe(
-            Effect.flatMap((authority) => authority.begin(input, currentSession)),
+          decodeForgeBeginPlanning(input).pipe(
+            Effect.mapError(() => new ForgePlanningError({ code: "invalid_request" })),
+            Effect.flatMap((payload) =>
+              forgeLocalPlanning.pipe(
+                Effect.flatMap((authority) => authority.begin(payload, currentSession)),
+              ),
+            ),
           ),
         [WS_METHODS.forgeStartPlanning]: (input) =>
-          forgeLocalPlanning.pipe(
-            Effect.flatMap((authority) => authority.start(input, currentSession)),
+          decodeForgeStartPlanning(input).pipe(
+            Effect.mapError(() => new ForgePlanningError({ code: "invalid_request" })),
+            Effect.flatMap((payload) =>
+              forgeLocalPlanning.pipe(
+                Effect.flatMap((authority) => authority.start(payload, currentSession)),
+              ),
+            ),
           ),
         [ORCHESTRATION_V2_WS_METHODS.dispatchCommand]: (command) =>
           Effect.annotateCurrentSpan({

@@ -3,9 +3,8 @@ import * as Schema from "effect/Schema";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
 import {
-  WsForgeBeginPlanningRpc,
-  WsForgeStartPlanningRpc,
-  type ForgePlanningPrepared,
+  ForgePlanningPrepared,
+  EnvironmentAuthorizationError,
   AuthSessionId,
   EnvironmentId,
   ProjectId,
@@ -30,8 +29,8 @@ import * as PubSub from "effect/PubSub";
 import * as Queue from "effect/Queue";
 import * as Stream from "effect/Stream";
 import * as TestClock from "effect/testing/TestClock";
-import { Headers } from "effect/http";
-import { RpcGroup, RpcMessage, RpcServer } from "effect/rpc";
+import { Headers, HttpServerRequest, HttpServerResponse } from "effect/http";
+import { RpcGroup, RpcMessage, RpcSerialization, RpcServer } from "effect/rpc";
 import * as SqlClient from "effect/sql/SqlClient";
 
 import * as PreviewAutomationBroker from "./mcp/PreviewAutomationBroker.ts";
@@ -50,6 +49,8 @@ import * as DeviceService from "./device/DeviceService.ts";
 import * as DocumentText from "./provider/DocumentText.ts";
 import * as DirectEndpoints from "./environment/DirectEndpoints.ts";
 import * as EnvironmentAuth from "./auth/EnvironmentAuth.ts";
+import * as RpcAuthorization from "./auth/RpcAuthorization.ts";
+import { rpcInstrumentationLayer } from "./observability/RpcInstrumentation.ts";
 import * as EnvironmentTheme from "./environmentTheme.ts";
 import * as GitWorkflowService from "./git/GitWorkflowService.ts";
 import * as HostResources from "./resourceTelemetry/HostResources.ts";
@@ -121,11 +122,17 @@ import * as ProjectEnrichment from "./project/ProjectEnrichmentService.ts";
 import * as ProjectService from "./project/ProjectService.ts";
 import {
   layerWsRpc,
+  ServerWsRpcGroup,
   subscribeOrchestrationV2Shell,
   subscribeOrchestrationV2Thread,
   WS_RPC_SERVER_OPTIONS,
   withLateEditorConfig,
 } from "./ws.ts";
+
+const decodeForgePlanningPrepared = Schema.decodeUnknownEffect(ForgePlanningPrepared);
+const decodeEnvironmentAuthorizationError = Schema.decodeUnknownEffect(
+  EnvironmentAuthorizationError,
+);
 
 const snapshotConfig = (fields: Partial<ServerConfig>) =>
   ({ availableEditors: [], settings: {}, ...fields }) as unknown as ServerConfig;
@@ -893,7 +900,7 @@ it.effect("thread resume across compacted history keeps message order and final 
   ),
 );
 
-it.effect("native first-use RPC prepares a real durable run and keeps native startup held", () =>
+it.effect("native planning JSON RPC returns typed denials and holds valid runs", () =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
     const auth = yield* EnvironmentAuth.EnvironmentAuth;
@@ -902,12 +909,19 @@ it.effect("native first-use RPC prepares a real durable run and keeps native sta
     const projectId = ProjectId.make("forge-native-rpc");
     yield* sql`INSERT INTO projection_projects (project_id,title,workspace_root,scripts_json,created_at,updated_at) VALUES (${projectId},'FORGE',${process.cwd()},'[]','2026-01-01T00:00:00.000Z','2026-01-01T00:00:00.000Z')`;
     const pairing = yield* auth.issuePairingCredential({ scopes: ["orchestration:operate"] });
-    const issued = yield* auth.createBrowserSession(pairing.credential, { deviceType: "desktop" });
-    const current = yield* auth.authenticateHttpRequest({
-      cookies: { [sessions.cookieName]: issued.sessionToken },
-      headers: {},
-    } as Parameters<typeof auth.authenticateHttpRequest>[0]);
+    const issued = yield* auth.createBrowserSession(pairing.credential, {
+      deviceType: "desktop",
+    });
+    const current = yield* auth.authenticateHttpRequest(
+      HttpServerRequest.fromWeb(
+        new Request("http://native-fixture.invalid/rpc", {
+          headers: { cookie: `${sessions.cookieName}=${issued.sessionToken}` },
+        }),
+      ),
+    );
     let effects = 0;
+    let authorityLookups = 0;
+    let metadataReads = 0;
     const driver: ProviderDriver<{ readonly enabled?: boolean }> = {
       driverKind: ProviderDriverKind.make("codex"),
       metadata: { displayName: "Inert native fixture" },
@@ -928,18 +942,21 @@ it.effect("native first-use RPC prepares a real durable run and keeps native sta
             continuationKey: "codex:native-fixture",
           },
           snapshot: {
-            getSnapshot: Effect.succeed({
-              instanceId,
-              driver: ProviderDriverKind.make("codex"),
-              enabled,
-              installed: false,
-              version: null,
-              status: "ready",
-              auth: { status: "unknown" },
-              checkedAt: "1970-01-01T00:00:00.000Z",
-              models: [],
-              slashCommands: [],
-              skills: [],
+            getSnapshot: Effect.sync(() => {
+              metadataReads++;
+              return {
+                instanceId,
+                driver: ProviderDriverKind.make("codex"),
+                enabled,
+                installed: false,
+                version: null,
+                status: "ready",
+                auth: { status: "unknown" },
+                checkedAt: "1970-01-01T00:00:00.000Z",
+                models: [],
+                slashCommands: [],
+                skills: [],
+              };
             }),
             resolveMaintenance: blocked,
             refresh: Effect.sync(blocked),
@@ -968,10 +985,11 @@ it.effect("native first-use RPC prepares a real durable run and keeps native sta
         [instanceId]: { driver: ProviderDriverKind.make("codex"), enabled: true, config: {} },
       },
     });
-    const responses = yield* Queue.unbounded<ForgePlanningPrepared>();
     const services = Layer.mergeAll(
       layerUnusedConfigRpcServices,
-      Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({ namedProjectsRoot: process.cwd() }),
+      Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({
+        namedProjectsRoot: process.cwd(),
+      }),
       Layer.mock(ExternalLauncher.ExternalLauncher)({}),
       Layer.mock(RemoteOpenTargets.RemoteOpenTargets)({}),
       Layer.mock(DirectEndpoints.DirectEndpoints)({}),
@@ -979,54 +997,188 @@ it.effect("native first-use RPC prepares a real durable run and keeps native sta
       Layer.mock(UsageLimitSources.UsageLimitSources)({}),
       Layer.succeed(ProviderInstanceRegistry.ProviderInstanceRegistry, registry),
       Layer.mock(ServerEnvironment.ServerEnvironment)({
-        getEnvironmentId: identity.getEnvironmentId,
+        getEnvironmentId: Effect.tap(identity.getEnvironmentId, () =>
+          Effect.sync(() => authorityLookups++),
+        ),
       }),
     );
-    const server = yield* RpcServer.makeNoSerialization(
-      RpcGroup.make(WsForgeBeginPlanningRpc, WsForgeStartPlanningRpc),
-      {
-        ...WS_RPC_SERVER_OPTIONS,
-        onFromServer: (response) =>
-          response._tag === "Exit"
-            ? response.exit._tag === "Success"
-              ? Queue.offer(responses, response.exit.value).pipe(Effect.asVoid)
-              : Effect.die("Unexpected first-use RPC failure")
-            : Effect.void,
-      },
-    ).pipe(
-      Effect.provide(
-        layerWsRpc(
-          current,
-          {},
-          {},
-          yield* PreviewAutomationBroker.PreviewAutomationBroker,
-          yield* ServerBrowser.ServerBrowser,
-        ).pipe(Layer.provide(services)),
+    const previewBroker = yield* PreviewAutomationBroker.PreviewAutomationBroker;
+    const serverBrowser = yield* ServerBrowser.ServerBrowser;
+    const makeWire = Effect.fn("test.nativePlanningJsonProtocol")(function* (
+      rpcSession: EnvironmentAuth.AuthenticatedSession,
+    ) {
+      const { protocol, httpEffect } = yield* RpcServer.makeProtocolWithHttpEffect().pipe(
+        Effect.provide(RpcSerialization.layerJson),
+      );
+      yield* RpcServer.make(ServerWsRpcGroup, WS_RPC_SERVER_OPTIONS).pipe(
+        Effect.provideService(RpcServer.Protocol, protocol),
+        Effect.provide(
+          Layer.mergeAll(
+            RpcAuthorization.layer(rpcSession.scopes),
+            rpcInstrumentationLayer,
+            layerWsRpc(rpcSession, {}, {}, previewBroker, serverBrowser).pipe(
+              Layer.provide(services),
+            ),
+          ),
+        ),
+        Effect.forkChild({ startImmediately: true }),
+      );
+      const decodeResponse = Schema.decodeUnknownEffect(
+        Schema.fromJsonString(
+          Schema.Array(
+            Schema.Struct({
+              _tag: Schema.String,
+              requestId: Schema.String,
+              exit: Schema.Struct({
+                _tag: Schema.String,
+                value: Schema.optionalKey(Schema.Unknown),
+                cause: Schema.optionalKey(
+                  Schema.Array(
+                    Schema.Struct({
+                      _tag: Schema.String,
+                      error: Schema.optionalKey(Schema.Unknown),
+                      defect: Schema.optionalKey(Schema.Unknown),
+                    }),
+                  ),
+                ),
+              }),
+            }),
+          ),
+        ),
+      );
+      return (tag: string, payload: unknown) =>
+        httpEffect.pipe(
+          Effect.provideService(
+            HttpServerRequest.HttpServerRequest,
+            HttpServerRequest.fromWeb(
+              new Request("http://native-fixture.invalid/rpc", {
+                method: "POST",
+                body: JSON.stringify({
+                  _tag: "Request",
+                  id: "native-json",
+                  tag,
+                  payload,
+                  headers: [],
+                }),
+              }),
+            ),
+          ),
+          Effect.flatMap((response) =>
+            Effect.promise(() => HttpServerResponse.toWeb(response).text()),
+          ),
+          Effect.flatMap(decodeResponse),
+          Effect.map((responses) => {
+            assert.lengthOf(responses, 1);
+            return responses[0]!.exit;
+          }),
+        );
+    });
+    const request = yield* makeWire(current);
+    const begin = { projectId, providerInstanceId: instanceId, operationId: "native-prepare" };
+    const start = { runId: "unprepared-run", revision: 1, operationId: "native-start" };
+    const mutationsBefore = yield* sql`SELECT total_changes() AS count`;
+    for (const [tag, valid] of [
+      [WS_METHODS.forgeBeginPlanning, begin],
+      [WS_METHODS.forgeStartPlanning, start],
+    ] as const) {
+      const malformed: unknown[] = [
+        ...[
+          "actor",
+          "prompt",
+          "policy",
+          "admission",
+          "threadId",
+          "manifest",
+          "humanVerified",
+          "buildAuthorised",
+          "content",
+          "qualification",
+          "binding",
+          "taskSha256",
+        ].map((key) => ({ ...valid, [key]: "untrusted" })),
+        { ...valid, operationId: "invalid operation" },
+        { ...valid, operationId: 42 },
+        { ...valid, operationId: null },
+        ...Object.keys(valid).map((missing) =>
+          Object.fromEntries(Object.entries(valid).filter(([key]) => key !== missing)),
+        ),
+        {},
+        null,
+        [],
+        "malformed",
+        1,
+      ];
+      if (tag === WS_METHODS.forgeBeginPlanning) {
+        malformed.push(
+          { operationId: "missing" },
+          { ...begin, projectId: 1 },
+          { ...begin, providerInstanceId: null },
+        );
+      } else {
+        malformed.push(
+          { operationId: "missing" },
+          { ...start, runId: "invalid run" },
+          { ...start, runId: 1 },
+          { ...start, revision: 0 },
+          { ...start, revision: 1.5 },
+          { ...start, revision: "1" },
+        );
+      }
+      for (const payload of malformed) {
+        assert.deepEqual(yield* request(tag, payload), {
+          _tag: "Failure",
+          cause: [{ _tag: "Fail", error: { _tag: "ForgePlanningError", code: "invalid_request" } }],
+        });
+      }
+    }
+    assert.deepEqual(yield* sql`SELECT total_changes() AS count`, mutationsBefore);
+    assert.equal(authorityLookups, 0);
+    assert.equal(metadataReads, 0);
+    assert.equal(effects, 0);
+    assert.lengthOf(yield* sql`SELECT run_id FROM forge_local_planning_runs`, 0);
+    const readPairing = yield* auth.issuePairingCredential({ scopes: ["orchestration:read"] });
+    const readIssued = yield* auth.createBrowserSession(readPairing.credential, {
+      deviceType: "desktop",
+    });
+    const readSession = yield* auth.authenticateHttpRequest(
+      HttpServerRequest.fromWeb(
+        new Request("http://native-fixture.invalid/rpc", {
+          headers: { cookie: `${sessions.cookieName}=${readIssued.sessionToken}` },
+        }),
       ),
     );
-    yield* server.write(0, {
-      _tag: "Request",
-      id: RpcMessage.RequestId("forge-prepare"),
-      tag: WS_METHODS.forgeBeginPlanning,
-      payload: { projectId, providerInstanceId: instanceId, operationId: "native-prepare" },
-      headers: Headers.empty,
-    });
-    const prepared = yield* Queue.take(responses);
+    const readRequest = yield* makeWire(readSession);
+    const beforeForbidden = yield* sql`SELECT total_changes() AS count`;
+    for (const [tag, payload] of [
+      [WS_METHODS.forgeBeginPlanning, begin],
+      [WS_METHODS.forgeStartPlanning, start],
+      [WS_METHODS.forgeBeginPlanning, { ...begin, actor: "untrusted" }],
+      [WS_METHODS.forgeStartPlanning, { ...start, policy: "untrusted" }],
+    ] as const) {
+      const denied = yield* readRequest(tag, payload);
+      assert.equal(denied._tag, "Failure");
+      assert.lengthOf(denied.cause!, 1);
+      assert.equal(denied.cause![0]!._tag, "Fail");
+      const error = yield* decodeEnvironmentAuthorizationError(denied.cause![0]!.error);
+      assert.equal(error.requiredScope, "orchestration:operate");
+    }
+    assert.deepEqual(yield* sql`SELECT total_changes() AS count`, beforeForbidden);
+    assert.equal(authorityLookups, 0);
+    assert.equal(metadataReads, 0);
+    assert.equal(effects, 0);
+    assert.lengthOf(yield* sql`SELECT run_id FROM forge_local_planning_runs`, 0);
+    const preparedExit = yield* request(WS_METHODS.forgeBeginPlanning, begin);
+    assert.equal(preparedExit._tag, "Success");
+    const prepared = yield* decodeForgePlanningPrepared(preparedExit.value);
     assert.equal(prepared.nativeTurnHeld, true);
     assert.equal(prepared.binding.humanVerified, false);
-    yield* server.write(0, {
-      _tag: "Request",
-      id: RpcMessage.RequestId("forge-start"),
-      tag: WS_METHODS.forgeStartPlanning,
-      payload: {
-        runId: prepared.binding.runId,
-        revision: prepared.binding.revision,
-        operationId: "native-start",
-      },
-      headers: Headers.empty,
+    const heldExit = yield* request(WS_METHODS.forgeStartPlanning, {
+      runId: prepared.binding.runId,
+      revision: prepared.binding.revision,
+      operationId: "native-start",
     });
-    const held = yield* Queue.take(responses);
-    assert.deepEqual(held, prepared);
+    assert.equal(heldExit._tag, "Success");
+    assert.deepEqual(yield* decodeForgePlanningPrepared(heldExit.value), prepared);
     assert.equal(effects, 0);
     assert.lengthOf(yield* sql`SELECT run_id FROM forge_local_planning_runs`, 1);
     assert.lengthOf(yield* sql`SELECT thread_id FROM orchestration_v2_projection_threads`, 0);
