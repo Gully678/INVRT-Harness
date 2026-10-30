@@ -87,11 +87,13 @@ export function effectiveGitHubAccount(
   const choice = settings.hosts[host];
   if (choice?.enabled === false) return undefined;
   const usable = accounts.filter((account) => account.host === host && account.authenticated);
+  if (choice?.account !== undefined) {
+    return usable.find(
+      (account) => account.account === choice.account && account.environmentVariable === null,
+    );
+  }
   return (
     usable.find((account) => account.environmentVariable !== null) ??
-    (choice?.account === undefined
-      ? undefined
-      : usable.find((account) => account.account === choice.account)) ??
     findAuthenticatedGitHubAccount(usable)
   );
 }

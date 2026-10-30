@@ -26,7 +26,10 @@ import * as HostProcess from "@t3tools/shared/HostProcess";
 import { decodeJsonResult } from "@t3tools/shared/schemaJson";
 import { isSshRemoteUrl } from "@t3tools/shared/sourceControl";
 
-import { GH_PROCESS_CONCURRENCY } from "./GitHubCredentials.ts";
+import {
+  GH_PROCESS_CONCURRENCY,
+  GITHUB_CLI_WITHOUT_ENVIRONMENT_TOKENS,
+} from "./GitHubCredentials.ts";
 import * as GitHubRest from "./GitHubRest.ts";
 import * as GitHubRequestPolicy from "./GitHubRequestPolicy.ts";
 import * as GitHubChangeRequestTemplate from "./gitHubChangeRequestTemplate.ts";
@@ -139,6 +142,24 @@ export function parseGitHubAuth(
     };
   }
 
+  const unavailablePin = Object.entries(settings.hosts).find(
+    ([host, choice]) =>
+      choice.enabled !== false &&
+      choice.account !== undefined &&
+      effectiveGitHubAccount(host, authStatus.accounts, settings) === undefined,
+  );
+  if (unavailablePin) {
+    return {
+      ...providerAuth({
+        status: "unauthenticated",
+        host: unavailablePin[0],
+        detail:
+          "The chosen GitHub login is unavailable. Sign in to it or explicitly choose another login in Settings → Source Control.",
+      }),
+      ...accounts,
+    };
+  }
+
   if (fallback) {
     return {
       ...providerAuth({
@@ -219,20 +240,41 @@ export const makeDiscovery = Effect.gen(function* () {
     label: discovery.label,
     installHint: discovery.installHint,
     probe: Effect.fn("GitHubSourceControlProvider.discovery")(function* (cwd: string) {
+      const settingsResult = yield* sourceControlHost.settings.get.pipe(Effect.result);
       const settings = readSourceControlHostSettings(
         GitHubClient.settings,
-        yield* sourceControlHost.settings.get.pipe(
-          Effect.map((current) => current.sourceControlHosts[GitHubClient.definition.kind]),
-          Effect.orElseSucceed(() => undefined),
-        ),
+        Result.isSuccess(settingsResult)
+          ? settingsResult.success.sourceControlHosts[GitHubClient.definition.kind]
+          : undefined,
       );
+      const isolateTokenEnvironment =
+        Result.isFailure(settingsResult) ||
+        Object.values(settings.hosts).some((choice) => choice.account !== undefined);
       const cli = yield* probeSourceControlProvider({
         cwd,
         process: {
-          run: (input) => process.run({ ...input, concurrency: GH_PROCESS_CONCURRENCY }),
+          run: (input) =>
+            process.run({
+              ...input,
+              concurrency: GH_PROCESS_CONCURRENCY,
+              ...(isolateTokenEnvironment
+                ? { env: { ...input.env, ...GITHUB_CLI_WITHOUT_ENVIRONMENT_TOKENS } }
+                : {}),
+            }),
         },
         spec: { ...discovery, parseAuth: (input) => parseGitHubAuth(input, settings) },
       });
+      if (Result.isFailure(settingsResult)) {
+        return {
+          ...cli,
+          auth: providerAuth({
+            status: "unknown",
+            detail:
+              "Could not read GitHub account settings. Requests are blocked until settings are available.",
+          }),
+        };
+      }
+      if (settings.hosts["github.com"]?.account !== undefined) return cli;
       const savedToken = (settings.tokens["github.com"] ?? "").trim() !== "";
       const variable = environmentTokenVariable(environment);
       const tokenSource = savedToken ? "the token saved in Settings" : variable;
@@ -284,7 +326,7 @@ export const makeDiscovery = Effect.gen(function* () {
         Effect.catchTags({
           GitHubCliMissingError: () => Effect.succeed(false),
           GitHubHostDisabledError: () => Effect.succeed(true),
-          GitHubNotSignedInError: () => Effect.succeed(false),
+          GitHubNotSignedInError: (error) => Effect.succeed(error.account !== undefined),
         }),
         Effect.map((known) =>
           known
@@ -323,6 +365,11 @@ function fromGitHubApiError(
     case "GitHubNotSignedInError":
     case "GitHubHostDisabledError":
       return failure(error.message, error);
+    case "ServerSettingsError":
+      return failure(
+        "Could not read GitHub account settings. Requests are blocked until settings are available.",
+        error,
+      );
     case "GitHubApiAuthenticationError":
       return failure(
         "GitHub is not authenticated. Run `gh auth login` (or set GH_TOKEN) and retry.",

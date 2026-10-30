@@ -1,4 +1,5 @@
-import { SourceControlProviderKind } from "@t3tools/contracts";
+import * as Option from "effect/Option";
+import { DEFAULT_SERVER_SETTINGS, SourceControlProviderKind } from "@t3tools/contracts";
 import * as HostProcess from "@t3tools/shared/HostProcess";
 import { assert, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
@@ -32,6 +33,11 @@ it.effect.each([
   { name: "a credential", credential: "found", claimed: true },
   { name: "a host turned off in Settings", credential: "disabled", claimed: true },
   { name: "no credential", credential: "missing", claimed: false },
+  {
+    name: "an unavailable explicitly selected login",
+    credential: "selected-missing",
+    claimed: true,
+  },
 ] as const)("claims a custom-host remote with $name", (scenario) =>
   Effect.gen(function* () {
     const hosts: Array<string> = [];
@@ -41,7 +47,12 @@ it.effect.each([
         ? Effect.succeed({ token: Redacted.make("token"), fingerprint: `${host}:fingerprint` })
         : scenario.credential === "disabled"
           ? Effect.fail(new GitHubCredentials.GitHubHostDisabledError({ host }))
-          : Effect.fail(new GitHubCredentials.GitHubNotSignedInError({ host }));
+          : Effect.fail(
+              new GitHubCredentials.GitHubNotSignedInError({
+                host,
+                ...(scenario.credential === "selected-missing" ? { account: "gone" } : {}),
+              }),
+            );
     });
     if (discovery.type !== "managed-cli") return assert.fail("expected a managed CLI");
     const provider = yield* discovery.refineUnknownRemote({
@@ -76,4 +87,87 @@ it.effect("asks for no credential when the identity resolver left the base URL e
     );
     assert.deepStrictEqual(hosts, []);
   }),
+);
+
+it.effect(
+  "keeps managed discovery on the selected login despite saved and environment tokens",
+  () => {
+    const environments: Array<NodeJS.ProcessEnv | undefined> = [];
+    const calls: string[] = [];
+    const settings = {
+      ...DEFAULT_SERVER_SETTINGS,
+      sourceControlHosts: {
+        github: {
+          hosts: { "github.com": { account: "work", enabled: true } },
+          tokens: { "github.com": "fixture-saved-token" },
+        },
+      },
+    };
+    return Effect.gen(function* () {
+      const held = yield* GitHubSourceControlProvider.makeDiscovery;
+      if (held.type !== "managed-cli") return assert.fail("expected a managed CLI");
+      const result = yield* held.probe("/fixture");
+      assert.deepStrictEqual(result.auth.account, Option.some("work"));
+      assert.deepStrictEqual(calls, []);
+      assert.isTrue(environments.length > 0);
+      for (const env of environments)
+        for (const key of [
+          "GH_TOKEN",
+          "GITHUB_TOKEN",
+          "GH_ENTERPRISE_TOKEN",
+          "GITHUB_ENTERPRISE_TOKEN",
+        ])
+          assert.strictEqual(env?.[key], "");
+    }).pipe(
+      Effect.provide(
+        Layer.mergeAll(
+          Layer.mock(GitHubRest.GitHubRest)({
+            rest: () => {
+              calls.push("user");
+              return Effect.succeed({
+                body: JSON.stringify({ login: "bot" }),
+                status: 200,
+                headers: {},
+                truncated: false,
+                invalidUtf8: false,
+              });
+            },
+          }),
+          TestSourceControlHost.layer({
+            settings,
+            process: {
+              run: (input) => {
+                environments.push(input.env);
+                return Effect.succeed(
+                  TestSourceControlHost.processOutput(
+                    input.args.includes("--version")
+                      ? "gh version fixture"
+                      : JSON.stringify({
+                          hosts: {
+                            "github.com": [
+                              {
+                                state: "success",
+                                active: true,
+                                host: "github.com",
+                                login: "personal",
+                              },
+                              {
+                                state: "success",
+                                active: false,
+                                host: "github.com",
+                                login: "work",
+                              },
+                            ],
+                          },
+                        }),
+                  ),
+                );
+              },
+            },
+          }),
+        ),
+      ),
+      Effect.provideService(HostProcess.Environment, { GH_TOKEN: "fixture-global-token" }),
+    );
+  },
 );

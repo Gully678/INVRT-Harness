@@ -26,7 +26,7 @@ export function SourceControlTokenSettings({
   readonly credentials: SourceControlHostCredentials;
   readonly onSaved: () => void;
 }) {
-  const { tokens } = useEnvironmentSettings(environmentId, (settings) =>
+  const { tokens, hosts } = useEnvironmentSettings(environmentId, (settings) =>
     readHostCredentialSettings(settings, definition.kind),
   );
   const updateSettings = useAtomCommand(serverEnvironment.updateSettings, {
@@ -37,6 +37,8 @@ export function SourceControlTokenSettings({
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
   const normalizedHost = host.trim().toLowerCase();
+  const pinnedGitHubLogin =
+    definition.kind === "github" && hosts[normalizedHost]?.account !== undefined;
   const isSaved = (tokens[normalizedHost] ?? "").length > 0;
   const savedHosts = Object.entries(tokens)
     .filter(([, value]) => value.length > 0)
@@ -71,12 +73,23 @@ export function SourceControlTokenSettings({
       {/* Locked while saving: a successful save clears the draft, which would drop edits made mid-request. */}
       <fieldset disabled={saving} className="contents">
         <p className="max-w-2xl text-xs leading-relaxed text-muted-foreground">
-          A token saved here is used before{" "}
-          <code className="rounded bg-muted px-1 py-px text-2xs">{credentials.tokenEnvVar}</code>{" "}
-          and the{" "}
-          <code className="rounded bg-muted px-1 py-px text-2xs">{credentials.cliName}</code> login,
-          so {definition.label} works without the {credentials.cliLabel}. Give it{" "}
-          {credentials.tokenAccess}.{" "}
+          {pinnedGitHubLogin ? (
+            <>
+              Saved and environment tokens are ignored while a login is chosen for this GitHub host.
+              Sign in to that login or explicitly choose another login in account settings.{" "}
+            </>
+          ) : (
+            <>
+              A token saved here is used before{" "}
+              <code className="rounded bg-muted px-1 py-px text-2xs">
+                {credentials.tokenEnvVar}
+              </code>{" "}
+              and the{" "}
+              <code className="rounded bg-muted px-1 py-px text-2xs">{credentials.cliName}</code>{" "}
+              login, so {definition.label} works without the {credentials.cliLabel}. Give it{" "}
+              {credentials.tokenAccess}.{" "}
+            </>
+          )}
           {normalizedHost || defaultHost ? (
             <InlineButton
               render={
@@ -117,9 +130,11 @@ export function SourceControlTokenSettings({
         </div>
         <div className="flex items-center justify-between gap-3">
           <p className="text-xs text-muted-foreground">
-            {savedHosts.length === 0
-              ? `No token saved; the server uses ${credentials.tokenEnvVar} or the ${credentials.cliName} login.`
-              : `Saved for ${savedHosts.join(", ")}.`}
+            {pinnedGitHubLogin
+              ? "The server uses only the chosen GitHub login."
+              : savedHosts.length === 0
+                ? `No token saved; the server uses ${credentials.tokenEnvVar} or the ${credentials.cliName} login.`
+                : `Saved for ${savedHosts.join(", ")}.`}
           </p>
           <div className="flex shrink-0 gap-2">
             {isSaved ? (

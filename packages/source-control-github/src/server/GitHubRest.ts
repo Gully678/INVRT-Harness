@@ -183,7 +183,13 @@ export const make = Effect.gen(function* () {
     );
   });
 
-  const rest: GitHubRest["Service"]["rest"] = (input) => {
+  const rest: GitHubRest["Service"]["rest"] = Effect.fn("GitHubRest.rest")((
+    input: GitHubRestInput,
+  ) => {
+    if (!GitHubCredentials.isGitHubHost(input.host))
+      return Effect.fail(
+        new GitHubCredentials.GitHubNotSignedInError({ host: normalizeHost(input.host) }),
+      );
     const url = `${gitHubApiUrls(input.host).rest}/${input.path.replace(/^\/+/, "")}`;
     const base = HttpClientRequest.make(input.method ?? "GET")(url).pipe(
       HttpClientRequest.setHeader("accept", input.accept ?? "application/vnd.github+json"),
@@ -209,7 +215,7 @@ export const make = Effect.gen(function* () {
         }),
       ),
     );
-  };
+  });
 
   return GitHubRest.of({ rest, credential: policy.credential });
 });

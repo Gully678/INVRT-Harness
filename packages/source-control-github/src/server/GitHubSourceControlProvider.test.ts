@@ -837,7 +837,7 @@ it("reports unauthenticated when Settings turn off every signed-in host", () => 
   );
 });
 
-it("names the environment token that overrides the Settings choice", () => {
+it("reports the selected account even when an environment login is present", () => {
   const auth = GitHubSourceControlProvider.parseGitHubAuth(
     multiAccountStatus([
       {
@@ -850,14 +850,49 @@ it("names the environment token that overrides the Settings choice", () => {
     ]),
     { hosts: { "github.com": { account: "work", enabled: true } }, tokens: {} },
   );
-  assert.deepStrictEqual(auth.account, Option.some("bot"));
-  assert.deepStrictEqual(
-    auth.detail,
-    Option.some(
-      "Using GH_TOKEN from the server environment; it overrides the account chosen in Settings.",
-    ),
-  );
+  assert.deepStrictEqual(auth.account, Option.some("work"));
+  assert.deepStrictEqual(auth.detail, Option.none());
   assert.strictEqual(auth.accounts?.[2]?.environmentVariable, "GH_TOKEN");
+});
+
+it("reports a missing selected login without claiming another login or a disabled host", () => {
+  const auth = GitHubSourceControlProvider.parseGitHubAuth(multiAccountStatus(), {
+    hosts: { "github.com": { account: "gone", enabled: true } },
+    tokens: {},
+  });
+  assert.strictEqual(auth.status, "unauthenticated");
+  assert.deepStrictEqual(auth.account, Option.none());
+  assert.include(
+    Option.getOrElse(auth.detail, () => ""),
+    "chosen GitHub login",
+  );
+  assert.notInclude(
+    Option.getOrElse(auth.detail, () => ""),
+    "turned off",
+  );
+});
+
+it("does not substitute an environment identity with the selected login's name", () => {
+  const auth = GitHubSourceControlProvider.parseGitHubAuth(
+    processResult(
+      JSON.stringify({
+        hosts: {
+          "github.com": [
+            {
+              state: "success",
+              active: true,
+              host: "github.com",
+              login: "work",
+              tokenSource: "GH_TOKEN",
+            },
+          ],
+        },
+      }),
+    ),
+    { hosts: { "github.com": { account: "work", enabled: true } }, tokens: {} },
+  );
+  assert.strictEqual(auth.status, "unauthenticated");
+  assert.deepStrictEqual(auth.account, Option.none());
 });
 
 it.live.each([

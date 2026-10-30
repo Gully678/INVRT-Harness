@@ -5,6 +5,7 @@ import {
   FetchHttpClient,
   HttpClient,
   HttpClientRequest,
+  HttpClientError,
   type HttpClientResponse,
 } from "effect/http";
 
@@ -36,11 +37,30 @@ export const make = Effect.gen(function* () {
   // Read on every fetch, so media loads as soon as the user signs in.
   const token = Effect.suspend(() => credentials.get("github.com")).pipe(
     Effect.map((credential) => credential.token),
-    Effect.orElseSucceed(() => null),
+    Effect.catchIf(
+      (error) =>
+        error._tag !== "ServerSettingsError" &&
+        !("account" in error && error.account !== undefined),
+      () => Effect.succeed(null),
+    ),
   );
 
   return Effect.fn("GitHubMediaFetch.fetchMedia")(function* (request: SourceControlMediaRequest) {
-    const bearer = yield* token;
+    const bearer = yield* token.pipe(
+      Effect.mapError(
+        (cause) =>
+          new HttpClientError.HttpClientError({
+            reason: new HttpClientError.TransportError({
+              request: HttpClientRequest.get(request.url),
+              cause,
+              description:
+                cause._tag === "ServerSettingsError"
+                  ? "Could not read GitHub account settings. Requests are blocked until settings are available."
+                  : cause.message,
+            }),
+          }),
+      ),
+    );
     let target = request.url;
     for (let hop = 0; ; hop += 1) {
       const authorization =

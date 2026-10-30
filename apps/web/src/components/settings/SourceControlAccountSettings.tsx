@@ -59,7 +59,20 @@ export function SourceControlAccountSettings({
   });
   const [saving, setSaving] = useState(false);
   const [revealed, setRevealed] = useState(false);
-  const groups = groupHostAccounts(auth.accounts ?? []);
+  const groups = [...groupHostAccounts(auth.accounts ?? [])];
+  if (definition.kind === "github") {
+    for (const [host, choice] of Object.entries(hosts)) {
+      if (choice.account !== undefined && !groups.some((group) => group.host === host)) {
+        groups.push({
+          host,
+          activeAccount: null,
+          selectable: [],
+          broken: [],
+          environmentVariable: null,
+        });
+      }
+    }
+  }
 
   const save = async (
     host: string,
@@ -112,7 +125,10 @@ export function SourceControlAccountSettings({
         const enabled = choice?.enabled ?? true;
         const stalePin =
           choice?.account !== undefined && !group.selectable.includes(choice.account);
-        const pinned = choice?.account !== undefined && !stalePin ? choice.account : ACTIVE_ACCOUNT;
+        const pinned =
+          choice?.account !== undefined && (!stalePin || definition.kind === "github")
+            ? choice.account
+            : ACTIVE_ACCOUNT;
         return (
           <div key={group.host} className="grid gap-2">
             <div className="flex items-center justify-between gap-3">
@@ -197,7 +213,9 @@ export function SourceControlAccountSettings({
             {stalePin ? (
               <div className="flex items-center justify-between gap-3">
                 <p className="text-xs text-warning">
-                  The chosen login is no longer signed in, so the active {cliName} login is used.
+                  {definition.kind === "github"
+                    ? "The chosen login is unavailable. GitHub requests are blocked until you sign in to it or explicitly choose another login."
+                    : `The chosen login is no longer signed in, so the active ${cliName} login is used.`}
                 </p>
                 <Button
                   size="xs"
@@ -222,8 +240,9 @@ export function SourceControlAccountSettings({
             ))}
             {group.environmentVariable ? (
               <p className="text-xs text-warning">
-                {group.environmentVariable} is set on the server, so it overrides the account chosen
-                here until it is unset.
+                {definition.kind === "github" && choice?.account !== undefined
+                  ? `${group.environmentVariable} is ignored while a login is chosen here.`
+                  : `${group.environmentVariable} is set on the server, so it overrides the account chosen here until it is unset.`}
               </p>
             ) : null}
           </div>

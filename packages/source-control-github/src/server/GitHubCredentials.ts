@@ -15,7 +15,7 @@ import * as HostProcess from "@t3tools/shared/HostProcess";
 
 import * as SourceControlHost from "@t3tools/source-control-core/server/SourceControlHost";
 import { readSourceControlHostSettings } from "@t3tools/source-control-core/shared/definition";
-import type { ServerSettings } from "@t3tools/contracts";
+import type { ServerSettings, ServerSettingsError } from "@t3tools/contracts";
 
 import * as GitHubClient from "../shared/definition.ts";
 
@@ -54,13 +54,13 @@ export class GitHubNotSignedInError extends Schema.TaggedError<GitHubNotSignedIn
   override get message(): string {
     return this.account === undefined
       ? `No GitHub credential for ${this.host}: run \`gh auth login --hostname ${this.host}\`.`
-      : `No GitHub credential for ${this.account} on ${this.host}: run \`gh auth login --hostname ${this.host}\` for that account or pick another in Settings → Source Control.`;
+      : `The selected GitHub login ${this.account} on ${this.host} could not provide a credential. Sign in to it or explicitly choose another login in Settings → Source Control.`;
   }
 }
 
 export class GitHubHostDisabledError extends Schema.TaggedError<GitHubHostDisabledError>()(
   "GitHubHostDisabledError",
-  { host: Schema.String },
+  { host: Schema.String, account: Schema.optional(Schema.String) },
 ) {
   override get message(): string {
     return `GitHub host ${this.host} is turned off in Settings → Source Control.`;
@@ -76,11 +76,20 @@ export class GitHubCliFailedError extends Schema.TaggedError<GitHubCliFailedErro
   }
 }
 
+/** Per-child overrides; a selected CLI login must not inherit an unrelated token. */
+export const GITHUB_CLI_WITHOUT_ENVIRONMENT_TOKENS = {
+  GH_TOKEN: "",
+  GITHUB_TOKEN: "",
+  GH_ENTERPRISE_TOKEN: "",
+  GITHUB_ENTERPRISE_TOKEN: "",
+} as const;
+
 export type GitHubCredentialUnavailableError =
   | GitHubCliMissingError
   | GitHubNotSignedInError
   | GitHubHostDisabledError
-  | GitHubCliFailedError;
+  | GitHubCliFailedError
+  | ServerSettingsError;
 
 export class GitHubCredentials extends Context.Service<
   GitHubCredentials,
@@ -101,7 +110,31 @@ const HOSTNAME =
 
 /** API URLs are built from the host text, so anything but a bare hostname could redirect a token. */
 export function isGitHubHost(host: string): boolean {
-  return HOSTNAME.test(host);
+  // URL parsing normalises controls, userinfo and default ports; reject their original shape first.
+  if (/[\u0000-\u001f\u007f]/u.test(host)) return false;
+  const value = normalizeHost(host);
+  const url = URL.parse(`https://${value}`);
+  if (
+    url === null ||
+    url.username !== "" ||
+    url.password !== "" ||
+    url.pathname !== "/" ||
+    url.search !== "" ||
+    url.hash !== ""
+  )
+    return false;
+  const end = value.startsWith("[")
+    ? value.indexOf("]") + 1
+    : value.indexOf(":") === -1
+      ? value.length
+      : value.indexOf(":");
+  const hostname = value.slice(0, end);
+  const port = value.slice(end);
+  if (port !== "" && (port[0] !== ":" || !/^\d+$/u.test(port.slice(1)))) return false;
+  // The native parser validates IPv6 and port ranges; retain the existing DNS-label contract.
+  return hostname.startsWith("[")
+    ? URL.parse(`https://${hostname}`)?.hostname === url.hostname
+    : HOSTNAME.test(hostname) && hostname === url.hostname;
 }
 
 function isGitHubDotCom(host: string): boolean {
@@ -154,7 +187,11 @@ export const make = Effect.gen(function* () {
         ],
         cwd: workingDirectory,
         // Never let gh print the token into a debug log.
-        env: { GH_DEBUG: "", GH_PROMPT_DISABLED: "1" },
+        env: {
+          GH_DEBUG: "",
+          GH_PROMPT_DISABLED: "1",
+          ...(account === undefined ? {} : GITHUB_CLI_WITHOUT_ENVIRONMENT_TOKENS),
+        },
         timeoutMs: 10_000,
         concurrency: GH_PROCESS_CONCURRENCY,
       })
@@ -182,31 +219,20 @@ export const make = Effect.gen(function* () {
       settings.sourceControlHosts[GitHubClient.definition.kind],
     );
 
-  const hostChoice = (host: string) =>
-    sourceControlHost.settings.get.pipe(
-      Effect.map((settings) => readSettings(settings).hosts[host]),
-      Effect.orElseSucceed(() => undefined),
-    );
-
-  const savedToken = (host: string) =>
-    sourceControlHost.settings.get.pipe(
-      Effect.map((settings) => readSettings(settings).tokens[host]?.trim() || null),
-      Effect.orElseSucceed(() => null),
-    );
-
   const cacheKey = (host: string, account: string | undefined) =>
     account === undefined ? host : `${host}\u0000${account}`;
 
   const lookup = Effect.fn("GitHubCredentials.lookup")(function* (key: string) {
-    const [host = key, choice] = key.split("\u0000");
-    const fromEnv = environmentToken(host, environment);
+    const separator = key.indexOf("\u0000");
+    const host = separator === -1 ? key : key.slice(0, separator);
+    const choice = separator === -1 ? undefined : key.slice(separator + 1);
+    const fromEnv = choice === undefined ? environmentToken(host, environment) : null;
     const token =
       fromEnv ??
       (yield* fromGh(host, choice).pipe(
-        Effect.catchTags({
-          GitHubNotSignedInError: (error) =>
-            choice === undefined ? Effect.fail(error) : fromGh(host, undefined),
-        }),
+        Effect.mapError((error) =>
+          choice === undefined ? error : new GitHubNotSignedInError({ host, account: choice }),
+        ),
       ));
     return {
       host,
@@ -231,12 +257,18 @@ export const make = Effect.gen(function* () {
   return GitHubCredentials.of({
     get: Effect.fn("GitHubCredentials.get")(function* (rawHost) {
       const host = normalizeHost(rawHost);
-      if (!isGitHubHost(host)) return yield* new GitHubNotSignedInError({ host });
-      const choice = yield* hostChoice(host);
+      if (!isGitHubHost(rawHost)) return yield* new GitHubNotSignedInError({ host });
+      const settings = readSettings(yield* sourceControlHost.settings.get);
+      const choice = settings.hosts[host];
       if (choice?.enabled === false) {
-        return yield* new GitHubHostDisabledError({ host });
+        return yield* new GitHubHostDisabledError({
+          host,
+          ...(choice.account === undefined ? {} : { account: choice.account }),
+        });
       }
-      const saved = yield* savedToken(host);
+      if (choice?.account !== undefined)
+        return yield* Cache.get(cache, cacheKey(host, choice.account));
+      const saved = settings.tokens[host]?.trim() || null;
       if (saved !== null) {
         return {
           host,
@@ -247,11 +279,12 @@ export const make = Effect.gen(function* () {
       }
       return yield* Cache.get(cache, cacheKey(host, choice?.account));
     }),
-    invalidate: Effect.fn("GitHubCredentials.invalidate")(function (rawHost) {
+    invalidate: Effect.fn("GitHubCredentials.invalidate")(function* (rawHost) {
       const host = normalizeHost(rawHost);
-      return hostChoice(host).pipe(
-        Effect.flatMap((choice) => Cache.invalidate(cache, cacheKey(host, choice?.account))),
-      );
+      // Clear every identity for this host without reading possibly unavailable account settings.
+      for (const key of yield* Cache.keys(cache)) {
+        if (key === host || key.startsWith(`${host}\u0000`)) yield* Cache.invalidate(cache, key);
+      }
     }),
   });
 });

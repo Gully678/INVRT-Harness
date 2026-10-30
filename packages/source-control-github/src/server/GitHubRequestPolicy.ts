@@ -211,6 +211,8 @@ export const make = Effect.gen(function* () {
     "GitHubRest.credential",
   )(function* (host) {
     const normalized = normalizeHost(host);
+    if (!GitHubCredentials.isGitHubHost(host))
+      return yield* new GitHubCredentials.GitHubNotSignedInError({ host: normalized });
     const pinned = yield* PinnedGitHubCredential;
     if (pinned !== null) {
       if (pinned.host !== normalized) {
