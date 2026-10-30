@@ -7,6 +7,7 @@ import {
   firstUseTrust as trust,
   reviewedPythonQualification,
   reviewedGuardedExecutionQualification,
+  guardedPolicyPath,
 } from "./ForgeFirstUseTrust.ts";
 import { logicalRouterArgs } from "./ForgeGuardedExecution.ts";
 import { hash } from "./ForgeInputFiles.ts";
@@ -53,7 +54,7 @@ export const make = Effect.gen(function* () {
         "-B",
         "-c",
         launcherSource,
-        guarded.policyPath,
+        guardedPolicyPath,
         guarded.policySha256,
         ...logicalRouterArgs(cwd),
       ];

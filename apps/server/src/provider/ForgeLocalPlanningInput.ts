@@ -12,6 +12,7 @@ import {
   reviewedPythonQualification,
   reviewedGuardedExecutionQualification,
   guardedLauncherPath,
+  guardedPolicyPath,
 } from "./ForgeFirstUseTrust.ts";
 import { guardedMetadataSchema, buildGuardPolicy } from "./ForgeGuardedExecution.ts";
 import {
@@ -486,7 +487,7 @@ export const make = Effect.gen(function* () {
         Python.observationSchema,
       );
       yield* readAbsolute(guarded.verdictPath, guarded.verdictSha256);
-      yield* readAbsolute(guarded.policyPath, guarded.policySha256);
+      yield* readAbsolute(guardedPolicyPath, guarded.policySha256);
       const guardedMetadata = yield* parse(
         yield* readAbsolute(guarded.metadataPath, guarded.metadataSha256),
         guardedMetadataSchema,

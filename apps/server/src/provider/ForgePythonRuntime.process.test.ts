@@ -3,7 +3,11 @@ import { expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
-import { firstUseTrust, reviewedGuardedExecutionQualification } from "./ForgeFirstUseTrust.ts";
+import {
+  firstUseTrust,
+  reviewedGuardedExecutionQualification,
+  guardedPolicyPath,
+} from "./ForgeFirstUseTrust.ts";
 import { hash } from "./ForgeInputFiles.ts";
 import * as Authority from "./ForgeLocalPlanningAuthority.ts";
 import * as Input from "./ForgeLocalPlanningInput.ts";
@@ -40,7 +44,7 @@ it.layer(NodeServices.layer, { excludeTestServices: true })(
               expect(command.command).toBe(firstUseTrust.executable);
               expect(command.args.slice(0, 4)).toEqual(["-I", "-S", "-B", "-c"]);
               expect(hash(command.args[4]!)).toBe(qualification.launcherSha256);
-              expect(command.args[5]).toBe(qualification.policyPath);
+              expect(command.args[5]).toBe(guardedPolicyPath);
               expect(command.options).toMatchObject({
                 shell: false,
                 extendEnv: false,

@@ -1,4 +1,6 @@
-// This local candidate path is code-owned; portable packaging needs a reviewed bundle location.
+import * as NodeURL from "node:url";
+
+// Packet and runtime TCB pins remain local data; executable assets belong to this module's candidate.
 export const firstUseTrust = Object.freeze({
   profileId: "first-use-planning-real-v5" as const,
   trustRevision: 1 as const,
@@ -98,7 +100,6 @@ export interface ReviewedGuardedExecutionQualification {
   readonly verdictSha256: string;
   readonly launcherSha256: string;
   readonly policySha256: string;
-  readonly policyPath: string;
 }
 // The old separate-process observation cannot admit the new actual-process boundary.
 // New bootstrap/router/caller fingerprints require a separate exact verdict and source review.
@@ -107,5 +108,11 @@ export function reviewedGuardedExecutionQualification():
   | undefined {
   return undefined;
 }
-export const guardedLauncherPath =
-  "/Users/mac/Repos/.worktrees/invrt-code-20261030-donor/apps/server/src/provider/ForgeGuardedLauncher.py";
+// A source checkout resolves its own assets, independently of the qualified fixture project cwd.
+// A packaged build must preserve these sibling assets and receive separate artifact review.
+export const guardedLauncherPath = NodeURL.fileURLToPath(
+  new URL("./ForgeGuardedLauncher.py", import.meta.url),
+);
+export const guardedPolicyPath = NodeURL.fileURLToPath(
+  new URL("./ForgeGuardedPolicy.tsv", import.meta.url),
+);

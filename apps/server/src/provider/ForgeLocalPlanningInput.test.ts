@@ -10,6 +10,7 @@ import { ChildProcessSpawner } from "effect/process";
 import {
   firstUseTrust as trust,
   reviewedGuardedExecutionQualification,
+  guardedPolicyPath,
 } from "./ForgeFirstUseTrust.ts";
 import { observationSchema } from "./ForgePythonRuntime.ts";
 import * as Authority from "./ForgeLocalPlanningAuthority.ts";
@@ -192,7 +193,7 @@ it.layer(NodeServices.layer, { excludeTestServices: true })(
             if (!qualification) throw new Error("guard qualification required");
             expect(args[0]?.slice(0, 4)).toEqual(["-I", "-S", "-B", "-c"]);
             expect(Files.hash(args[0]![4]!)).toBe(qualification.launcherSha256);
-            expect(args[0]![5]).toBe(qualification.policyPath);
+            expect(args[0]![5]).toBe(guardedPolicyPath);
             expect(args[0]![6]).toBe(qualification.policySha256);
             expect(args[0]?.slice(7)).toEqual([
               `--prompt=${trust.taskPrompt}`,
