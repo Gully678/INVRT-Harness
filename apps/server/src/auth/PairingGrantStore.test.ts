@@ -1,6 +1,7 @@
 import { AuthStandardClientScopes } from "@t3tools/contracts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { expect, it } from "@effect/vitest";
+import * as Crypto from "effect/Crypto";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -45,11 +46,11 @@ const layerPairingGrantStore = (
   );
 
 it.layer(NodeServices.layer)("PairingGrantStore.layer", (it) => {
-  it.effect("issues one-time bootstrap tokens that can only be consumed once", () =>
+  it.effect("accepts lowercase one-time tokens exactly once", () =>
     Effect.gen(function* () {
       const bootstrapCredentials = yield* PairingGrantStore.PairingGrantStore;
       const issued = yield* bootstrapCredentials.issueOneTimeToken({ label: "Julius iPhone" });
-      const first = yield* bootstrapCredentials.consume(issued.credential);
+      const first = yield* bootstrapCredentials.consume(issued.credential.toLowerCase());
       const second = yield* Effect.flip(bootstrapCredentials.consume(issued.credential));
 
       expect(first.method).toBe("one-time-token");
@@ -59,7 +60,16 @@ it.layer(NodeServices.layer)("PairingGrantStore.layer", (it) => {
       expect(issued.label).toBe("Julius iPhone");
       expect(second._tag).toBe("UnknownBootstrapCredentialError");
       expect(second.message).toContain("Unknown bootstrap credential");
-    }).pipe(Effect.provide(layerPairingGrantStore())),
+    }).pipe(
+      Effect.provide(layerPairingGrantStore()),
+      Effect.provideServiceEffect(
+        Crypto.Crypto,
+        Effect.map(Crypto.Crypto, (crypto) => ({
+          ...crypto,
+          randomBytes: (size) => Effect.succeed(new Uint8Array(size).fill(8)),
+        })),
+      ),
+    ),
   );
 
   it.effect("atomically consumes a one-time token when multiple requests race", () =>
@@ -124,6 +134,23 @@ it.layer(NodeServices.layer)("PairingGrantStore.layer", (it) => {
     }).pipe(Effect.provide(layerPairingGrantStore())),
   );
 
+  it.effect("matches a seeded desktop bootstrap credential exactly", () =>
+    Effect.gen(function* () {
+      const bootstrapCredentials = yield* PairingGrantStore.PairingGrantStore;
+      const exact = yield* bootstrapCredentials.consume("abcdefghjkmn");
+      const otherCase = yield* Effect.flip(bootstrapCredentials.consume("ABCDEFGHJKMN"));
+
+      expect(exact.method).toBe("desktop-bootstrap");
+      expect(otherCase._tag).toBe("UnknownBootstrapCredentialError");
+    }).pipe(
+      Effect.provide(
+        layerPairingGrantStore({
+          desktopBootstrapToken: "abcdefghjkmn",
+        }),
+      ),
+    ),
+  );
+
   it.effect("reports seeded desktop bootstrap credentials as expired after their ttl", () =>
     Effect.gen(function* () {
       const bootstrapCredentials = yield* PairingGrantStore.PairingGrantStore;
@@ -156,9 +183,11 @@ it.layer(NodeServices.layer)("PairingGrantStore.layer", (it) => {
 
       yield* TestClock.adjust(Duration.days(5));
       const now = 5 * 24 * 60 * 60 * 1000;
-      const current = yield* bootstrapCredentials.consume(
-        currentDesktopBootstrapToken("desktop-secret", now),
-      );
+      const rotating = currentDesktopBootstrapToken("desktop-secret", now);
+      expect(rotating.toUpperCase()).not.toBe(rotating);
+      const wrongCase = yield* Effect.flip(bootstrapCredentials.consume(rotating.toUpperCase()));
+      expect(wrongCase._tag).toBe("UnknownBootstrapCredentialError");
+      const current = yield* bootstrapCredentials.consume(rotating);
       expect(current.method).toBe("desktop-bootstrap");
 
       const stale = yield* Effect.flip(
@@ -206,5 +235,112 @@ it.layer(NodeServices.layer)("PairingGrantStore.layer", (it) => {
         expect(yield* Queue.take(changes)).toEqual({ type: "pairingLinkRemoved", id: issued.id });
       }
     }).pipe(Effect.scoped, Effect.provide(layerPairingGrantStore())),
+  );
+  it.effect.each(["upper", "lower", "mixed"] as const)(
+    "native first use consumes $0 issued pairing case once",
+    (casing) =>
+      Effect.gen(function* () {
+        const grants = yield* PairingGrantStore.PairingGrantStore;
+        const issued = yield* grants.issueOneTimeToken();
+        const code =
+          casing === "upper"
+            ? issued.credential
+            : casing === "lower"
+              ? issued.credential.toLowerCase()
+              : issued.credential.slice(0, 6).toLowerCase() + issued.credential.slice(6);
+        expect((yield* grants.consume(code)).method).toBe("one-time-token");
+        expect((yield* Effect.flip(grants.consume(issued.credential)))._tag).toBe(
+          "UnknownBootstrapCredentialError",
+        );
+      }).pipe(
+        Effect.provide(layerPairingGrantStore()),
+        Effect.provideServiceEffect(
+          Crypto.Crypto,
+          Effect.map(Crypto.Crypto, (crypto) => ({
+            ...crypto,
+            randomBytes: (size) => Effect.succeed(new Uint8Array(size).fill(8)),
+          })),
+        ),
+      ),
+  );
+
+  it.effect(
+    "native first use races case variants atomically and preserves proof and required scopes",
+    () =>
+      Effect.gen(function* () {
+        const grants = yield* PairingGrantStore.PairingGrantStore;
+        const issued = yield* grants.issueOneTimeToken({
+          proofKeyThumbprint: "fixture-proof",
+          scopes: ["orchestration:read"],
+        });
+        const code = issued.credential.toLowerCase();
+        expect(
+          (yield* Effect.flip(grants.consume(code, { proofKeyThumbprint: "wrong-proof" })))._tag,
+        ).toBe("BootstrapCredentialProofKeyMismatchError");
+        expect(
+          (yield* Effect.flip(
+            grants.consume(code, {
+              proofKeyThumbprint: "fixture-proof",
+              requiredScopes: ["orchestration:read", "access:write"],
+            }),
+          ))._tag,
+        ).toBe("BootstrapCredentialScopeNotGrantedError");
+        const consume = (credential: string) =>
+          Effect.result(
+            grants.consume(credential, {
+              proofKeyThumbprint: "fixture-proof",
+              requiredScopes: ["orchestration:read"],
+              requestedScopes: ["orchestration:read", "access:write"],
+            }),
+          );
+        const results = yield* Effect.all(
+          [
+            consume(code),
+            consume(issued.credential),
+            consume(code.slice(0, 6) + issued.credential.slice(6)),
+          ],
+          { concurrency: "unbounded" },
+        );
+        expect(results.filter((result) => result._tag === "Success")).toHaveLength(1);
+        expect(results.filter((result) => result._tag === "Failure")).toHaveLength(2);
+      }).pipe(
+        Effect.provide(layerPairingGrantStore()),
+        Effect.provideServiceEffect(
+          Crypto.Crypto,
+          Effect.map(Crypto.Crypto, (crypto) => ({
+            ...crypto,
+            randomBytes: (size) => Effect.succeed(new Uint8Array(size).fill(8)),
+          })),
+        ),
+      ),
+  );
+
+  it.effect.each(["expired", "revoked"] as const)(
+    "native first use diagnoses a lowercase $0 code",
+    (state) =>
+      Effect.gen(function* () {
+        const grants = yield* PairingGrantStore.PairingGrantStore;
+        const issued = yield* grants.issueOneTimeToken();
+        if (state === "expired") yield* TestClock.adjust("6 minutes");
+        else yield* grants.revoke(issued.id);
+        const error = yield* Effect.flip(grants.consume(issued.credential.toLowerCase()));
+        expect(error._tag).toBe(
+          state === "expired"
+            ? "ExpiredBootstrapCredentialError"
+            : "UnavailableBootstrapCredentialError",
+        );
+        expect((yield* Effect.flip(grants.consume("malformed-code")))._tag).toBe(
+          "UnknownBootstrapCredentialError",
+        );
+      }).pipe(
+        Effect.provide(layerPairingGrantStore()),
+        Effect.provideServiceEffect(
+          Crypto.Crypto,
+          Effect.map(Crypto.Crypto, (crypto) => ({
+            ...crypto,
+            randomBytes: (size) => Effect.succeed(new Uint8Array(size).fill(8)),
+          })),
+        ),
+      ),
   );
 });

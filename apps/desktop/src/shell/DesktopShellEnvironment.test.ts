@@ -7,6 +7,8 @@ import * as Logger from "effect/Logger";
 import * as PlatformError from "effect/PlatformError";
 import * as Sink from "effect/Sink";
 import * as Stream from "effect/Stream";
+import * as Fiber from "effect/Fiber";
+import * as TestClock from "effect/testing/TestClock";
 import * as ChildProcess from "effect/process/ChildProcess";
 import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 import * as NodeOS from "node:os";
@@ -29,14 +31,18 @@ function envOutput(values: Readonly<Record<string, string>>): string {
     .join("\n");
 }
 
-function makeProcess(output: string, exitCode = 0): ChildProcessSpawner.ChildProcessHandle {
+function makeProcess(
+  output: string,
+  exitCode = 0,
+  hangs = false,
+): ChildProcessSpawner.ChildProcessHandle {
   const stdout = output.length === 0 ? Stream.empty : Stream.make(textEncoder.encode(output));
   return ChildProcessSpawner.makeHandle({
     pid: ChildProcessSpawner.ProcessId(123),
     stdout,
     stderr: Stream.empty,
     all: stdout,
-    exitCode: Effect.succeed(ChildProcessSpawner.ExitCode(exitCode)),
+    exitCode: hangs ? Effect.never : Effect.succeed(ChildProcessSpawner.ExitCode(exitCode)),
     isRunning: Effect.succeed(false),
     kill: () => Effect.void,
     stdin: Sink.drain,
@@ -72,6 +78,7 @@ function runShellEnvironment(input: {
     command: ChildProcess.Command,
   ) => string | { output: string; exitCode: number };
   readonly failure?: PlatformError.PlatformError;
+  readonly hangs?: boolean;
 }) {
   const layerEnvironment = Layer.succeed(
     DesktopEnvironment.DesktopEnvironment,
@@ -86,8 +93,8 @@ function runShellEnvironment(input: {
       const result = input.handler(command);
       return Effect.succeed(
         typeof result === "string"
-          ? makeProcess(result)
-          : makeProcess(result.output, result.exitCode),
+          ? makeProcess(result, 0, input.hangs)
+          : makeProcess(result.output, result.exitCode, input.hangs),
       );
     }),
   );
@@ -118,6 +125,21 @@ function runShellEnvironment(input: {
 }
 
 describe("DesktopShellEnvironment", () => {
+  it.effect("native first use leaves preparation incomplete after shell timeouts", () =>
+    Effect.gen(function* () {
+      const env = { SHELL: "/bin/zsh", PATH: "/usr/bin" };
+      const fiber = yield* runShellEnvironment({
+        env,
+        platform: "darwin",
+        hangs: true,
+        handler: () => "",
+      }).pipe(Effect.provide(Logger.layer([])), Effect.forkChild);
+      yield* TestClock.adjust("30 seconds");
+      assert.isFalse(yield* Fiber.join(fiber));
+      assert.equal(env.PATH, "/usr/bin");
+    }),
+  );
+
   it.effect("rejects PATH output from a failed shell and tries the next candidate", () =>
     Effect.gen(function* () {
       const env: NodeJS.ProcessEnv = { SHELL: "/bin/failing", PATH: "/usr/bin" };
@@ -149,7 +171,7 @@ describe("DesktopShellEnvironment", () => {
       };
       const commands: ChildProcess.Command[] = [];
 
-      yield* runShellEnvironment({
+      const prepared = yield* runShellEnvironment({
         env,
         platform: "darwin",
         handler: (command) => {
@@ -167,6 +189,7 @@ describe("DesktopShellEnvironment", () => {
       assert.equal(env.PATH, "/opt/homebrew/bin:/usr/bin:/Users/test/.local/bin");
       assert.equal(env.SSH_AUTH_SOCK, "/tmp/secretive.sock");
       assert.equal(env.HOMEBREW_PREFIX, "/opt/homebrew");
+      assert.isTrue(prepared);
     }),
   );
 
@@ -267,7 +290,7 @@ describe("DesktopShellEnvironment", () => {
       };
       const commands: string[] = [];
 
-      yield* runShellEnvironment({
+      const prepared = yield* runShellEnvironment({
         env,
         platform: "darwin",
         handler: (command) => {
@@ -279,6 +302,19 @@ describe("DesktopShellEnvironment", () => {
 
       assert.deepEqual(commands, ["/opt/homebrew/bin/nu", "/bin/zsh", "/bin/launchctl"]);
       assert.equal(env.PATH, "/opt/homebrew/bin:/usr/bin");
+      assert.isFalse(prepared);
+    }),
+  );
+
+  it.effect("leaves macOS preparation incomplete when no login shell returns a PATH", () =>
+    Effect.gen(function* () {
+      const prepared = yield* runShellEnvironment({
+        env: { SHELL: "/bin/zsh", PATH: "/usr/bin:/bin:/usr/sbin:/sbin" },
+        platform: "darwin",
+        handler: () => "",
+      });
+
+      assert.isFalse(prepared);
     }),
   );
 

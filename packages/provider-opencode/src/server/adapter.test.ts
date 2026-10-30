@@ -1,3 +1,5 @@
+// @effect-diagnostics-next-line nodeBuiltinImport:off -- The synthetic HTTP fixture exercises the real SDK without a provider process.
+import * as NodeHttp from "node:http";
 import { assert, describe, it } from "@effect/vitest";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import type { OpencodeClient, ToolPart } from "@opencode-ai/sdk/v2";
@@ -33,6 +35,7 @@ import * as ProviderHost from "@t3tools/provider-core/server/ProviderHost";
 import * as TestProviderHost from "@t3tools/provider-testing/TestProviderHost";
 import type * as ProviderEventLoggers from "@t3tools/provider-core/server/ProviderEventLoggers";
 import * as OpenCodeRuntime from "./OpenCodeRuntime.ts";
+import * as OpenCodeServerLedger from "./OpenCodeServerLedger.ts";
 import * as IdAllocator from "@t3tools/provider-core/server/IdAllocator";
 import * as McpProviderSessions from "@t3tools/provider-core/server/McpProviderSessions";
 
@@ -2453,4 +2456,254 @@ it.effect.each([false, true])(
       Effect.provide(Layer.merge(IdAllocator.layer, McpProviderSessions.layer)),
       Effect.scoped,
     ),
+);
+
+const decodeAuthOpenCodeSettings = Schema.decodeEffect(OpenCodeSettings);
+
+it.live.each([
+  {
+    name: "external-selected",
+    external: true,
+    setting: "selected-fixture",
+    environment: "ambient-fixture",
+    expected: "selected-fixture",
+    reject: false,
+  },
+  {
+    name: "managed-environment",
+    external: false,
+    setting: "",
+    environment: "managed-fixture",
+    expected: "managed-fixture",
+    reject: false,
+  },
+  {
+    name: "managed-selected",
+    external: false,
+    setting: "selected-fixture",
+    environment: "ambient-fixture",
+    expected: "selected-fixture",
+    reject: false,
+  },
+  {
+    name: "external-unselected",
+    external: true,
+    setting: "",
+    environment: "ambient-fixture",
+    expected: "",
+    reject: false,
+  },
+  {
+    name: "managed-anonymous",
+    external: false,
+    setting: "",
+    environment: "",
+    expected: "",
+    reject: false,
+  },
+  {
+    name: "wrong-password",
+    external: true,
+    setting: "wrong-fixture",
+    environment: "ambient-fixture",
+    expected: "correct-fixture",
+    reject: true,
+  },
+  {
+    name: "cancelled-health",
+    external: true,
+    setting: "cancelled-fixture",
+    environment: "ambient-fixture",
+    expected: "cancelled-fixture",
+    reject: false,
+  },
+])("native first use authenticates health, events and sessions: $name", (fixture) =>
+  Effect.gen(function* () {
+    const requests: Array<{ path: string; authenticated: boolean }> = [];
+    const eventRequest = promiseGate<void>();
+    const healthStarted = promiseGate<void>();
+    const healthClosed = promiseGate<void>();
+    const server = yield* Effect.acquireRelease(
+      Effect.promise(
+        () =>
+          new Promise<NodeHttp.Server>((resolve) => {
+            const server = NodeHttp.createServer((request, response) => {
+              const path = new URL(request.url!, "http://127.0.0.1").pathname;
+              const password = path.startsWith("/second/")
+                ? "second-selected-fixture"
+                : fixture.expected;
+              const expected =
+                password === ""
+                  ? undefined
+                  : `Basic ${Buffer.from(`opencode:${password}`).toString("base64")}`;
+              const authenticated = request.headers.authorization === expected;
+              requests.push({ path, authenticated });
+              if (fixture.name === "cancelled-health" && path === "/global/health") {
+                response.once("close", () => healthClosed.resolve());
+                healthStarted.resolve();
+                return;
+              }
+              if (fixture.reject && !authenticated) {
+                response.writeHead(401).end("Unauthorised fixture");
+                return;
+              }
+              if (path.endsWith("/event")) {
+                response.writeHead(200, { "Content-Type": "text/event-stream" });
+                response.write(": connected\n\n");
+                eventRequest.resolve();
+                return;
+              }
+              response.writeHead(200, { "Content-Type": "application/json" });
+              response.end(
+                JSON.stringify(
+                  path.endsWith("/children")
+                    ? []
+                    : path.endsWith("/session")
+                      ? { id: "native-auth", time: { created: 1, updated: 1 } }
+                      : { healthy: true, version: "1.14.19" },
+                ),
+              );
+            });
+            server.listen(0, "127.0.0.1", () => resolve(server));
+          }),
+      ),
+      (server) =>
+        Effect.promise(
+          () =>
+            new Promise<void>((resolve) => {
+              server.closeAllConnections();
+              server.close(() => resolve());
+            }),
+        ),
+    );
+    const address = server.address();
+    if (address === null || typeof address === "string")
+      return yield* Effect.die("Expected a fixture port");
+    yield* Effect.logInfo("Synthetic OpenCode fixture", { pid: process.pid, port: address.port });
+    const url = `http://127.0.0.1:${address.port}`;
+    const native = yield* OpenCodeRuntime.OpenCodeRuntime;
+    const instanceId = ProviderInstanceId.make(`opencode-auth-${fixture.name}`);
+    const adapter = yield* makeOpenCodeAdapterV2({
+      instanceId,
+      settings: yield* decodeAuthOpenCodeSettings({
+        serverUrl: fixture.external ? url : "",
+        serverPassword: fixture.setting,
+      }),
+      environment:
+        fixture.environment === "" ? {} : { OPENCODE_SERVER_PASSWORD: fixture.environment },
+    }).pipe(
+      Effect.provideService(OpenCodeRuntime.OpenCodeRuntime, {
+        ...native,
+        connectToOpenCodeServer: (input) =>
+          fixture.external
+            ? native.connectToOpenCodeServer(input)
+            : Effect.gen(function* () {
+                const serverPassword = OpenCodeRuntime.resolveOpenCodeServerPassword(
+                  { ...input, external: false },
+                  {},
+                );
+                const version = yield* OpenCodeRuntime.verifyOpenCodeServerVersion(
+                  native.createOpenCodeSdkClient({
+                    baseUrl: url,
+                    directory: input.directory,
+                    ...(serverPassword !== undefined ? { serverPassword } : {}),
+                  }),
+                );
+                return {
+                  url,
+                  version,
+                  external: false,
+                  exitCode: null,
+                  ...(serverPassword !== undefined ? { serverPassword } : {}),
+                };
+              }),
+      }),
+    );
+    const threadId = ThreadId.make(`thread-auth-${fixture.name}`);
+    const modelSelection = { instanceId, model: "anthropic/claude-sonnet", options: [] };
+    const policy = runtimePolicy("full-access");
+    if (fixture.name === "cancelled-health") {
+      const pending = yield* adapter
+        .openSession({
+          threadId,
+          providerSessionId: ProviderSessionId.make("session-auth-cancelled"),
+          modelSelection,
+          runtimePolicy: policy,
+        })
+        .pipe(Effect.forkChild);
+      yield* Effect.promise(() => healthStarted.promise);
+      yield* Fiber.interrupt(pending);
+      yield* Effect.promise(() => healthClosed.promise);
+      assert.deepEqual(
+        requests.map((request) => request.path),
+        ["/global/health"],
+      );
+      return;
+    }
+    const opened = yield* Effect.result(
+      adapter.openSession({
+        threadId,
+        providerSessionId: ProviderSessionId.make(`session-auth-${fixture.name}`),
+        modelSelection,
+        runtimePolicy: policy,
+      }),
+    );
+    if (fixture.reject) {
+      assert.equal(opened._tag, "Failure");
+      if (opened._tag !== "Failure") return;
+      assert.equal(opened.failure._tag, "ProviderAdapterOpenSessionError");
+      assert.notInclude(opened.failure.message, fixture.setting);
+      assert.notInclude(opened.failure.message, fixture.expected);
+      assert.deepEqual(
+        requests.map((request) => request.path),
+        ["/global/health"],
+      );
+      return;
+    }
+    if (opened._tag === "Failure") return yield* opened.failure;
+    yield* opened.success.ensureThread({ threadId, modelSelection, runtimePolicy: policy });
+    yield* Effect.promise(() => eventRequest.promise);
+    if (fixture.name === "external-selected") {
+      const secondId = ProviderInstanceId.make("opencode-auth-second-instance");
+      const secondSelection = { ...modelSelection, instanceId: secondId };
+      const second = yield* makeOpenCodeAdapterV2({
+        instanceId: secondId,
+        settings: yield* decodeAuthOpenCodeSettings({
+          serverUrl: `${url}/second`,
+          serverPassword: "second-selected-fixture",
+        }),
+        environment: { OPENCODE_SERVER_PASSWORD: "second-ambient-fixture" },
+      });
+      const session = yield* second.openSession({
+        threadId,
+        providerSessionId: ProviderSessionId.make("session-auth-second-instance"),
+        modelSelection: secondSelection,
+        runtimePolicy: policy,
+      });
+      yield* session.ensureThread({
+        threadId,
+        modelSelection: secondSelection,
+        runtimePolicy: policy,
+      });
+      for (const path of ["/second/global/health", "/second/session", "/second/event"]) {
+        assert.isTrue(requests.some((request) => request.path === path));
+      }
+    }
+    for (const path of ["/global/health", "/session", "/event"]) {
+      assert.isTrue(requests.some((request) => request.path === path));
+    }
+    assert.isTrue(
+      requests.every((request) => request.authenticated),
+      "An SDK request used the wrong fixture identity",
+    );
+  }).pipe(
+    Effect.scoped,
+    Effect.provide(OpenCodeRuntime.layer.pipe(Layer.provide(OpenCodeServerLedger.layerTest))),
+    Effect.provide([
+      NodeServices.layer,
+      TestProviderHost.layer().pipe(Layer.provide(NodeServices.layer)),
+      IdAllocator.layer,
+      McpProviderSessions.layer,
+    ]),
+  ),
 );

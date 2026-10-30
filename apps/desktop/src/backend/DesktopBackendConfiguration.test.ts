@@ -1,6 +1,8 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, describe, it } from "@effect/vitest";
 import { currentDesktopBootstrapToken } from "@t3tools/shared/desktopBootstrapToken";
+import * as HostProcess from "@t3tools/shared/HostProcess";
+import * as Shell from "@t3tools/shared/shell";
 import * as Clock from "effect/Clock";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -8,7 +10,11 @@ import * as Layer from "effect/Layer";
 import * as ManagedRuntime from "effect/ManagedRuntime";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
+import * as Sink from "effect/Sink";
+import * as Stream from "effect/Stream";
 import { ChildProcessSpawner } from "effect/process";
+import { vi } from "vite-plus/test";
+import { fixPath } from "../../../server/src/os-jank.ts";
 
 import * as DesktopEnvironment from "../app/DesktopEnvironment.ts";
 import * as DesktopBackendConfiguration from "./DesktopBackendConfiguration.ts";
@@ -19,13 +25,20 @@ import * as DesktopAppSettings from "../settings/DesktopAppSettings.ts";
 import * as DesktopWslEnvironment from "../wsl/DesktopWslEnvironment.ts";
 import * as DesktopWslServerTree from "../wsl/DesktopWslServerTree.ts";
 
+vi.mock("@t3tools/shared/shell", { spy: true });
+vi.mock("electron", () => ({ default: "/fixture/never-launch-electron" }));
+
 const layerShellEnvironment = (prepared = true) =>
   Layer.succeed(DesktopShellEnvironment.DesktopShellEnvironment, {
     installIntoProcess: Effect.succeed(prepared),
   });
 
-const layerBackendConfiguration = (prepared = true) =>
-  DesktopBackendConfiguration.layer.pipe(Layer.provide(layerShellEnvironment(prepared)));
+const layerBackendConfiguration = <E = never>(
+  prepared = true,
+  shell: Layer.Layer<DesktopShellEnvironment.DesktopShellEnvironment, E> = layerShellEnvironment(
+    prepared,
+  ),
+) => DesktopBackendConfiguration.layer.pipe(Layer.provide(shell));
 
 const layerServerExposure = Layer.succeed(DesktopServerExposure.DesktopServerExposure, {
   getState: Effect.die("unexpected getState"),
@@ -95,7 +108,7 @@ const restoreEnv = (name: string, value: string | undefined) => {
   }
 };
 
-const withHarness = <A, E, R>(
+const withHarness = <A, E, R, ShellError = never>(
   effect: Effect.Effect<
     A,
     E,
@@ -105,6 +118,9 @@ const withHarness = <A, E, R>(
     | DesktopBackendConfiguration.DesktopBackendConfiguration
   >,
   prepared = true,
+  shell?: (
+    baseDir: string,
+  ) => Layer.Layer<DesktopShellEnvironment.DesktopShellEnvironment, ShellError>,
 ) =>
   Effect.gen(function* () {
     const fileSystem = yield* FileSystem.FileSystem;
@@ -114,7 +130,7 @@ const withHarness = <A, E, R>(
 
     return yield* effect.pipe(
       Effect.provide(
-        layerBackendConfiguration(prepared).pipe(
+        layerBackendConfiguration(prepared, shell?.(baseDir)).pipe(
           Layer.provideMerge(layerServerExposure),
           Layer.provideMerge(DesktopAppSettings.layerTest()),
           Layer.provideMerge(DesktopWslEnvironment.layerTest()),
@@ -218,6 +234,96 @@ const withPackagedWslHarness = <A, E, R>(
   }).pipe(Effect.scoped, Effect.provide(NodeServices.layer));
 
 describe("DesktopBackendConfiguration", () => {
+  it.effect.each([false, true])(
+    "native first use composes desktop capture=%s with server PATH hydration",
+    (captured) =>
+      Effect.gen(function* () {
+        using _shells = vi
+          .spyOn(Shell, "listLoginShellCandidates")
+          .mockReturnValue(["/fixture/shell"]);
+        using login = vi
+          .spyOn(Shell, "readEnvironmentFromLoginShell")
+          .mockReturnValue({ PATH: "/fixture/server-bin" });
+        const env = {
+          SHELL: "/fixture/shell",
+          PATH: "/usr/bin",
+          HOME: "/fixture/home",
+          TMPDIR: process.env.TMPDIR,
+          ELECTRON_OVERRIDE_DIST_PATH: "/fixture/never-launch-electron",
+        };
+        let probes = 0;
+        const shell = (baseDir: string) =>
+          DesktopShellEnvironment.layer.pipe(
+            Layer.provide(
+              Layer.mergeAll(
+                NodeServices.layer,
+                layerEnvironment(baseDir),
+                Layer.succeed(
+                  ChildProcessSpawner.ChildProcessSpawner,
+                  ChildProcessSpawner.make(() => {
+                    probes += 1;
+                    return Effect.succeed(
+                      ChildProcessSpawner.makeHandle({
+                        pid: ChildProcessSpawner.ProcessId(123),
+                        exitCode: Effect.succeed(ChildProcessSpawner.ExitCode(0)),
+                        isRunning: Effect.succeed(false),
+                        kill: () => Effect.void,
+                        unref: Effect.succeed(Effect.void),
+                        stdin: Sink.drain,
+                        stdout: captured
+                          ? Stream.make(
+                              new TextEncoder().encode(
+                                "__T3CODE_ENV_PATH_START__\n/fixture/login-bin\n__T3CODE_ENV_PATH_END__",
+                              ),
+                            )
+                          : Stream.empty,
+                        stderr: Stream.empty,
+                        all: Stream.empty,
+                        getInputFd: () => Sink.drain,
+                        getOutputFd: () => Stream.empty,
+                      }),
+                    );
+                  }),
+                ),
+              ),
+            ),
+          );
+        yield* Effect.acquireUseRelease(
+          Effect.sync(() => {
+            const previous = process.env;
+            process.env = env;
+            return previous;
+          }),
+          () =>
+            withHarness(
+              Effect.gen(function* () {
+                const configuration =
+                  yield* DesktopBackendConfiguration.DesktopBackendConfiguration;
+                const first = yield* configuration.resolvePrimary;
+                const second = yield* configuration.resolvePrimary;
+                assert.equal(first.bootstrap.shellEnvironmentPrepared, captured);
+                assert.equal(second.bootstrap.shellEnvironmentPrepared, captured);
+                assert.equal(probes, captured ? 1 : 2);
+                yield* fixPath({
+                  shellEnvironmentPrepared: first.bootstrap.shellEnvironmentPrepared,
+                }).pipe(
+                  Effect.provideService(HostProcess.Environment, env),
+                  Effect.provideService(HostProcess.Platform, "darwin"),
+                );
+                assert.equal(login.mock.calls.length, captured ? 0 : 1);
+                assert.include(env.PATH, captured ? "/fixture/login-bin" : "/fixture/server-bin");
+              }),
+              true,
+              shell,
+            ),
+          (previous) =>
+            Effect.sync(() => {
+              process.env = previous;
+            }),
+        );
+      }),
+  );
+
   it.effect("resolvePrimary produces a stable scoped bootstrap token", () =>
     withHarness(
       Effect.gen(function* () {

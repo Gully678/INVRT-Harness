@@ -11,6 +11,7 @@ import {
 import { expect, it } from "@effect/vitest";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
+import * as Crypto from "effect/Crypto";
 import * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
 
@@ -377,9 +378,9 @@ it.layer(NodeServices.layer)("EnvironmentAuth.layer", (it) => {
     }).pipe(Effect.provide(layerEnvironmentAuth())),
   );
 
-  it.effect(
-    "preserves a rejected MCP pairing code for exactly one concurrent lower-access retry",
-    () =>
+  it.effect.each([false, true])(
+    "native first use preserves a rejected MCP pairing code for one concurrent retry (lowercase=%s)",
+    (lowercase) =>
       Effect.gen(function* () {
         const serverAuth = yield* EnvironmentAuth.EnvironmentAuth;
         const pairing = yield* serverAuth.issuePairingCredential({
@@ -387,7 +388,10 @@ it.layer(NodeServices.layer)("EnvironmentAuth.layer", (it) => {
         });
 
         const rejected = yield* Effect.flip(
-          serverAuth.consumeMcpApprovalCode(pairing.credential, "full-access"),
+          serverAuth.consumeMcpApprovalCode(
+            lowercase ? pairing.credential.toLowerCase() : pairing.credential,
+            "full-access",
+          ),
         );
         expect(rejected).toMatchObject({
           _tag: "ServerAuthMcpApprovalCodeError",
@@ -397,7 +401,10 @@ it.layer(NodeServices.layer)("EnvironmentAuth.layer", (it) => {
         expect((yield* serverAuth.listPairingLinks()).map((link) => link.id)).toContain(pairing.id);
         expect(yield* serverAuth.listSessions()).toEqual([]);
         const retry = Effect.result(
-          serverAuth.consumeMcpApprovalCode(pairing.credential, "read-only"),
+          serverAuth.consumeMcpApprovalCode(
+            lowercase ? pairing.credential.toLowerCase() : pairing.credential,
+            "read-only",
+          ),
         );
         const results = yield* Effect.all([retry, retry], { concurrency: "unbounded" });
 
@@ -405,7 +412,16 @@ it.layer(NodeServices.layer)("EnvironmentAuth.layer", (it) => {
         expect(results.filter((result) => result._tag === "Failure")).toMatchObject([
           { failure: { _tag: "ServerAuthMcpApprovalCodeError", reason: "unknown_or_used" } },
         ]);
-      }).pipe(Effect.provide(layerEnvironmentAuth())),
+      }).pipe(
+        Effect.provide(layerEnvironmentAuth()),
+        Effect.provideServiceEffect(
+          Crypto.Crypto,
+          Effect.map(Crypto.Crypto, (crypto) => ({
+            ...crypto,
+            randomBytes: (size) => Effect.succeed(new Uint8Array(size).fill(8)),
+          })),
+        ),
+      ),
   );
 
   it.effect("narrows seeded desktop grants to the requested scopes", () =>

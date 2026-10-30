@@ -14,6 +14,7 @@ import * as ConfigProvider from "effect/ConfigProvider";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 import * as Sink from "effect/Sink";
 import * as Stream from "effect/Stream";
 import { FetchHttpClient } from "effect/http";
@@ -484,5 +485,69 @@ describe("auth scope options", () => {
       assert.equal(scopeError.option, "scope");
       assert.equal(scopeError.value, "admin");
     }),
+  );
+});
+
+describe("auth pairing create --base-url", () => {
+  it.effect.each(["192.168.1.5:3773", "localhost:3773", "ftp://localhost:3773", "https://["])(
+    "rejects %s before issuing a token",
+    (baseUrl) =>
+      Effect.gen(function* () {
+        const baseDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "t3-cli-base-url-test-"));
+        const exit = yield* runCli([
+          "auth",
+          "pairing",
+          "create",
+          "--base-dir",
+          baseDir,
+          "--base-url",
+          baseUrl,
+        ]).pipe(Effect.provide(layerCliRuntime), Effect.exit);
+
+        const listOutput = yield* captureStdout(
+          runCli(["auth", "pairing", "list", "--base-dir", baseDir, "--json"]),
+        );
+        assert.lengthOf(JSON.parse(listOutput), 0, "Invalid URL persisted a pairing credential");
+        assert.isTrue(Exit.isFailure(exit));
+        if (Exit.isSuccess(exit)) return;
+        const error = Cause.findErrorOption(exit.cause);
+        assert.isTrue(Option.isSome(error));
+        if (
+          Option.isNone(error) ||
+          !CliError.isCliError(error.value) ||
+          error.value._tag !== "ShowHelp"
+        )
+          return assert.fail("Expected invalid flag help");
+        const flagError = error.value.errors[0];
+        if (flagError?._tag !== "InvalidValue") return assert.fail("Expected invalid URL flag");
+        assert.equal(flagError.option, "base-url");
+        assert.equal(flagError.value, baseUrl);
+      }),
+  );
+
+  it.effect.each(["http://192.168.1.5:3773", "https://example.com", "http:localhost:3773"])(
+    "prints a pair URL for %s",
+    (baseUrl) =>
+      Effect.gen(function* () {
+        const baseDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "t3-cli-base-url-test-"));
+        const output = yield* captureStdout(
+          runCli([
+            "auth",
+            "pairing",
+            "create",
+            "--base-dir",
+            baseDir,
+            "--base-url",
+            baseUrl,
+            "--json",
+          ]),
+        );
+        const issued = JSON.parse(output) as {
+          readonly credential: string;
+          readonly pairUrl: string;
+        };
+
+        assert.equal(issued.pairUrl, `${new URL(baseUrl).origin}/pair#token=${issued.credential}`);
+      }),
   );
 });
