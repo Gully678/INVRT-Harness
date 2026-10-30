@@ -30,8 +30,22 @@ function canonical(value: unknown, depth: number): string {
   if (!(Array.isArray(value) || isObject(value))) throw new Error("wrong_type");
   if (depth >= BLUEPRINT_LIMITS.contentDepth) throw new Error("content_too_deep");
   if (Object.getOwnPropertySymbols(value).length) throw new Error("wrong_type");
-  if (Array.isArray(value))
-    return `[${Array.from(value, (item) => canonical(item, depth + 1)).join(",")}]`;
+  if (Array.isArray(value)) {
+    if (![Array.prototype, null].includes(Object.getPrototypeOf(value)))
+      throw new Error("wrong_type");
+    const fields = Object.getOwnPropertyDescriptors(value);
+    const length = Object.getOwnPropertyDescriptor(value, "length")?.value;
+    if (!Number.isSafeInteger(length) || length < 0 || Object.keys(fields).length !== length + 1)
+      throw new Error("wrong_type");
+    const items: string[] = [];
+    // Iterators and indexed reads can invoke caller code; only own data descriptors are JSON data.
+    for (let index = 0; index < length; index++) {
+      const field = Object.hasOwn(fields, index) ? fields[index] : undefined;
+      if (!field || !("value" in field)) throw new Error("wrong_type");
+      items.push(canonical(field.value, depth + 1));
+    }
+    return `[${items.join(",")}]`;
+  }
   const fields = Object.getOwnPropertyDescriptors(value);
   return `{${Object.keys(fields)
     .sort()

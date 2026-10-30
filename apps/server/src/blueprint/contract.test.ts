@@ -116,6 +116,138 @@ function rejects(state: BlueprintState, op: unknown, code: string) {
   expect(serialise(state)).toBe(before);
 }
 
+describe("plain JSON array boundary", () => {
+  const inputs = [
+    {
+      shape: "own index getter",
+      make(touch: () => void) {
+        const value: string[] = [];
+        Object.defineProperty(value, "0", {
+          enumerable: true,
+          get() {
+            touch();
+            return "safe";
+          },
+        });
+        return value;
+      },
+    },
+    {
+      shape: "inherited iterator method",
+      make(touch: () => void) {
+        const value = ["safe"];
+        Object.setPrototypeOf(value, {
+          [Symbol.iterator]() {
+            touch();
+            return ["safe"][Symbol.iterator]();
+          },
+        });
+        return value;
+      },
+    },
+    {
+      shape: "inherited iterator getter",
+      make(touch: () => void) {
+        const value = ["safe"];
+        Object.setPrototypeOf(value, {
+          get [Symbol.iterator]() {
+            touch();
+            return function* () {
+              yield "safe";
+            };
+          },
+        });
+        return value;
+      },
+    },
+    {
+      shape: "inherited index getter",
+      make(touch: () => void) {
+        const value: string[] = [];
+        value.length = 1;
+        Object.setPrototypeOf(value, {
+          get 0() {
+            touch();
+            return "safe";
+          },
+        });
+        return value;
+      },
+    },
+    {
+      shape: "own iterator getter",
+      make(touch: () => void) {
+        const value = ["safe"];
+        Object.defineProperty(value, Symbol.iterator, {
+          get() {
+            touch();
+            return function* () {
+              yield "safe";
+            };
+          },
+        });
+        return value;
+      },
+    },
+  ];
+
+  it.each(inputs)("rejects $shape without invoking it or changing prior state", ({ make }) => {
+    const state = session();
+    const before = serialise(state);
+    let calls = 0;
+    const value = make(() => {
+      calls++;
+      Reflect.set(state.sourceEvidence, 0, "mutated");
+    });
+    rejects(
+      state,
+      { ...operation(state, "set_spec", { content: { value } }), extra: true },
+      "invalid_operation",
+    );
+    rejects(state, operation(state, "set_spec", { content: { value } }), "invalid_operation");
+    expect(
+      createSession({
+        sessionId: "s1",
+        projectId: "p1",
+        domain: "software",
+        sourceEvidence: value,
+      }),
+    ).toMatchObject({ ok: false, code: "invalid_session" });
+    expect(() => canonicalJson(value)).toThrow();
+    expect(calls).toBe(0);
+    expect(serialise(state)).toBe(before);
+  });
+
+  it("rejects holes, extra properties and custom prototypes as unsupported array shapes", () => {
+    const sparse: unknown[] = [];
+    sparse.length = 2;
+    const extra = Object.assign(["safe"], { metadata: "not JSON array data" });
+    const custom = ["safe"];
+    Object.setPrototypeOf(custom, {});
+    for (const value of [sparse, extra, custom]) {
+      expect(() => canonicalJson(value)).toThrow();
+      const state = session();
+      rejects(state, operation(state, "set_spec", { content: { value } }), "invalid_operation");
+    }
+  });
+
+  it("preserves dense array order, frozen/null-prototype data and canonical round trips", () => {
+    const value = [-0, { b: 2, a: 1 }, null, true, ["nested"]];
+    const expected = '[0,{"a":1,"b":2},null,true,["nested"]]';
+    expect(canonicalJson(value)).toBe(expected);
+    expect(canonicalJson(Object.freeze(value))).toBe(expected);
+    const plain = [-0, { b: 2, a: 1 }, null, true, ["nested"]];
+    Object.setPrototypeOf(plain, null);
+    expect(canonicalJson(plain)).toBe(expected);
+    const state = send(session(), "set_spec", {
+      content: { value: plain, order: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] },
+    });
+    expect(canonicalJson(state.spec?.content.value)).toBe(expected);
+    expect(state.spec?.content.order).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+    expect(restore(serialise(state))).toEqual({ ok: true, state });
+  });
+});
+
 describe("Blueprint pure contract", () => {
   it("accepts plain session data and rejects accessors without invoking them", () => {
     let reads = 0;
