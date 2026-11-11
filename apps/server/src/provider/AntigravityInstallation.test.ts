@@ -345,6 +345,32 @@ it.layer(NodeServices.layer)("Antigravity installation", (it) => {
     }),
   );
 
+  it.effect("rejects a package claiming the accepted FORGE release digest before install", () =>
+    Effect.gen(function* () {
+      // Accepted archive pin verified by the IC-03 investigator against ROLLOUT/SHA256SUMS and
+      // FINAL-R6-PINS.json (FORGE-STORY09-d4097184f004.tar.gz sha256), embedded as a constant.
+      // A package whose bytes do not hash to the pinned accepted digest must be rejected before
+      // any install step, with the previous release left intact as the resume state.
+      const acceptedArchiveDigest =
+        "9679111f15590472d2927521a24a4b525909f3ac782d573b6a2a8bdceca90a8d";
+      const asset = { ...(yield* releaseAsset()), sha256: acceptedArchiveDigest };
+      const { installation, validations, stagingReleased, fs, path } = yield* makeHarness({
+        asset,
+        previous: true,
+      });
+      yield* installation.start;
+      const state = yield* terminalState(installation);
+      expect(state.phase).toBe("failed");
+      expect(state.message).toBeTruthy();
+      expect(validations).toEqual([]);
+      yield* Deferred.await(stagingReleased);
+      yield* expectPreviousRelease(installation);
+      expect(yield* fs.readDirectory(path.join(installation.managedDirectory, "versions"))).toEqual(
+        [previousReleaseId],
+      );
+    }),
+  );
+
   it.effect.each(["download", "extract", "active pointer"] as const)(
     "preserves the old runtime after an ENOSPC error during %s",
     (stage) =>

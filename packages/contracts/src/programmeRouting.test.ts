@@ -11,6 +11,7 @@ import { OrgId, PrincipalId } from "./programmeDomain.ts";
 import { Membership, Principal } from "./programmeIdentity.ts";
 import {
   PolicyDeviceState,
+  PolicyRevisionRef,
   RoutingPolicy,
   acknowledgePolicyDevice,
   policyReference,
@@ -21,6 +22,7 @@ import {
 
 const decodeWire = <S extends Schema.Top>(schema: S) =>
   Schema.decodeUnknownSync(Schema.toCodecJson(schema) as never) as (value: unknown) => S["Type"];
+const decodeRevisionRef = Schema.decodeSync(PolicyRevisionRef);
 const encodeRecord = <S extends Schema.Top & { readonly EncodingServices: never }>(schema: S) => {
   const encode = Schema.encodeSync(Schema.toCodecJson(schema));
   return (value: S["Type"]): Record<string, unknown> => {
@@ -1483,5 +1485,254 @@ describe("trusted task assignment admission", () => {
         },
       }).policyRef,
     ).toEqual(policyReference(f.current));
+  });
+});
+
+describe("forge release consumer pins", () => {
+  // Accepted FORGE handoff pins verified by the IC-03 investigator against ROLLOUT/SHA256SUMS and
+  // FINAL-R6-PINS.json (FORGE-STORY09-d4097184f004.tar.gz / STORY09-d4097184.bundle). Embedded as
+  // constants by owner decision: no archive bytes in the repo, no runtime reads of the research folder.
+  const ACCEPTED_BUNDLE_DIGEST = "d54e3778c2da5dc055ca9d9c0cd28980b5ea652893aa5a2b10257d2af7e2f4e4";
+  const ACCEPTED_ARCHIVE_DIGEST =
+    "9679111f15590472d2927521a24a4b525909f3ac782d573b6a2a8bdceca90a8d";
+  const acceptedPins = [
+    { name: "bundle", digest: ACCEPTED_BUNDLE_DIGEST },
+    { name: "archive", digest: ACCEPTED_ARCHIVE_DIGEST },
+  ];
+  // Corrupts exactly one hex character of a pin: flipping the case breaks the lowercase-only
+  // Sha256Digest pattern the wire boundary must enforce before any attestation path runs.
+  const corrupted = (digest: string) => {
+    const match = /[a-f]/.exec(digest);
+    if (match === null) throw new Error("Accepted pin has no hex letter to flip");
+    return (
+      digest.slice(0, match.index) +
+      digest[match.index].toUpperCase() +
+      digest.slice(match.index + 1)
+    );
+  };
+
+  it("carries the accepted release digests as consumable policy revision references", () => {
+    for (const pin of acceptedPins) {
+      const ref = decodeRevisionRef({
+        policyId: "forge-release",
+        revision: 1,
+        digest: pin.digest,
+      });
+      expect(ref.digest).toBe(pin.digest);
+      const record = decodeWire(RoutingPolicy)(wirePolicy({ digest: pin.digest }));
+      expect(record.digest).toBe(pin.digest);
+    }
+  });
+
+  it("rejects a corrupted release digest at the wire boundary before any attestation", () => {
+    for (const pin of acceptedPins) {
+      const flipped = corrupted(pin.digest);
+      expect(flipped).not.toBe(pin.digest);
+      expect(() =>
+        decodeRevisionRef({
+          policyId: "forge-release",
+          revision: 1,
+          digest: flipped,
+        }),
+      ).toThrow();
+      expect(() => decodeWire(RoutingPolicy)(wirePolicy({ digest: flipped }))).toThrow();
+    }
+  });
+
+  it("rejects content claiming an accepted release digest without attesting it", () => {
+    const f = fixture();
+    const candidate = next(f.current);
+    for (const pin of acceptedPins) {
+      tagged(
+        () => publish({ ...candidate, digest: pin.digest }, f.port),
+        "ProgrammePolicyDeniedError",
+      );
+    }
+    expect(publish(candidate, f.port)).toEqual(candidate);
+  });
+});
+
+describe("forge consumer tenant selection and stale revisions", () => {
+  const ORG_B = toOrgId("org-b");
+  const PRINCIPAL_B = toPrincipalId("principal-b");
+  const orgBScope = {
+    scope: "org",
+    orgId: ORG_B,
+    projectId: null,
+    ownerPrincipalId: null,
+  } as const;
+  const authorityB = () => ({
+    principal: decodeWire(Principal)({
+      ...common,
+      orgId: ORG_B,
+      principalId: PRINCIPAL_B,
+      kind: "human",
+      identityRef: { provider: "native", identityId: "human-b", binding: "human" },
+      status: "active",
+      displayName: null,
+    }),
+    membership: decodeWire(Membership)({
+      ...common,
+      orgId: ORG_B,
+      membershipId: "membership-b",
+      principalId: PRINCIPAL_B,
+      organisationRole: "admin",
+      teamIds: [],
+      projectGrants: [],
+      policyVersion: "v1",
+      status: "active",
+    }),
+  });
+
+  it("lets a second organisation publish and resolve only its own policy revision", () => {
+    const f = fixture();
+    const orgA = f.current;
+    const orgB = policy({ ...orgBScope, policyId: "policy-b", issuerPrincipalId: PRINCIPAL_B });
+    const portB = {
+      ...f.port,
+      resolveAuthenticatedActor: () => PRINCIPAL_B,
+      resolvePrincipalAuthority: () => authorityB(),
+      resolveRequiredPolicy: () => null,
+    };
+    expect(publish(orgB, portB, 0)).toEqual(orgB);
+
+    const deviceB = decodeWire(PolicyDeviceState)({
+      ...common,
+      ...orgBScope,
+      environmentId: ENV,
+      incarnationId: "incarnation-b",
+      requiredPolicyRef: policyReference(orgB),
+      acknowledgedRevision: 1,
+      acknowledgedDigest: orgB.digest,
+      capabilitySnapshotRef: "snapshot-b",
+      resolvedRoutesHash: HASH,
+      state: "current",
+      observedAt: PAST,
+    });
+    const requestB = {
+      taskId: "task-b",
+      principalId: PRINCIPAL_B,
+      ...orgBScope,
+      environmentId: ENV,
+      incarnationId: "incarnation-b",
+      routeId: "route-a",
+      role: "builder",
+      now: NOW,
+      port: {
+        ...portB,
+        resolveRequiredPolicy: () => orgB,
+        resolvePolicy: () => orgB,
+        resolveDeviceState: () => deviceB,
+        resolveCapabilitySnapshot: () => ({
+          ref: "snapshot-b",
+          environmentId: ENV,
+          incarnationId: "incarnation-b",
+          policyRef: policyReference(orgB),
+          resolvedRoutesHash: HASH,
+          observedAt: DateTime.makeUnsafe(PAST),
+          expiresAt: FUTURE,
+          routes: [{ routeId: "route-a", state: "available" as const }],
+        }),
+        resolveAdmissionAssignment: () => ({
+          taskId: "task-b",
+          principalId: PRINCIPAL_B,
+          ...orgBScope,
+          environmentId: ENV,
+          incarnationId: "incarnation-b",
+          role: "builder",
+          policyRef: policyReference(orgB),
+          expiresAt: FUTURE,
+        }),
+      },
+    };
+    const resolved = resolveManagedRoute(requestB);
+    expect(resolved.policyRef).toEqual(policyReference(orgB));
+    expect(resolved.policyRef.policyId).not.toBe(orgA.policyId);
+    expect(resolved.policyRef.digest).not.toBe(orgA.digest);
+
+    tagged(
+      () =>
+        resolveManagedRoute({
+          ...f.request,
+          port: { ...f.port, resolveRequiredPolicy: () => orgB },
+        }),
+      "ProgrammePolicyDeniedError",
+    );
+    tagged(
+      () =>
+        resolveManagedRoute({
+          ...requestB,
+          port: {
+            ...requestB.port,
+            resolveDeviceState: () => ({ ...deviceB, requiredPolicyRef: policyReference(orgA) }),
+          },
+        }),
+      "ProgrammePolicyDeniedError",
+    );
+  });
+
+  it("denies a stale revision acknowledgement after a newer revision is required", () => {
+    const f = fixture();
+    const revised = next(f.current);
+    expect(publish(revised, f.port)).toEqual(revised);
+    const port = {
+      ...f.port,
+      resolveRequiredPolicy: () => revised,
+      resolveAdmissionAssignment: () => ({ ...f.assignment, policyRef: policyReference(revised) }),
+    };
+    tagged(
+      () =>
+        resolveManagedRoute({
+          ...f.request,
+          port: {
+            ...port,
+            resolveDeviceState: () => ({
+              ...f.device,
+              requiredPolicyRef: policyReference(revised),
+              acknowledgedRevision: 1,
+              acknowledgedDigest: f.current.digest,
+            }),
+          },
+        }),
+      "ProgrammePolicyDeniedError",
+    );
+    tagged(
+      () =>
+        acknowledgePolicyDevice({
+          ...f.request,
+          expectedRevision: 1,
+          appliedPolicyRef: policyReference(f.current),
+          capabilitySnapshotRef: "snapshot-a",
+          resolvedRoutesHash: HASH,
+          port,
+        }),
+      "ProgrammePolicyDeniedError",
+    );
+    const pending = {
+      ...f.device,
+      state: "pending" as const,
+      acknowledgedRevision: null,
+      acknowledgedDigest: null,
+      capabilitySnapshotRef: null,
+      resolvedRoutesHash: null,
+    };
+    const ack = acknowledgePolicyDevice({
+      ...f.request,
+      expectedRevision: 1,
+      appliedPolicyRef: policyReference(revised),
+      capabilitySnapshotRef: "snapshot-a",
+      resolvedRoutesHash: HASH,
+      port: {
+        ...port,
+        resolveDeviceState: () => pending,
+        resolveCapabilitySnapshot: () => ({
+          ...f.snapshot,
+          policyRef: policyReference(revised),
+        }),
+      },
+    });
+    expect(pending.state).toBe("pending");
+    expect(ack.acknowledgedRevision).toBe(2);
+    expect(ack.acknowledgedDigest).toBe(revised.digest);
   });
 });

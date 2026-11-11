@@ -226,6 +226,51 @@ it.layer(NodeServices.layer)("server settings", (it) => {
     }).pipe(Effect.provide(layerServerSettings())),
   );
 
+  it.effect("keeps a custom writing style preset across a save and reload without loss", () =>
+    Effect.gen(function* () {
+      const config = yield* ServerConfig.ServerConfig;
+      const fs = yield* FileSystem.FileSystem;
+      const service = yield* ServerSettingsModule.ServerSettingsService;
+      const customStyle = {
+        mode: "custom" as const,
+        customInstructions: "Prefer concise subjects with an explicit scope.",
+        followChangeRequestTemplates: true,
+      };
+      yield* fs.writeFileString(
+        config.settingsPath,
+        JSON.stringify({ sourceControlWritingStyle: customStyle }),
+      );
+
+      const settings = yield* service.getSettings;
+      assert.deepEqual(settings.sourceControlWritingStyle, customStyle);
+
+      yield* service.updateSettings({ responseStreamingMode: "turn" });
+      const persisted = yield* decodeServerSettingsJson(
+        yield* fs.readFileString(config.settingsPath),
+      );
+      assert.deepEqual(persisted.sourceControlWritingStyle, customStyle);
+    }).pipe(Effect.provide(layerServerSettings())),
+  );
+
+  it.effect("falls back to the default writing style when the stored preset is corrupted", () =>
+    Effect.gen(function* () {
+      const config = yield* ServerConfig.ServerConfig;
+      const fs = yield* FileSystem.FileSystem;
+      const service = yield* ServerSettingsModule.ServerSettingsService;
+      const raw = `{ "sourceControlWritingStyle": { "mode": "corrupted", "customInstructions": "" } }`;
+      yield* fs.writeFileString(config.settingsPath, raw);
+
+      const settings = yield* service.getSettings;
+      assert.deepEqual(settings.sourceControlWritingStyle, {
+        mode: "repo_conventions",
+        customInstructions: "",
+        followChangeRequestTemplates: true,
+      });
+      // The corrupted file stays on disk untouched for the user to repair, never silently rewritten.
+      assert.equal(yield* fs.readFileString(config.settingsPath), raw);
+    }).pipe(Effect.provide(layerServerSettings())),
+  );
+
   it.effect("tells clients it reads idle compaction modes before any settings are saved", () =>
     Effect.gen(function* () {
       const service = yield* ServerSettingsModule.ServerSettingsService;

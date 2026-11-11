@@ -498,6 +498,44 @@ describe("DesktopUpdates", () => {
     }),
   );
 
+  it.effect("keeps the downloaded update and permits an install retry after an interruption", () =>
+    Effect.gen(function* () {
+      const stopping = yield* Deferred.make<void>();
+      let stopCalls = 0;
+      const harness = makeHarness({
+        stopBackend: Effect.suspend(() => {
+          stopCalls += 1;
+          return stopCalls === 1
+            ? Deferred.succeed(stopping, undefined).pipe(Effect.andThen(Effect.never))
+            : Effect.void;
+        }),
+      });
+
+      yield* Effect.scoped(
+        Effect.gen(function* () {
+          const updates = yield* DesktopUpdates.DesktopUpdates;
+          yield* updates.configure;
+          harness.emit("update-downloaded", { version: "1.2.4" });
+          yield* flushCallbacks;
+
+          const installFiber = yield* updates.install.pipe(Effect.forkScoped);
+          yield* Deferred.await(stopping);
+          yield* Fiber.interrupt(installFiber);
+
+          const resumed = yield* updates.getState;
+          assert.equal(resumed.status, "downloaded");
+          assert.equal(resumed.downloadedVersion, "1.2.4");
+          assert.isNull(resumed.message);
+          assert.equal(harness.updateRestartMarkers.size, 0);
+
+          const retry = yield* updates.install;
+          assert.isTrue(retry.accepted);
+          assert.equal(harness.quitAndInstalls(), 1);
+        }),
+      ).pipe(Effect.provide(Layer.merge(TestClock.layer(), harness.layer)));
+    }),
+  );
+
   it.effect("keeps windows and restarts backends when quitAndInstall fails", () => {
     const harness = makeHarness({
       quitAndInstall: Effect.fail(
