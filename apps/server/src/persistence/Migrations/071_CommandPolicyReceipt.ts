@@ -15,6 +15,7 @@ export default Effect.gen(function* () {
       policy_revision INTEGER,
       policy_digest TEXT,
       route_id TEXT,
+      payload_digest TEXT,
       decision TEXT NOT NULL CHECK (
         decision IN ('admitted', 'accepted', 'refused', 'failed')
       )

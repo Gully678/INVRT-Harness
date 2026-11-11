@@ -11,6 +11,7 @@ import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import * as SqlClient from "effect/sql/SqlClient";
 
+import { commandPayloadDigest } from "./CommandReceiptStore.ts";
 import type { OrchestratorV2DispatchResult } from "./Orchestrator.ts";
 import * as ThreadManagement from "./ThreadManagementService.ts";
 
@@ -45,7 +46,7 @@ export class ManagedCommandPolicyConflictError extends Schema.TaggedError<Manage
   { commandId: CommandId },
 ) {
   override get message(): string {
-    return `Command ${this.commandId} already has a different policy decision and was not applied again.`;
+    return `Command ${this.commandId} does not match the stored managed decision and was not applied again.`;
   }
 }
 
@@ -63,6 +64,7 @@ export interface ManagedCommandDecision {
   readonly policyRevision: number | null;
   readonly policyDigest: string | null;
   readonly routeId: string | null;
+  readonly payloadDigest: string | null;
   readonly decision: Decision;
 }
 
@@ -83,6 +85,7 @@ const readRow = (commandId: CommandId) =>
       readonly policyRevision: number | null;
       readonly policyDigest: string | null;
       readonly routeId: string | null;
+      readonly payloadDigest: string | null;
       readonly decision: string;
     }>`
       SELECT
@@ -90,6 +93,7 @@ const readRow = (commandId: CommandId) =>
         policy_revision AS "policyRevision",
         policy_digest AS "policyDigest",
         route_id AS "routeId",
+        payload_digest AS "payloadDigest",
         decision
       FROM orchestration_command_policy_receipts
       WHERE command_id = ${commandId}
@@ -101,6 +105,7 @@ const readRow = (commandId: CommandId) =>
       policyRevision: row.policyRevision,
       policyDigest: row.policyDigest,
       routeId: row.routeId,
+      payloadDigest: row.payloadDigest,
       decision: decodeDecision(row.decision),
     } satisfies StoredDecision;
   });
@@ -161,19 +166,21 @@ const insertReceipt = (input: {
   readonly policyRevision: number | null;
   readonly policyDigest: string | null;
   readonly routeId: string | null;
+  readonly payloadDigest: string | null;
   readonly decision: Decision;
 }) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
     yield* sql`
       INSERT INTO orchestration_command_policy_receipts (
-        command_id, policy_id, policy_revision, policy_digest, route_id, decision
+        command_id, policy_id, policy_revision, policy_digest, route_id, payload_digest, decision
       ) VALUES (
         ${input.commandId},
         ${input.policyId},
         ${input.policyRevision},
         ${input.policyDigest},
         ${input.routeId},
+        ${input.payloadDigest},
         ${input.decision}
       )
     `;
@@ -197,15 +204,23 @@ const replayResult: OrchestratorV2DispatchResult = {
 
 /**
  * Decides message.dispatch with resolveManagedRoute before any provider effect.
- * The same command id replays the stored decision. A changed digest or route conflicts.
+ * The same command id and payload replay the stored decision. A changed payload,
+ * policy digest, or route conflicts. runDispatch is yielded only when the provider may run.
  */
 export const dispatchManagedMessage = Effect.fn("ManagedMessageAdmission.dispatchManagedMessage")(
-  function* (command: MessageDispatchCommand) {
+  function* (
+    command: MessageDispatchCommand,
+    runDispatch?: Effect.Effect<OrchestratorV2DispatchResult, unknown>,
+  ) {
     const admission = yield* ManagedMessageAdmission;
     const stored = yield* readRow(command.commandId);
     const resolved = resolveAdmission(admission);
+    const payloadDigest = commandPayloadDigest(command);
 
-    if (stored !== null && !sameDecision(stored, resolved)) {
+    if (
+      stored !== null &&
+      (stored.payloadDigest !== payloadDigest || !sameDecision(stored, resolved))
+    ) {
       return yield* new ManagedCommandPolicyConflictError({ commandId: command.commandId });
     }
     if (stored?.decision === "accepted") return replayResult;
@@ -217,6 +232,7 @@ export const dispatchManagedMessage = Effect.fn("ManagedMessageAdmission.dispatc
           policyRevision: null,
           policyDigest: null,
           routeId: null,
+          payloadDigest,
           decision: "refused",
         });
       }
@@ -235,12 +251,13 @@ export const dispatchManagedMessage = Effect.fn("ManagedMessageAdmission.dispatc
         policyRevision: resolved.policyRevision,
         policyDigest: resolved.policyDigest,
         routeId: resolved.routeId,
+        payloadDigest,
         decision: "admitted",
       });
     }
 
     const threads = yield* ThreadManagement.ThreadManagementService;
-    return yield* threads.dispatch(command).pipe(
+    return yield* (runDispatch ?? threads.dispatch(command)).pipe(
       Effect.tap(() => setDecision(command.commandId, "accepted")),
       Effect.tapError(() => setDecision(command.commandId, "failed")),
     );

@@ -7,8 +7,10 @@ import * as NodePath from "node:path";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
 import {
+  ChatAttachmentId,
   CommandId,
   EnvironmentId,
+  GuestMessageId,
   Membership,
   MessageId,
   OrgId,
@@ -31,7 +33,11 @@ import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 import * as SqlClient from "effect/sql/SqlClient";
 
+import { createAttachmentId, createPendingAttachmentId } from "../attachmentStore.ts";
+import * as ServerConfig from "../config.ts";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
+import * as DocumentText from "../provider/DocumentText.ts";
+import * as ServerSettings from "../serverSettings.ts";
 import { OrchestratorDispatchError } from "./Orchestrator.ts";
 import * as ThreadManagement from "./ThreadManagementService.ts";
 import { dispatchCommand } from "./ThreadMessageIntake.ts";
@@ -440,4 +446,134 @@ it.effect("does not report success when the provider effect fails", () => {
     assert.equal(effects.count, 2);
     assert.equal(yield* eventCount(files.dbPath), 1);
   }).pipe(Effect.ensuring(Effect.sync(files.remove)));
+});
+
+it.effect("conflicts when an accepted command id is reused with a different payload", () => {
+  const files = tempCase("payload");
+  const effects = { count: 0, throwNext: false };
+  const paths = { directory: files.providerDirectory, marker: files.marker };
+  const admission = buildAdmission();
+  const command = message("cmd-ic03-payload");
+  const changed = { ...command, text: "a different payload" };
+  return Effect.gen(function* () {
+    const first = yield* Effect.exit(
+      withFile(files.dbPath, dispatchCommand(command), effects, paths, admission),
+    );
+    const second = yield* Effect.exit(
+      withFile(files.dbPath, dispatchCommand(changed), effects, paths, admission),
+    );
+    assert.equal(first._tag, "Success");
+    assert.isTrue(Schema.is(ManagedCommandPolicyConflictError)(squash(second)));
+    assert.equal(effects.count, 1);
+    assert.equal(yield* eventCount(files.dbPath), 1);
+  }).pipe(Effect.ensuring(Effect.sync(files.remove)));
+});
+
+it.effect("sends a managed guest message with the stored guest files", () => {
+  const files = tempCase("guest");
+  const effects = { count: 0, throwNext: false };
+  const paths = { directory: files.providerDirectory, marker: files.marker };
+  const admission = buildAdmission();
+  const guestFile = {
+    type: "image" as const,
+    id: ChatAttachmentId.make(createAttachmentId("thread-ic03")!),
+    name: "screen.png",
+    mimeType: "image/png",
+    sizeBytes: 3,
+  };
+  const guestMessageId = GuestMessageId.make("guest-message:ic03");
+  const command = {
+    ...message("cmd-ic03-guest"),
+    guestMessageId,
+    text: "",
+    attachments: [{ ...guestFile, id: ChatAttachmentId.make("thread-ic03-owner-file") }],
+  };
+  let seenName = "";
+  const layer = Layer.mock(ThreadManagement.ThreadManagementService)({
+    dispatch: (dispatched) =>
+      Effect.gen(function* () {
+        effects.count += 1;
+        if (dispatched.type === "message.dispatch")
+          seenName = dispatched.attachments[0]?.name ?? "";
+        if (dispatched.type === "message.dispatch") {
+          assert.deepEqual(dispatched.attachments, [guestFile]);
+        }
+        NodeFS.mkdirSync(paths.directory, { recursive: true });
+        NodeFS.writeFileSync(paths.marker, dispatched.commandId);
+        return { sequence: effects.count, storedEvents: [] };
+      }),
+    getThreadSnapshotWindow: () =>
+      Effect.succeed({
+        projection: {
+          thread: {
+            guestShare: {
+              messages: [{ id: guestMessageId, status: "pending", attachments: [guestFile] }],
+            },
+          },
+        },
+      } as never),
+  });
+  return Effect.gen(function* () {
+    const exit = yield* Effect.exit(
+      dispatchCommand(command).pipe(
+        Effect.provideService(ManagedMessageAdmission, admission),
+        Effect.provide(layer),
+        Effect.provide(persistence(files.dbPath)),
+      ),
+    );
+    assert.equal(exit._tag, "Success");
+    assert.equal(seenName, "screen.png");
+    assert.equal(effects.count, 1);
+    const decision = yield* readDecision(files.dbPath, command.commandId);
+    assert.equal(decision.decision, "accepted");
+  }).pipe(Effect.ensuring(Effect.sync(files.remove)));
+});
+
+it.effect("claims a pending attachment before the managed provider runs", () => {
+  const files = tempCase("claim");
+  const admission = buildAdmission();
+  const pendingId = ChatAttachmentId.make(createPendingAttachmentId()!);
+  const command = {
+    ...message("cmd-ic03-claim"),
+    attachments: [
+      {
+        type: "image" as const,
+        id: pendingId,
+        name: "screen.png",
+        mimeType: "image/png",
+        sizeBytes: 3,
+      },
+    ],
+  };
+  let claimedId = "";
+  const layer = Layer.mock(ThreadManagement.ThreadManagementService)({
+    dispatch: (dispatched) =>
+      Effect.sync(() => {
+        if (dispatched.type === "message.dispatch") claimedId = dispatched.attachments[0]?.id ?? "";
+        return { sequence: 1, storedEvents: [] };
+      }),
+  });
+  const runtime = ServerConfig.layerTest(files.directory, { prefix: "ic03-claim-" }).pipe(
+    Layer.provideMerge(DocumentText.layer.pipe(Layer.provideMerge(NodeServices.layer))),
+    Layer.provideMerge(ServerSettings.layerTest()),
+  );
+  return Effect.gen(function* () {
+    const config = yield* ServerConfig.ServerConfig;
+    NodeFS.writeFileSync(
+      NodePath.join(config.attachmentsDir, `${pendingId}.png`),
+      new Uint8Array([1, 2, 3]),
+    );
+    const exit = yield* Effect.exit(
+      dispatchCommand(command).pipe(
+        Effect.provideService(ManagedMessageAdmission, admission),
+        Effect.provide(layer),
+        Effect.provide(persistence(files.dbPath)),
+      ),
+    );
+    assert.equal(exit._tag, "Success");
+    assert.notEqual(claimedId, pendingId);
+    assert.equal(claimedId.startsWith("pending"), false);
+    const decision = yield* readDecision(files.dbPath, command.commandId);
+    assert.equal(decision.decision, "accepted");
+  }).pipe(Effect.provide(runtime), Effect.ensuring(Effect.sync(files.remove)));
 });

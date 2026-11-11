@@ -83,17 +83,58 @@ const withGuestAttachments = Effect.fn("ThreadMessageIntake.withGuestAttachments
   return { ...command, attachments: message?.attachments ?? [] };
 });
 
+const dispatchMessage = Effect.fn("ThreadMessageIntake.dispatchMessage")(function* (
+  command: Extract<OrchestrationV2Command, { readonly type: "message.dispatch" }>,
+) {
+  const prepared = yield* withGuestAttachments(command);
+  const threads = yield* ThreadManagement.ThreadManagementService;
+  const claimed = yield* AttachmentClaims.claimPendingAttachments({
+    threadId: prepared.threadId,
+    attachments: prepared.attachments ?? [],
+  });
+  return yield* threads
+    .dispatch({
+      ...prepared,
+      attachments: claimed.attachments,
+      ...(prepared.context
+        ? {
+            context: remapComposerContextAttachments(
+              prepared.context,
+              prepared.attachments ?? [],
+              claimed.attachments,
+            ),
+          }
+        : {}),
+    })
+    .pipe(
+      Effect.tap((result) =>
+        releaseUnusedClaims(
+          claimed.claimedPaths,
+          result.storedEvents.flatMap(({ event }) =>
+            event.type === "message.updated" ? event.payload.attachments : [],
+          ),
+        ),
+      ),
+      Effect.tapError((error) =>
+        dispatchWasNotAccepted(error)
+          ? AttachmentClaims.releaseClaimedAttachments(claimed.claimedPaths)
+          : Effect.void,
+      ),
+    );
+});
+
 export const dispatchCommand = Effect.fn("ThreadMessageIntake.dispatchCommand")(function* (
   incoming: OrchestrationV2Command,
 ) {
-  // A caller-supplied policy port is decided before guest reads, attachment claims, or the provider.
-  // The live orchestrator has no FORGE port; commands without one keep the existing path.
+  // Policy refusal and an identical accepted replay happen before guest reads or attachment claims.
+  // An allowed managed send still prepares the message before the provider. No live FORGE port is read.
   if (incoming.type === "message.dispatch") {
+    const prepared = dispatchMessage(incoming);
     const admission = yield* Effect.serviceOption(ManagedMessageAdmission);
-    if (Option.isSome(admission)) return yield* dispatchManagedMessage(incoming);
+    if (Option.isSome(admission)) return yield* dispatchManagedMessage(incoming, prepared);
+    return yield* prepared;
   }
-  const command =
-    incoming.type === "message.dispatch" ? yield* withGuestAttachments(incoming) : incoming;
+  const command = incoming;
   const threads = yield* ThreadManagement.ThreadManagementService;
   if (command.type === "runtime-request.respond" && command.attachmentsByQuestionId) {
     const config = yield* ServerConfig.ServerConfig;
