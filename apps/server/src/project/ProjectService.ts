@@ -789,7 +789,38 @@ export const make = Effect.gen(function* () {
         projectId,
         ...(input.force === true ? { force: true } : {}),
       };
-      const admission = yield* admitCommand(command);
+      const admission = yield* sql
+        .withTransaction(
+          Effect.gen(function* () {
+            const admission = yield* admitCommand(command);
+            if (admission.phase === "open") {
+              const [claim] = yield* sql<{ readonly payload_digest: string | null }>`
+            SELECT payload_digest FROM orchestration_command_receipts
+            WHERE command_id = ${command.commandId}
+          `;
+              // Legacy NULL digests prove aggregate ownership, not the force intent
+              // of unfinished work. Completed receipts can still replay safely.
+              if (claim?.payload_digest == null) {
+                return yield* new CommandReceiptPayloadConflictError({
+                  commandId: command.commandId,
+                });
+              }
+            }
+            return admission;
+          }),
+        )
+        .pipe(
+          Effect.mapError((cause) =>
+            isProjectOperationError(cause)
+              ? cause
+              : new ProjectOperationError({
+                  operation: "dispatch-project-command",
+                  projectId,
+                  cause,
+                }),
+          ),
+        );
+
       if (isFirstDelete && admission.phase === "open") {
         yield* deleteChildThreads(input).pipe(
           Effect.tapError((cause) =>
