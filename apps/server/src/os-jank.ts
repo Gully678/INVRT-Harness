@@ -1,4 +1,5 @@
 import * as HostProcess from "@t3tools/shared/HostProcess";
+import { resolveInvrtStateDirectory } from "@t3tools/shared/invrtStateHome";
 import {
   listLoginShellCandidates,
   mergePathEntries,
@@ -123,7 +124,10 @@ export const expandHomePath = Effect.fn(function* (input: string) {
 export const resolveBaseDir = Effect.fn(function* (raw: string | undefined) {
   const { join, resolve } = yield* Path.Path;
   if (!raw || raw.trim().length === 0) {
-    return join(yield* HostProcess.HomeDirectory, ".t3");
+    return resolveInvrtStateDirectory({
+      homeDirectory: yield* HostProcess.HomeDirectory,
+      joinPath: join,
+    });
   }
   return resolve(yield* expandHomePath(raw.trim()));
 });

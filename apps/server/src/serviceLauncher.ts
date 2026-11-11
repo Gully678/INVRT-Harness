@@ -6,7 +6,10 @@ import * as NodeCrypto from "node:crypto";
 import * as NodeFS from "node:fs";
 import * as NodeFSP from "node:fs/promises";
 import * as NodePath from "node:path";
+import * as NodeOS from "node:os";
 import * as NodeUtil from "node:util";
+
+import { resolveInvrtStateDirectory } from "@t3tools/shared/invrtStateHome";
 
 import type {
   PendingServiceUpdate,
@@ -85,6 +88,7 @@ async function pathExists(target: string): Promise<boolean> {
 
 const MANAGED_SERVICE_ENV_NAMES = new Set([
   "PATH",
+  "INVRT_CODE_HOME",
   "T3CODE_HOME",
   "T3_BOOT_SERVICE_UNIT",
   SERVICE_LAUNCHER_CONTEXT_ENV,
@@ -817,11 +821,22 @@ export class Launcher {
   }
 }
 
+export function resolveServiceLauncherHome(
+  env: NodeJS.ProcessEnv,
+  homeDirectory: string,
+): string {
+  return NodePath.resolve(
+    resolveInvrtStateDirectory({
+      homeDirectory,
+      environment: env,
+      joinPath: NodePath.join,
+      resolvePath: NodePath.resolve,
+    }),
+  );
+}
+
 export async function main(): Promise<void> {
-  const baseDir = process.env.T3CODE_HOME?.trim();
-  if (baseDir === undefined || baseDir === "") {
-    throw new Error("T3CODE_HOME is required by the INVRT Code service launcher.");
-  }
+  const baseDir = resolveServiceLauncherHome(process.env, NodeOS.homedir());
   const environment = await readServiceEnvironment(baseDir);
   const statePath = NodePath.join(baseDir, "runtime", SERVICE_STATE_FILE);
   const state = await readServiceState(statePath);

@@ -351,6 +351,10 @@
       "types": "./src/devHome.ts",
       "import": "./src/devHome.ts"
     },
+    "./invrtStateHome": {
+      "types": "./src/invrtStateHome.ts",
+      "import": "./src/invrtStateHome.ts"
+    },
     "./devProxy": {
       "types": "./src/devProxy.ts",
       "import": "./src/devProxy.ts"

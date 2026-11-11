@@ -29,9 +29,10 @@ it("reads the served T3 home back out of a rendered unit or plist", () => {
     unitPath: "/home/theo/.config/systemd/user/invrt-code.service",
   });
 
-  expect(
-    BootService.bootServiceBaseDirOf(BootService.renderBootServiceUnit(plan("/home/theo/.t3"))),
-  ).toBe("/home/theo/.t3");
+  const unit = BootService.renderBootServiceUnit(plan("/home/theo/.t3"));
+  expect(unit).toContain("Environment=INVRT_CODE_HOME=/home/theo/.t3");
+  expect(unit).not.toContain("T3CODE_HOME=");
+  expect(BootService.bootServiceBaseDirOf(unit)).toBe("/home/theo/.t3");
   expect(
     BootService.bootServiceBaseDirOf(
       BootService.renderBootServiceUnit(plan("/home/theo/T3 Data/100%")),

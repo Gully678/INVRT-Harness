@@ -74,7 +74,8 @@ describe("DesktopPreReadyPlatform", () => {
   });
 
   it.effect("persists Linux scaling synchronously across relaunches and settings rewrites", () => {
-    vi.stubEnv("T3CODE_HOME", "/isolated");
+    vi.stubEnv("INVRT_CODE_HOME", "/isolated");
+    vi.stubEnv("T3CODE_HOME", "/home/user/.t3");
     vi.stubEnv("VITE_DEV_SERVER_URL", "");
     const settingsPath = "/isolated/userdata/desktop-settings.json";
     const files = new Map([[settingsPath, "{}"]]);
