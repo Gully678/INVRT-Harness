@@ -19,7 +19,7 @@ export class LocalRoutingAuthority extends Context.Reference<LocalRoutingAuthori
 export const messageIntakeContext = <Services>(
   services: Context.Context<Services>,
   local?: LocalRoutingAuthorityShape,
-): Context.Context<Services | LocalRoutingAuthority> => {
+) => {
   const supplied = local ?? {};
   return Context.add(services, LocalRoutingAuthority, {
     ...(supplied.port === undefined ? {} : { port: supplied.port }),
