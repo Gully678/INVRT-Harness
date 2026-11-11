@@ -1297,6 +1297,74 @@ it.effect("replays a thread.create receipt without changing the thread", () =>
   }).pipe(Effect.provide(layerTest)),
 );
 
+it.effect("rejects a changed thread.create title instead of replaying the original", () =>
+  Effect.gen(function* () {
+    const orchestrator = yield* Orchestrator.OrchestratorV2;
+    const projections = yield* ProjectionStore.ProjectionStoreV2;
+    const threadId = ThreadId.make("thread:create-title-conflict");
+    const create = {
+      type: "thread.create" as const,
+      commandId: CommandId.make("create:title-conflict"),
+      threadId,
+      projectId: ProjectId.make("project:title-conflict"),
+      title: "Original",
+      modelSelection,
+      runtimeMode: "full-access" as const,
+      interactionMode: "default" as const,
+      branch: null,
+      worktreePath: null,
+      createdBy: "user" as const,
+      creationSource: "web" as const,
+    };
+    yield* orchestrator.dispatch(create);
+    const changed = yield* orchestrator
+      .dispatch({ ...create, title: "A materially different title" })
+      .pipe(Effect.result);
+    assert.equal(changed._tag, "Failure");
+    assert.equal((yield* projections.getThread(threadId)).title, "Original");
+  }).pipe(Effect.provide(layerTest)),
+);
+
+it.effect("does not disclose another thread when a rejected command id is reused", () =>
+  Effect.gen(function* () {
+    const orchestrator = yield* Orchestrator.OrchestratorV2;
+    const threadId = ThreadId.make("thread:a-secret-sentinel");
+    const otherThreadId = ThreadId.make("thread:b-foreign");
+    const create = {
+      type: "thread.create" as const,
+      commandId: CommandId.make("create:secret-sentinel"),
+      threadId,
+      projectId: ProjectId.make("project:secret-a"),
+      title: "Original",
+      modelSelection,
+      runtimeMode: "full-access" as const,
+      interactionMode: "default" as const,
+      branch: null,
+      worktreePath: null,
+      createdBy: "user" as const,
+      creationSource: "web" as const,
+    };
+    yield* orchestrator.dispatch(create);
+    const rejectedId = CommandId.make("create:secret-rejected");
+    const rejected = yield* orchestrator
+      .dispatch({ ...create, commandId: rejectedId })
+      .pipe(Effect.flip);
+    assert.equal(rejected._tag, "OrchestratorThreadAlreadyExistsError");
+    const disclosed = yield* orchestrator
+      .dispatch({
+        ...create,
+        commandId: rejectedId,
+        threadId: otherThreadId,
+        projectId: ProjectId.make("project:secret-b"),
+        title: "Foreign",
+      })
+      .pipe(Effect.flip);
+    assert.notInclude(disclosed.message, threadId);
+    assert.notInclude(disclosed.message, "Original");
+    assert.equal(disclosed._tag, "OrchestratorCommandIdConflictError");
+  }).pipe(Effect.provide(layerTest)),
+);
+
 it.effect("explicit settle clears snooze atomically and stays idempotent after re-snoozing", () =>
   Effect.gen(function* () {
     const orchestrator = yield* Orchestrator.OrchestratorV2;

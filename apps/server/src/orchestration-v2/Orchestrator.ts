@@ -99,7 +99,7 @@ import {
   isNativeMaintenanceCommand,
   resolveMessageDispatchIntent,
 } from "./CommandPolicy.ts";
-import { CommandReceiptStoreV2 } from "./CommandReceiptStore.ts";
+import { CommandReceiptStoreV2, commandPayloadDigest } from "./CommandReceiptStore.ts";
 import { ContextHandoffServiceV2 } from "./ContextHandoffService.ts";
 import { notificationTurnItem } from "@t3tools/provider-core/server/notification";
 import {
@@ -282,7 +282,7 @@ export class OrchestratorCommandIdConflictError extends Schema.TaggedError<Orche
   },
 ) {
   override get message(): string {
-    return `Command ${this.commandId} was already handled for thread ${this.receiptThreadId} and cannot be replayed for ${this.commandThreadId}.`;
+    return `Command ${this.commandId} cannot be replayed for a different request.`;
   }
 }
 
@@ -12158,6 +12158,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       "orchestration_v2.thread_id": commandThreadId(command),
     });
 
+    const requestedDigest = commandPayloadDigest(command);
     const existingReceipt = yield* commandReceipts.getByCommandId(command.commandId).pipe(
       Effect.mapError(
         (cause) =>
@@ -12171,20 +12172,23 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
 
     if (Option.isSome(existingReceipt)) {
       const receipt = existingReceipt.value;
-      if (receipt.status === "rejected") {
-        return yield* new OrchestratorCommandPreviouslyRejectedError({
-          commandId: command.commandId,
-          commandType: command.type,
-          detail: receipt.error ?? "Previously rejected.",
-        });
-      }
       const dispatchThreadId = commandThreadId(command);
-      if (!canReplayCommandReceipt(receipt.threadId, dispatchThreadId)) {
+      if (
+        !canReplayCommandReceipt(receipt.threadId, dispatchThreadId) ||
+        (receipt.payloadDigest != null && receipt.payloadDigest !== requestedDigest)
+      ) {
         return yield* new OrchestratorCommandIdConflictError({
           commandId: command.commandId,
           commandType: command.type,
           receiptThreadId: receipt.threadId,
           commandThreadId: dispatchThreadId,
+        });
+      }
+      if (receipt.status === "rejected") {
+        return yield* new OrchestratorCommandPreviouslyRejectedError({
+          commandId: command.commandId,
+          commandType: command.type,
+          detail: receipt.error ?? "Previously rejected.",
         });
       }
       const storedEvents = yield* eventSink.readByCommandId({ commandId: command.commandId }).pipe(
@@ -12252,6 +12256,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
               commandType: command.type,
               rejectedAt,
               error: cause instanceof Error ? cause.message : String(cause),
+              payloadDigest: requestedDigest,
             })
             .pipe(
               Effect.mapError(
@@ -12292,6 +12297,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           resultSequence: sequence,
           status: "accepted",
           error: null,
+          payloadDigest: requestedDigest,
         });
         return { resultSequence: sequence, inserted };
       }).pipe(
@@ -12319,6 +12325,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         acceptedAt,
         events: plan.events,
         effects: plan.effects,
+        payloadDigest: requestedDigest,
         ...(plan.cancelUnsettledEffects === undefined
           ? {}
           : { cancelUnsettledEffects: plan.cancelUnsettledEffects }),

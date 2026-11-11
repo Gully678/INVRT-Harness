@@ -148,6 +148,7 @@ export interface EventSinkV2Shape {
     readonly acceptedAt: DateTime.Utc;
     readonly events: ReadonlyArray<OrchestrationV2DomainEvent>;
     readonly effects: ReadonlyArray<EffectOutbox.PendingOrchestrationEffectV2>;
+    readonly payloadDigest?: string;
     readonly cancelUnsettledEffects?: {
       readonly effectTypes: ReadonlyArray<EffectOutbox.OrchestrationEffectRequestV2["type"]>;
       readonly reason: string;
@@ -169,6 +170,7 @@ export interface EventSinkV2Shape {
     readonly commandType: string;
     readonly rejectedAt: DateTime.Utc;
     readonly error: string;
+    readonly payloadDigest?: string;
   }) => Effect.Effect<CommandReceiptStore.CommandReceiptV2, EventSinkV2Error>;
   readonly releaseProjectCommandClaim: (
     commandId: CommandId,
@@ -664,6 +666,7 @@ const layerBase: Layer.Layer<
             resultSequence: 0,
             status: "accepted",
             error: null,
+            ...(input.payloadDigest === undefined ? {} : { payloadDigest: input.payloadDigest }),
           });
           if (!reserved) {
             const existing = yield* existingCommandResult(input.commandId);
@@ -701,6 +704,7 @@ const layerBase: Layer.Layer<
             resultSequence: sequence,
             status: "accepted",
             error: null,
+            ...(input.payloadDigest === undefined ? {} : { payloadDigest: input.payloadDigest }),
           };
           yield* commandReceipts.upsert(receipt);
           const cancelledEffectIds =
@@ -743,6 +747,7 @@ const layerBase: Layer.Layer<
             resultSequence: sequence,
             status: "rejected",
             error: input.error,
+            ...(input.payloadDigest === undefined ? {} : { payloadDigest: input.payloadDigest }),
           };
           const inserted = yield* commandReceipts.insertIfAbsent(receipt);
           if (inserted) {
