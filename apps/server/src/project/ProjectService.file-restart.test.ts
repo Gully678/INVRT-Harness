@@ -1,3 +1,4 @@
+// @effect-diagnostics nodeBuiltinImport:off - the sqlite path is created before the layer exists
 import * as NodeFS from "node:fs";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
@@ -43,7 +44,11 @@ const layerWorkspacePaths = Layer.succeed(WorkspacePaths.WorkspacePaths, {
           yield* Deferred.await(createGate.release);
         }
         if (createGate.failCreate) {
-          return yield* Effect.fail(new Error("mkdir failed"));
+          return yield* new WorkspacePaths.WorkspaceRootCreateFailedError({
+            workspaceRoot,
+            normalizedWorkspaceRoot: normalized,
+            cause: "mkdir failed",
+          });
         }
       }
       return normalized;
