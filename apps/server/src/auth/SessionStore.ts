@@ -385,6 +385,9 @@ export class SessionStore extends Context.Service<
       readonly replaceSessionId?: AuthSessionId;
     }) => Effect.Effect<IssuedSession, SessionCredentialInternalError>;
     readonly verify: (token: string) => Effect.Effect<VerifiedSession, SessionCredentialError>;
+    readonly requireActive: (
+      sessionId: AuthSessionId,
+    ) => Effect.Effect<void, SessionCredentialError>;
     readonly issueWebSocketToken: (
       sessionId: AuthSessionId,
       input?: {
@@ -864,6 +867,35 @@ const make = Effect.gen(function* () {
     },
   );
 
+  const requireActive: SessionStore["Service"]["requireActive"] = Effect.fn(
+    "SessionStore.requireActive",
+  )(function* (sessionId: AuthSessionId) {
+    const row = yield* authSessions
+      .getById({ sessionId })
+      .pipe(
+        Effect.mapError(
+          (cause) => new SessionCredentialVerificationError({ sessionId, cause }),
+        ),
+      );
+    if (Option.isNone(row)) {
+      return yield* new UnknownSessionTokenError({ sessionId });
+    }
+    if (row.value.revokedAt !== null) {
+      return yield* new SessionTokenRevokedError({
+        sessionId,
+        revokedAt: row.value.revokedAt,
+      });
+    }
+    const observedAt = yield* DateTime.now;
+    if (row.value.expiresAt.epochMilliseconds <= observedAt.epochMilliseconds) {
+      return yield* new SessionTokenExpiredError({
+        sessionId,
+        expiresAt: row.value.expiresAt,
+        observedAt,
+      });
+    }
+  });
+
   const encodeWsClaims = Schema.encodeEffect(Schema.fromJsonString(WebSocketClaims));
   const issueWebSocketToken: SessionStore["Service"]["issueWebSocketToken"] = Effect.fn(
     "SessionStore.issueWebSocketToken",
@@ -1090,6 +1122,7 @@ const make = Effect.gen(function* () {
     legacyCookieName,
     issue,
     verify,
+    requireActive,
     issueWebSocketToken,
     verifyWebSocketToken,
     listActive,

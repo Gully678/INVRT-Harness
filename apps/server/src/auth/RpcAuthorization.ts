@@ -25,6 +25,7 @@ import {
   ORCHESTRATION_V2_WS_METHODS,
   AuthTerminalReadScope,
   type AuthEnvironmentScope,
+  type AuthSessionId,
   EnvironmentAuthorizationError,
   RpcScopeAuthorization,
   WS_METHODS,
@@ -34,6 +35,8 @@ import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import * as Layer from "effect/Layer";
 import type * as RpcGroup from "effect/rpc/RpcGroup";
+
+import * as SessionStore from "./SessionStore.ts";
 
 type WsRpcMethod = RpcGroup.Rpcs<typeof WsRpcGroup>["_tag"];
 
@@ -282,14 +285,45 @@ const requiredScopesForRpcCall = (
 export const layer = (
   scopes: ReadonlyArray<AuthEnvironmentScope>,
   onAuthorized?: (method: string, payload: unknown) => Effect.Effect<void>,
+  liveSession?: {
+    readonly sessions: SessionStore.SessionStore["Service"];
+    readonly sessionId: AuthSessionId;
+  },
 ) =>
   Layer.succeed(RpcScopeAuthorization)((effect, { rpc, payload }) => {
     const requiredScopes = requiredScopesForRpcCall(rpc._tag, payload);
     const requiredScope = requiredScopes.find((scope) => !scopes.includes(scope));
     if (requiredScope !== undefined) return Effect.fail(rpcAuthorizationError(requiredScope));
+    // Scopes were captured at upgrade. Read the session row again before the
+    // handler so SessionStore.revoke stops this socket's next call.
+    const authorized =
+      liveSession === undefined
+        ? effect
+        : liveSession.sessions.requireActive(liveSession.sessionId).pipe(
+            Effect.tapError((cause) =>
+              SessionStore.isSessionCredentialInvalidError(cause)
+                ? Effect.void
+                : Effect.logWarning("Open RPC session check failed.").pipe(
+                    Effect.annotateLogs({
+                      sessionId: liveSession.sessionId,
+                      reason: cause._tag,
+                    }),
+                  ),
+            ),
+            Effect.mapError((cause) => {
+              const scope = requiredScopes[0] ?? AuthOrchestrationReadScope;
+              return new EnvironmentAuthorizationError({
+                message: SessionStore.isSessionCredentialInvalidError(cause)
+                  ? "The authenticated session is no longer active."
+                  : "The authenticated session could not be confirmed.",
+                requiredScope: scope,
+              });
+            }),
+            Effect.andThen(effect),
+          );
     return onAuthorized === undefined
-      ? effect
-      : Effect.tap(effect, () => onAuthorized(rpc._tag, payload));
+      ? authorized
+      : Effect.tap(authorized, () => onAuthorized(rpc._tag, payload));
   });
 
 /** Retrying can install or restart tools even though ordinary listing is readable. */
