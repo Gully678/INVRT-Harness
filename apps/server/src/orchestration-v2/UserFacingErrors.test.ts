@@ -1,13 +1,16 @@
 import { assert, describe, it } from "@effect/vitest";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as NodeSqliteClient from "@t3tools/shared/nodeSqliteClient";
+import { CommandId, OrchestrationV2DispatchCommandError, ThreadId } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
+import * as Schema from "effect/Schema";
 import * as SqlClient from "effect/sql/SqlClient";
 import { SqlError, classifySqliteError } from "effect/sql/SqlError";
 
 import { toPersistenceSqlError } from "../persistence/Errors.ts";
+import { OrchestratorCommandIdConflictError } from "./Orchestrator.ts";
 import { userFacingDispatchErrorMessage } from "./UserFacingErrors.ts";
 
 describe("userFacingDispatchErrorMessage", () => {
@@ -68,6 +71,35 @@ describe("userFacingDispatchErrorMessage", () => {
       assert.notInclude(message, "private-message");
     }).pipe(Effect.provide(NodeSqliteClient.layer({ filename: ":memory:" }))),
   );
+
+  it("does not put another thread id on the dispatch error sent to a client", () => {
+    const secretThreadId = "thread:a-secret-sentinel";
+    const rejectionText = "Original rejection text for thread A";
+    const conflict = new OrchestratorCommandIdConflictError({
+      commandId: CommandId.make("command:secret-reuse"),
+      commandType: "thread.create",
+      receiptThreadId: ThreadId.make(secretThreadId),
+      commandThreadId: ThreadId.make("thread:b-foreign"),
+    });
+    const detail = userFacingDispatchErrorMessage({
+      message: `Command ${conflict.commandId} was previously rejected: ${rejectionText}`,
+      cause: conflict,
+    });
+    const wire = Schema.encodeSync(OrchestrationV2DispatchCommandError)(
+      new OrchestrationV2DispatchCommandError({
+        commandId: conflict.commandId,
+        commandType: conflict.commandType,
+        message: detail ?? "Failed to dispatch orchestration V2 command",
+        ...(detail === undefined ? {} : { detail }),
+        cause: conflict,
+      }),
+    );
+
+    const encoded = JSON.stringify(wire);
+    assert.notInclude(encoded, secretThreadId);
+    assert.notInclude(encoded, rejectionText);
+    assert.include(encoded, "cannot be replayed for a different request");
+  });
 
   it("keeps unknown SQL failures contextual without exposing driver text or parameters", () => {
     const cause = Object.assign(new Error("private-query-data"), { errcode: 1 });
