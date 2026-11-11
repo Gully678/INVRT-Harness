@@ -3,6 +3,7 @@ import * as NodeChildProcess from "node:child_process";
 import * as NodeFS from "node:fs";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
+import * as NodeSqlite from "node:sqlite";
 import * as NodeURL from "node:url";
 
 import { assert, it } from "@effect/vitest";
@@ -951,10 +952,62 @@ const spawnRaceChild = (config: ProcessRaceConfig) => {
   });
   return {
     exited,
+    alive: () => child.exitCode === null && child.signalCode === null,
     kill: () => {
       if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
     },
   };
+};
+
+const sqliteBusy = (error: unknown): boolean => {
+  if (typeof error !== "object" || error === null) return false;
+  const errcode = "errcode" in error ? Number(error.errcode) : Number.NaN;
+  if (Number.isInteger(errcode) && (errcode & 0xff) === 5) return true;
+  return error instanceof Error && error.message.includes("database is locked");
+};
+
+const writeLockIsBusy = (dbPath: string): boolean => {
+  const db = new NodeSqlite.DatabaseSync(dbPath);
+  try {
+    db.exec("PRAGMA busy_timeout = 0");
+    db.exec("BEGIN IMMEDIATE");
+    db.exec("ROLLBACK");
+    return false;
+  } catch (error) {
+    return sqliteBusy(error);
+  } finally {
+    db.close();
+  }
+};
+
+const readRaceReceipt = (dbPath: string, commandId: string) => {
+  const db = new NodeSqlite.DatabaseSync(dbPath, { readOnly: true });
+  try {
+    const row = db
+      .prepare(
+        `SELECT status, result_sequence AS resultSequence, error, payload_digest AS digest
+         FROM orchestration_command_receipts WHERE command_id = ?`,
+      )
+      .get(commandId) as
+      | {
+          readonly status: string;
+          readonly resultSequence: number;
+          readonly error: string | null;
+          readonly digest: string | null;
+        }
+      | undefined;
+    const created = db
+      .prepare(
+        `SELECT COUNT(*) AS n FROM orchestration_events WHERE event_type = 'project.created'`,
+      )
+      .get() as { readonly n: number };
+    const receipts = db
+      .prepare(`SELECT COUNT(*) AS n FROM orchestration_command_receipts WHERE command_id = ?`)
+      .get(commandId) as { readonly n: number };
+    return { row, created: created.n, receipts: receipts.n };
+  } finally {
+    db.close();
+  }
 };
 
 const migrateRaceDatabase = (dbPath: string) =>
@@ -972,59 +1025,83 @@ const createdEventCount = (dbPath: string) =>
     return row?.n;
   }).pipe(Effect.provide(projectRaceLayer(dbPath)));
 
-it.effect("a second OS process racing another root creates one directory and one event", () => {
-  const tempDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "t3-project-os-race-"));
-  const dbPath = NodePath.join(tempDir, "state.sqlite");
-  const rootA = NodePath.join(tempDir, "root-a");
-  const rootB = NodePath.join(tempDir, "root-b");
-  const projectId = "project:os-race";
-  const layer = projectRaceLayer(dbPath);
-  const childConfig: ProcessRaceConfig = {
-    role: "hold-create",
-    dbPath,
-    resultPath: NodePath.join(tempDir, "child-result.json"),
-    readyPath: NodePath.join(tempDir, "ready"),
-    releasePath: NodePath.join(tempDir, "release"),
-    commandId: "command:os-race:a",
-    projectId,
-    title: "Root A",
-    workspaceRoot: rootA,
-  };
-  return Effect.gen(function* () {
-    yield* migrateRaceDatabase(dbPath);
-    const child = spawnRaceChild(childConfig);
-    yield* waitForPath(childConfig.readyPath);
-    assert.equal(NodeFS.existsSync(rootA), false);
-    assert.equal(NodeFS.existsSync(rootB), false);
-    const parent = yield* Effect.forkChild(
-      Effect.gen(function* () {
-        const service = yield* ProjectService.ProjectService;
-        return yield* service
-          .create({
-            commandId: CommandId.make("command:os-race:b"),
-            projectId: ProjectId.make(projectId),
-            title: "Root B",
-            workspaceRoot: rootB,
-            createWorkspaceRootIfMissing: true,
-          })
-          .pipe(Effect.result);
-      }).pipe(Effect.provide(layer)),
+it.effect(
+  "a second OS process observes the open write lock, then a different root conflicts",
+  () => {
+    const tempDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "t3-project-os-race-"));
+    const dbPath = NodePath.join(tempDir, "state.sqlite");
+    const rootA = NodePath.join(tempDir, "root-a");
+    const rootB = NodePath.join(tempDir, "root-b");
+    const projectId = "project:os-race";
+    const childConfig: ProcessRaceConfig = {
+      role: "hold-create",
+      dbPath,
+      resultPath: NodePath.join(tempDir, "child-result.json"),
+      readyPath: NodePath.join(tempDir, "ready"),
+      releasePath: NodePath.join(tempDir, "release"),
+      commandId: "command:os-race:a",
+      projectId,
+      title: "Root A",
+      workspaceRoot: rootA,
+    };
+    const observerConfig: ProcessRaceConfig = {
+      role: "lock-then-create",
+      dbPath,
+      resultPath: NodePath.join(tempDir, "observer-result.json"),
+      readyPath: NodePath.join(tempDir, "observer-ready"),
+      blockedPath: NodePath.join(tempDir, "blocked.json"),
+      releasePath: childConfig.releasePath,
+      commandId: "command:os-race:b",
+      projectId,
+      title: "Root B",
+      workspaceRoot: rootB,
+    };
+    let stop = () => undefined;
+    return Effect.gen(function* () {
+      yield* migrateRaceDatabase(dbPath);
+      const child = spawnRaceChild(childConfig);
+      stop = () => child.kill();
+      yield* waitForPath(childConfig.readyPath);
+      assert.equal(NodeFS.existsSync(rootA), false);
+      assert.equal(NodeFS.existsSync(rootB), false);
+      assert.equal(writeLockIsBusy(dbPath), true);
+      const observer = spawnRaceChild(observerConfig);
+      stop = () => {
+        child.kill();
+        observer.kill();
+      };
+      yield* waitForPath(observerConfig.blockedPath ?? "");
+      const blocked = JSON.parse(NodeFS.readFileSync(observerConfig.blockedPath ?? "", "utf8")) as {
+        readonly busy: boolean;
+      };
+      assert.equal(blocked.busy, true);
+      assert.equal(observer.alive(), true);
+      assert.equal(NodeFS.existsSync(rootA), false);
+      assert.equal(NodeFS.existsSync(rootB), false);
+      NodeFS.writeFileSync(childConfig.releasePath, "go");
+      const childExit = yield* child.exited;
+      const observerExit = yield* observer.exited;
+      const observerResult = JSON.parse(NodeFS.readFileSync(observerConfig.resultPath, "utf8")) as {
+        readonly ok: boolean;
+        readonly message?: string;
+      };
+      assert.equal(childExit.code, 0, childExit.stderr);
+      assert.equal(observerExit.code, 1, observerExit.stderr);
+      assert.equal(observerResult.ok, false);
+      assert.include(observerResult.message ?? "", "already exists and cannot be created twice");
+      assert.equal(NodeFS.existsSync(rootA), true);
+      assert.equal(NodeFS.existsSync(rootB), false);
+      assert.equal(yield* createdEventCount(dbPath), 1);
+    }).pipe(
+      Effect.ensuring(
+        Effect.sync(() => {
+          stop();
+          NodeFS.rmSync(tempDir, { recursive: true, force: true });
+        }),
+      ),
     );
-    yield* pause(400);
-    assert.equal(NodeFS.existsSync(rootA), false);
-    assert.equal(NodeFS.existsSync(rootB), false);
-    NodeFS.writeFileSync(childConfig.releasePath, "go");
-    const childExit = yield* child.exited;
-    const parentResult = yield* Fiber.join(parent);
-    assert.equal(childExit.code, 0, childExit.stderr);
-    assert.equal(parentResult._tag, "Failure");
-    assert.equal(NodeFS.existsSync(rootA), true);
-    assert.equal(NodeFS.existsSync(rootB), false);
-    assert.equal(yield* createdEventCount(dbPath), 1);
-  }).pipe(
-    Effect.ensuring(Effect.sync(() => NodeFS.rmSync(tempDir, { recursive: true, force: true }))),
-  );
-});
+  },
+);
 
 it.effect("a live other process pid does not create a directory and a dead pid can", () => {
   const tempDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "t3-project-os-pid-"));
@@ -1052,9 +1129,11 @@ it.effect("a live other process pid does not create a directory and a dead pid c
       createWorkspaceRootIfMissing: true,
     });
   }).pipe(Effect.provide(layer));
+  let stop = () => undefined;
   return Effect.gen(function* () {
     yield* migrateRaceDatabase(dbPath);
     const child = spawnRaceChild(config);
+    stop = () => child.kill();
     yield* waitForPath(config.readyPath);
     const claim = yield* Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
@@ -1088,12 +1167,28 @@ it.effect("a live other process pid does not create a directory and a dead pid c
     child.kill();
     const exited = yield* child.exited;
     assert.equal(exited.signal, "SIGKILL");
+    const held = readRaceReceipt(dbPath, config.commandId);
+    assert.equal(held.receipts, 1);
+    assert.equal(held.row?.status, "accepted");
+    assert.equal(held.row?.resultSequence, 0);
+    assert.match(String(held.row?.error), /^mkdir:[1-9][0-9]*$/);
+    assert.equal(held.created, 0);
+    assert.equal(NodeFS.existsSync(root), false);
     const created = yield* create;
+    const finished = readRaceReceipt(dbPath, config.commandId);
     assert.equal(created.workspaceRoot, root);
     assert.equal(NodeFS.existsSync(root), true);
-    assert.equal(yield* createdEventCount(dbPath), 1);
+    assert.equal(finished.receipts, 1);
+    assert.notEqual(finished.row?.resultSequence, 0);
+    assert.equal(finished.row?.error, null);
+    assert.equal(finished.created, 1);
   }).pipe(
-    Effect.ensuring(Effect.sync(() => NodeFS.rmSync(tempDir, { recursive: true, force: true }))),
+    Effect.ensuring(
+      Effect.sync(() => {
+        stop();
+        NodeFS.rmSync(tempDir, { recursive: true, force: true });
+      }),
+    ),
   );
 });
 
@@ -1113,14 +1208,24 @@ it.effect("a killed reservation is recovered by the parent as one directory", ()
     title: "Recovered",
     workspaceRoot: root,
   };
+  let stop = () => undefined;
   return Effect.gen(function* () {
     yield* migrateRaceDatabase(dbPath);
     const child = spawnRaceChild(config);
+    stop = () => child.kill();
     yield* waitForPath(config.readyPath);
     assert.equal(NodeFS.existsSync(root), false);
     child.kill();
     const exited = yield* child.exited;
     assert.equal(exited.signal, "SIGKILL");
+    const reserved = readRaceReceipt(dbPath, config.commandId);
+    assert.equal(reserved.receipts, 1);
+    assert.equal(reserved.row?.status, "accepted");
+    assert.equal(reserved.row?.resultSequence, 0);
+    assert.equal(reserved.row?.error, null);
+    assert.ok(reserved.row?.digest);
+    assert.equal(reserved.created, 0);
+    assert.equal(NodeFS.existsSync(root), false);
     const created = yield* Effect.gen(function* () {
       const service = yield* ProjectService.ProjectService;
       return yield* service.create({
@@ -1131,10 +1236,20 @@ it.effect("a killed reservation is recovered by the parent as one directory", ()
         createWorkspaceRootIfMissing: true,
       });
     }).pipe(Effect.provide(layer));
+    const finished = readRaceReceipt(dbPath, config.commandId);
     assert.equal(created.workspaceRoot, root);
     assert.equal(NodeFS.existsSync(root), true);
-    assert.equal(yield* createdEventCount(dbPath), 1);
+    assert.equal(finished.receipts, 1);
+    assert.equal(finished.row?.digest, reserved.row?.digest);
+    assert.notEqual(finished.row?.resultSequence, 0);
+    assert.equal(finished.row?.error, null);
+    assert.equal(finished.created, 1);
   }).pipe(
-    Effect.ensuring(Effect.sync(() => NodeFS.rmSync(tempDir, { recursive: true, force: true }))),
+    Effect.ensuring(
+      Effect.sync(() => {
+        stop();
+        NodeFS.rmSync(tempDir, { recursive: true, force: true });
+      }),
+    ),
   );
 });

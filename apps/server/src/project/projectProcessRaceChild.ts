@@ -1,5 +1,6 @@
 // Second OS process for project command races. The vitest parent spawns this file.
 import * as NodeFS from "node:fs";
+import * as NodeSqlite from "node:sqlite";
 
 import { CommandId, ProjectId } from "@t3tools/contracts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
@@ -20,7 +21,8 @@ import * as ProjectService from "./ProjectService.ts";
 import * as RepositoryIdentityResolver from "./RepositoryIdentityResolver.ts";
 
 export interface ProcessRaceConfig {
-  readonly role: "race-create" | "hold-live" | "hold-create";
+  readonly role: "race-create" | "hold-live" | "hold-create" | "lock-then-create";
+  readonly blockedPath?: string;
   readonly dbPath: string;
   readonly resultPath: string;
   readonly readyPath: string;
@@ -83,7 +85,54 @@ const createCommand = (config: ProcessRaceConfig) => ({
   workspaceRoot: config.workspaceRoot,
 });
 
+const sqliteBusy = (error: unknown): boolean => {
+  if (typeof error !== "object" || error === null) return false;
+  const errcode = "errcode" in error ? Number(error.errcode) : Number.NaN;
+  if (Number.isInteger(errcode) && (errcode & 0xff) === 5) return true;
+  return error instanceof Error && error.message.includes("database is locked");
+};
+
+const describeCause = (cause: unknown, depth = 0): string => {
+  if (depth > 4 || cause === undefined) return "";
+  if (cause instanceof Error) {
+    const inner = "cause" in cause ? describeCause(cause.cause, depth + 1) : "";
+    return inner.length > 0 ? `${cause.message} ${inner}` : cause.message;
+  }
+  return String(cause);
+};
+
+// The holder is inside its write transaction. This connection must fail at once.
+const observeWriteLock = (dbPath: string): boolean => {
+  const db = new NodeSqlite.DatabaseSync(dbPath);
+  try {
+    db.exec("PRAGMA busy_timeout = 0");
+    db.exec("BEGIN IMMEDIATE");
+    db.exec("ROLLBACK");
+    return false;
+  } catch (error) {
+    return sqliteBusy(error);
+  } finally {
+    db.close();
+  }
+};
+
 const run = (config: ProcessRaceConfig) => {
+  if (config.role === "lock-then-create") {
+    if (config.blockedPath === undefined) {
+      process.stderr.write("missing blocked path\n");
+      process.exit(2);
+    }
+    const busy = observeWriteLock(config.dbPath);
+    NodeFS.writeFileSync(config.blockedPath, JSON.stringify({ busy }));
+    const started = Date.now();
+    while (!NodeFS.existsSync(config.releasePath)) {
+      if (Date.now() - started > 20_000) {
+        process.stderr.write("timed out waiting for the lock holder to release\n");
+        process.exit(2);
+      }
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 15);
+    }
+  }
   if (config.role === "hold-live") {
     const command = createCommand(config);
     return Effect.runPromise(
@@ -148,7 +197,7 @@ if (
   }
   const config = JSON.parse(NodeFS.readFileSync(configPath, "utf8")) as ProcessRaceConfig;
   void run(config).catch((cause: unknown) => {
-    const message = cause instanceof Error ? cause.message : String(cause);
+    const message = describeCause(cause);
     NodeFS.writeFileSync(
       config.resultPath,
       JSON.stringify({ ok: false, message, pid: process.pid }),
