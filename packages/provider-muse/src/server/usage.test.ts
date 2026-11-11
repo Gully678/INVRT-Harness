@@ -68,6 +68,67 @@ it("normalizes inclusive cache and reasoning counters without doubling the subse
   ).toEqual([record]);
 });
 
+it("maps cache variants by precedence and leaves unknown cache fields uninvented", () => {
+  const value = entry();
+  const withUsage = (usage: Record<string, unknown>) =>
+    parse({
+      ...value,
+      payload: {
+        ...value.payload,
+        event: { ...value.payload.event, usage },
+      },
+    })[0]?.totals;
+  // cache_read_tokens wins over the older variants: the subset is counted once.
+  expect(
+    withUsage({
+      input_tokens: 100,
+      cache_read_tokens: 30,
+      cached_input_tokens: 80,
+      cached_tokens: 90,
+      cache_write_tokens: 5,
+      output_tokens: 20,
+    }),
+  ).toEqual({
+    uncachedInputTokens: 65,
+    cachedInputTokens: 30,
+    cacheCreationTokens: 5,
+    outputTokens: 20,
+    reasoningTokens: 0,
+  });
+  // With read tokens absent, cached_input_tokens wins over cached_tokens.
+  expect(
+    withUsage({
+      input_tokens: 100,
+      cached_input_tokens: 80,
+      cached_tokens: 90,
+      cache_write_tokens: 5,
+      output_tokens: 20,
+    }),
+  ).toEqual({
+    uncachedInputTokens: 15,
+    cachedInputTokens: 80,
+    cacheCreationTokens: 5,
+    outputTokens: 20,
+    reasoningTokens: 0,
+  });
+  // No cache field exposed means zero cached tokens: none is invented.
+  expect(withUsage({ input_tokens: 100, output_tokens: 20, reasoning_tokens: 20 })).toEqual({
+    uncachedInputTokens: 100,
+    cachedInputTokens: 0,
+    cacheCreationTokens: 0,
+    outputTokens: 20,
+    reasoningTokens: 20,
+  });
+  // A non-numeric cache value stays unknown rather than parsing to a number.
+  expect(withUsage({ input_tokens: 100, cached_tokens: "60", output_tokens: 20 })).toEqual({
+    uncachedInputTokens: 100,
+    cachedInputTokens: 0,
+    cacheCreationTokens: 0,
+    outputTokens: 20,
+    reasoningTokens: 0,
+  });
+});
+
 it("keeps individual inference identity across copied parent/child envelopes", () => {
   const original = entry();
   const [first] = parse(original);

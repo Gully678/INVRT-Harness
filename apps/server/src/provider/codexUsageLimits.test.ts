@@ -230,6 +230,36 @@ describe("codexUsageLimitMessage", () => {
       "Codex usage limit reached. The session limit resets in 3h 20m. The workspace spend limit is reached: ask your workspace owner to raise it, or send the message again once the limit resets.",
     );
   });
+
+  it("keeps the retained reset time when the next refresh fails and invents none", () => {
+    const exhausted = {
+      limitId: "codex",
+      primary: { usedPercent: 100, resetsAt: atSeconds + 2 * 3_600, windowDurationMins: 300 },
+      secondary: {
+        usedPercent: 100,
+        resetsAt: atSeconds + 5 * 86_400 + 5 * 3_600,
+        windowDurationMins: 10_080,
+      },
+    };
+    const before = codexUsageLimitMessage(exhausted, at);
+    expect(before).toContain("The weekly limit resets in 5d 5h.");
+    // A failed read surfaces only the failure text: no reset time is invented there.
+    const failureMessage = codexRateLimitsFailureMessage(
+      new CodexErrors.CodexAppServerRequestError({
+        code: -32000,
+        errorMessage: "usage refresh failed",
+      }),
+    );
+    expect(failureMessage).toBe("Codex could not read usage (JSON-RPC -32000).");
+    expect(failureMessage).not.toContain("resets in");
+    // The failure leaves the retained snapshot untouched, so the message keeps its reset.
+    const retained = mergeCodexRateLimits(exhausted, { limitId: "codex" });
+    expect(retained?.secondary?.resetsAt).toBe(atSeconds + 5 * 86_400 + 5 * 3_600);
+    expect(codexUsageLimitMessage(retained, at)).toBe(before);
+    // The retained reset stays available to the continuation channel, never invented.
+    expect(codexUsageLimitResetAt(retained)).toBe("2026-01-06T05:00:00.000Z");
+    expect(codexUsageLimitResetAt({ primary: { usedPercent: 100, resetsAt: null } })).toBeNull();
+  });
 });
 
 describe("mergeCodexRateLimits", () => {

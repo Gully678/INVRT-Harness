@@ -1,4 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
+import { readFileSync } from "node:fs";
 
 import * as Effect from "effect/Effect";
 import * as EffectAcpErrors from "effect-acp/errors";
@@ -17,6 +18,18 @@ describe("grokAcpSpawnArgs", () => {
       "agent",
       "stdio",
     ]);
+  });
+});
+
+describe("Grok OAuth referrer wire identity", () => {
+  // buildGrokAcpSpawnInput is module-private and driving makeGrokAcpRuntime would spawn the
+  // real Grok binary, so the wire rename is pinned from source. Provider-side acceptance of
+  // the custom referrer is a held owner item and must not be claimed until proven live.
+  it("injects the custom invrt-code referrer into the spawn environment", () => {
+    const source = readFileSync(new URL("./acpSupport.ts", import.meta.url), "utf8");
+    expect(source).toContain('const GROK_OAUTH2_REFERRER_ENV = "GROK_OAUTH2_REFERRER";');
+    expect(source).toContain('const T3_CODE_OAUTH_REFERRER = "invrt-code";');
+    expect(source).toContain("[GROK_OAUTH2_REFERRER_ENV]: T3_CODE_OAUTH_REFERRER,");
   });
 });
 

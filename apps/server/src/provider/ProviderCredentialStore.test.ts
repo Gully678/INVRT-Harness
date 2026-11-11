@@ -53,3 +53,41 @@ it.effect("isolates provider bindings and preserves opaque credentials", () =>
     assert.isTrue(Option.isNone(yield* a.get));
   }).pipe(Effect.provide(NodeCrypto.layer)),
 );
+
+it.effect("revoking account A's credential leaves account B intact and denies A's future use", () =>
+  Effect.gen(function* () {
+    const data = new Map<string, Uint8Array>();
+    const secretStore = ServerSecretStore.ServerSecretStore.of({
+      get: (name) => Effect.sync(() => Option.fromUndefinedOr(data.get(name))),
+      set: (name, value) =>
+        Effect.sync(() => {
+          data.set(name, value);
+        }),
+      remove: (name) =>
+        Effect.sync(() => {
+          data.delete(name);
+        }),
+      create: () => Effect.die("unused"),
+      getOrCreateRandom: () => Effect.die("unused"),
+    });
+    const provide = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+      effect.pipe(Effect.provideService(ServerSecretStore.ServerSecretStore, secretStore));
+    const a = yield* provide(ProviderCredentialStore.make("cursor", "personal"));
+    const b = yield* provide(ProviderCredentialStore.make("cursor", "work"));
+    const bytesA = Uint8Array.from([1, 2, 3]);
+    const bytesB = Uint8Array.from([9, 8, 7]);
+    yield* provide(a.set(bytesA));
+    yield* provide(b.set(bytesB));
+    // Distinct bindings for the same driver: revoking one must not touch the other.
+    assert.notStrictEqual(a.binding.key, b.binding.key);
+    yield* provide(a.remove);
+    // A's future use is denied: the credential is gone and stays gone across reads.
+    assert.isTrue(Option.isNone(yield* provide(a.get)));
+    assert.isTrue(Option.isNone(yield* provide(a.get)));
+    // B's binding and stored credential survive A's revocation untouched.
+    assert.deepStrictEqual(Option.getOrThrow(yield* provide(b.get)), bytesB);
+    // Removing B still works independently afterwards.
+    yield* provide(b.remove);
+    assert.isTrue(Option.isNone(yield* provide(b.get)));
+  }).pipe(Effect.provide(NodeCrypto.layer)),
+);

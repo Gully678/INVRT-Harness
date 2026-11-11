@@ -410,6 +410,31 @@ describe("MuseAdapterV2", () => {
     }).pipe(Effect.scoped, Effect.provide(testLayer)),
   );
 
+  it.effect("pins the custom invrt-code MCP server key as optional on the wire", () =>
+    Effect.gen(function* () {
+      yield* (yield* McpProviderSessions.McpProviderSessions).set({
+        environmentId: EnvironmentId.make("test-environment"),
+        threadId: THREAD_ID,
+        providerSessionId: "test-session",
+        providerInstanceId: INSTANCE_ID,
+        endpoint: "http://127.0.0.1:43210/mcp",
+        authorizationHeader: "Bearer thread-scoped-test-token",
+        browserToolsAvailable: true,
+      });
+      const fake = yield* makeFakeMuse();
+      fake.host.initializeResult.grantedCapabilities.push("sessionMcp");
+      yield* makeHarness(fake, INSTANCE_ID);
+      const call = yield* fake.takeCall("session/start");
+      const servers = (call.params.config as { mcpServers?: Record<string, unknown> }).mcpServers;
+      // The custom wire name is the only server key: no legacy name may coexist.
+      assert.deepStrictEqual(Object.keys(servers ?? {}), ["invrt-code"]);
+      const server = servers?.["invrt-code"] as { mode?: string; transport?: string } | undefined;
+      // Muse's required default fails runs when tools are unreachable, so the mode stays optional.
+      assert.strictEqual(server?.mode, "optional");
+      assert.strictEqual(server?.transport, "streamableHttp");
+    }).pipe(Effect.scoped, Effect.provide(testLayer)),
+  );
+
   it.effect("selects the runtime mode's permission profile on native start and resume", () =>
     Effect.gen(function* () {
       for (const [runtimeMode, profile, approvalMode] of [
