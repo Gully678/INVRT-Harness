@@ -244,10 +244,10 @@ const discoverPairTarget = Effect.fn("pair.discoverPairTarget")(function* (
   if (explicitBaseDir !== undefined && explicitBaseDir.trim().length > 0) {
     bases.push(yield* resolveBaseDir(explicitBaseDir));
   } else {
-    // Same precedence as dev-runner: inside a linked worktree only its own
-    // `.invrt-code` counts. Minting opens the target database with this checkout's
-    // migrations, so falling back to the shared home could migrate the live
-    // install with unreleased schema. Ambient T3CODE_HOME is not the INVRT home.
+    // In a linked worktree, pair uses only `<worktree>/.invrt-code` unless
+    // --base-dir is passed. Minting opens that database with this checkout's
+    // migrations, so an ambient INVRT_CODE_HOME must not move pair onto a live
+    // install. Ambient T3CODE_HOME is not read.
     const worktreeHome = yield* resolveWorktreeT3Home(yield* HostProcess.WorkingDirectory);
     if (worktreeHome !== undefined) {
       bases.push(worktreeHome);
