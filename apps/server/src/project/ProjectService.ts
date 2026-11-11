@@ -18,7 +18,10 @@ import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
 
 import { withCommandMetrics } from "../observability/Metrics.ts";
-import { commandPayloadDigest } from "../orchestration-v2/CommandReceiptStore.ts";
+import {
+  commandPayloadDigest,
+  CommandReceiptPayloadConflictError,
+} from "../orchestration-v2/CommandReceiptStore.ts";
 import * as EventSink from "../orchestration-v2/EventSink.ts";
 import * as IdAllocator from "@t3tools/provider-core/server/IdAllocator";
 import * as LegacyV1ThreadImporter from "../orchestration-v2/legacy/LegacyV1ThreadImporter.ts";
@@ -218,54 +221,80 @@ export const make = Effect.gen(function* () {
       new ProjectOperationError({ operation: "dispatch-project-command", projectId, cause });
     // Digest the sender's command, not the planned event: re-planning allocates fresh
     // ids and timestamps, so only the command content is stable across retries.
-    const payloadDigest = commandPayloadDigest(command);
-    const workspaceRoot = command.type === "project.delete" ? undefined : command.workspaceRoot;
-    const planAndCommit = Effect.gen(function* () {
-      const project = Option.getOrUndefined(yield* readRow(projectId, { includeDeleted: true }));
-      const workspaceOwner =
-        workspaceRoot === undefined
-          ? undefined
-          : Option.getOrUndefined(
-              yield* projects
-                .findActiveByWorkspaceRoot(workspaceRoot)
-                .pipe(Effect.mapError(dispatchError)),
-            );
-      const now = yield* DateTime.now;
-      const eventId = yield* idAllocator.allocate
-        .event({ commandId: command.commandId })
-        .pipe(Effect.mapError(dispatchError));
-      const planned = planProjectCommand({
-        command,
-        state: { project, workspaceOwner },
-        eventId,
-        now,
-      });
-      if (Result.isSuccess(planned)) {
-        const { receipt } = yield* eventSink.commitProjectCommand({
-          commandId: command.commandId,
+    const dispatchPrepared = (prepared: ProjectCommand) => {
+      const payloadDigest = commandPayloadDigest(prepared);
+      const preparedRoot = prepared.type === "project.delete" ? undefined : prepared.workspaceRoot;
+      return Effect.gen(function* () {
+        const project = Option.getOrUndefined(yield* readRow(projectId, { includeDeleted: true }));
+        const workspaceOwner =
+          preparedRoot === undefined
+            ? undefined
+            : Option.getOrUndefined(
+                yield* projects
+                  .findActiveByWorkspaceRoot(preparedRoot)
+                  .pipe(Effect.mapError(dispatchError)),
+              );
+        const now = yield* DateTime.now;
+        const eventId = yield* idAllocator.allocate
+          .event({ commandId: prepared.commandId })
+          .pipe(Effect.mapError(dispatchError));
+        const planned = planProjectCommand({
+          command: prepared,
+          state: { project, workspaceOwner },
+          eventId,
+          now,
+        });
+        if (Result.isSuccess(planned)) {
+          const { receipt } = yield* eventSink.commitProjectCommand({
+            commandId: prepared.commandId,
+            projectId,
+            commandType: prepared.type,
+            acceptedAt: now,
+            event: planned.success,
+            payloadDigest,
+          });
+          return receipt;
+        }
+        return yield* eventSink.commitRejectedProjectCommand({
+          commandId: prepared.commandId,
           projectId,
-          commandType: command.type,
-          acceptedAt: now,
-          event: planned.success,
+          commandType: prepared.type,
+          rejectedAt: now,
+          error: encodeProjectCommandRejection(planned.failure),
           payloadDigest,
         });
-        return receipt;
-      }
-      return yield* eventSink.commitRejectedProjectCommand({
-        commandId: command.commandId,
-        projectId,
-        commandType: command.type,
-        rejectedAt: now,
-        error: encodeProjectCommandRejection(planned.failure),
-        payloadDigest,
       });
-    });
+    };
+    const isPayloadConflict = Schema.is(CommandReceiptPayloadConflictError);
+    const workspaceRoot = command.type === "project.delete" ? undefined : command.workspaceRoot;
+    // Hold the project lock across the legacy retry so a concurrent move cannot
+    // make an old no-op digest look equivalent to a different root.
+    const attempt = dispatchPrepared(command).pipe(
+      Effect.catchIf(isPayloadConflict, (conflict) => {
+        if (command.type !== "project.meta.update" || command.workspaceRoot === undefined) {
+          return Effect.fail(conflict);
+        }
+        const requestedRoot = command.workspaceRoot;
+        return Effect.gen(function* () {
+          const existing = yield* readRow(projectId, { includeDeleted: true });
+          // Pre-upgrade explicit no-ops omitted an unchanged root from the digest.
+          // Accept that shape only while the request still names the current root.
+          if (
+            Option.isNone(existing) ||
+            existing.value.deletedAt !== null ||
+            existing.value.workspaceRoot !== requestedRoot
+          ) {
+            return yield* conflict;
+          }
+          const { workspaceRoot: _legacyOmittedRoot, ...legacy } = command;
+          return yield* dispatchPrepared(legacy);
+        });
+      }),
+    );
     const receipt = yield* projectLocks
       .withLock(
         projectId,
-        workspaceRoot === undefined
-          ? planAndCommit
-          : workspaceLocks.withLock(workspaceRoot, planAndCommit),
+        workspaceRoot === undefined ? attempt : workspaceLocks.withLock(workspaceRoot, attempt),
       )
       .pipe(Effect.mapError(dispatchError));
     if (receipt.projectId !== projectId || receipt.commandType !== command.type) {
@@ -344,6 +373,9 @@ export const make = Effect.gen(function* () {
         projectId: input.projectId,
         title: input.title,
         workspaceRoot,
+        ...(input.defaultModelSelection === undefined
+          ? {}
+          : { defaultModelSelection: input.defaultModelSelection }),
         ...(input.scripts === undefined ? {} : { scripts: input.scripts }),
       });
       yield* projectEnrichment.invalidate([workspaceRoot]);
@@ -370,7 +402,8 @@ export const make = Effect.gen(function* () {
         commandId: input.commandId,
         projectId: input.projectId,
         ...(input.title === undefined ? {} : { title: input.title }),
-        ...(workspaceRoot === previousRoot ? {} : { workspaceRoot }),
+        // Keep an explicit root in the digest after the move changes previousRoot.
+        ...(input.workspaceRoot === undefined ? {} : { workspaceRoot }),
         ...(input.defaultModelSelection === undefined
           ? {}
           : { defaultModelSelection: input.defaultModelSelection }),
