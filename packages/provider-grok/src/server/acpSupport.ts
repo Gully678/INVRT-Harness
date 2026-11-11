@@ -35,8 +35,9 @@ interface GrokAcpRuntimeInput extends Omit<
   readonly grokSettings: GrokAcpRuntimeGrokSettings | null | undefined;
   readonly environment?: NodeJS.ProcessEnv;
   readonly runtimeMode?: RuntimeMode;
-  /** Set from `grok models`. Omit it only when this session has not qualified a subscription. */
+  /** Subscription sessions require a verdict; only metadata probes and explicit API routes may omit it. */
   readonly cliAuthenticated?: boolean | null;
+  readonly metadataOnly?: boolean;
   readonly apiKeySelected?: boolean;
 }
 
@@ -142,7 +143,7 @@ export const makeGrokAcpRuntime = Effect.fn("GrokAcpSupport.makeGrokAcpRuntime")
   ChildProcessSpawner.ChildProcessSpawner | Crypto.Crypto | Scope.Scope
 > {
   const processGroupPlatform = yield* HostProcess.Platform.pipe(Effect.provide(NodeServices.layer));
-  const { cliAuthenticated: suppliedLogin, ...runtimeInput } = input;
+  const { cliAuthenticated: suppliedLogin, metadataOnly, ...runtimeInput } = input;
   const apiKeyPresent = Boolean(input.environment?.[GROK_API_KEY_ENV]?.trim());
   const route = selectGrokProviderRoute({
     cliAuthenticated: suppliedLogin ?? null,
@@ -150,7 +151,7 @@ export const makeGrokAcpRuntime = Effect.fn("GrokAcpSupport.makeGrokAcpRuntime")
     apiKeySelected: input.apiKeySelected ?? false,
   });
   const useApiKey = route.useApiKey;
-  if (suppliedLogin !== undefined && route.auth.status !== "authenticated") {
+  if (metadataOnly !== true && route.auth.status !== "authenticated") {
     return yield* new EffectAcpErrors.AcpTransportError({
       detail: "Refused automatic paid fallback. Grok subscription login is unavailable or unknown",
       cause: undefined,

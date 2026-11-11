@@ -37,9 +37,9 @@ export const makeGrokTextGeneration = Effect.fn("makeGrokTextGeneration")(functi
       const { operation, cwd, prompt, modelSelection } = request;
 
       const outputRef = yield* Ref.make("");
-      const cliAuthenticated = environment.XAI_API_KEY?.trim()
-        ? yield* readGrokSubscriptionLogin(grokSettings, environment)
-        : undefined;
+      const cliAuthenticated = apiKeySelected
+        ? undefined
+        : yield* readGrokSubscriptionLogin(grokSettings, environment);
       const runtime = yield* makeGrokAcpRuntime({
         grokSettings,
         environment,

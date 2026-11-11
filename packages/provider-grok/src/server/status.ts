@@ -392,6 +392,7 @@ const discoverGrokMetadataViaAcpInitialize = Effect.fn(
     grokSettings,
     environment,
     apiKeySelected,
+    metadataOnly: true,
     cwd: process.cwd(),
     clientInfo: { name: "invrt-code-provider-probe", version: "0.0.0" },
   });

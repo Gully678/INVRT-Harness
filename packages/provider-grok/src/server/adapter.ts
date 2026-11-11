@@ -309,10 +309,9 @@ export function makeGrokAcpAdapterFlavor(
       options.makeRuntime ??
       (({ runtimePolicy, ...input }) =>
         Effect.gen(function* () {
-          const apiKeyPresent = Boolean(options.environment.XAI_API_KEY?.trim());
-          const cliAuthenticated = apiKeyPresent
-            ? yield* readGrokSubscriptionLogin(options.settings, options.environment)
-            : undefined;
+          const cliAuthenticated = options.apiKeySelected
+            ? undefined
+            : yield* readGrokSubscriptionLogin(options.settings, options.environment);
           return yield* makeGrokAcpRuntime({
             ...input,
             interruptPromptOnCancel: input.interruptPromptOnCancel ?? false,

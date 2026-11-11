@@ -32,10 +32,13 @@ function makeAcpGrokWrapper(dir: string, env: Record<string, string>): string {
     directory: NodePath.join(dir, "bin"),
     name: "grok",
     env,
-    source: execScriptSource({
-      scriptPath: mockAgentPath,
-      expectedArgs: ["agent", "stdio"],
-    }),
+    source: [
+      'if (process.argv[2] === "models") { process.stdout.write("You are logged in with grok.com.\\n"); process.exit(0); }',
+      execScriptSource({
+        scriptPath: mockAgentPath,
+        expectedArgs: ["agent", "stdio"],
+      }),
+    ].join("\n"),
   });
 }
 
