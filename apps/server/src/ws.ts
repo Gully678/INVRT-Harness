@@ -117,6 +117,10 @@ import * as CommandOutputHub from "./orchestration-v2/CommandOutputHub.ts";
 import * as McpAppRequests from "./mcpApps/McpAppRequests.ts";
 import * as ProviderSessionManager from "./orchestration-v2/ProviderSessionManager.ts";
 import * as ThreadLaunchService from "./orchestration-v2/ThreadLaunchService.ts";
+import {
+  messageIntakeContext,
+  type LocalRoutingAuthorityShape,
+} from "./orchestration-v2/LocalRoutingAuthority.ts";
 import * as ThreadMessageIntake from "./orchestration-v2/ThreadMessageIntake.ts";
 import * as DocumentText from "./provider/DocumentText.ts";
 import * as IdAllocator from "@t3tools/provider-core/server/IdAllocator";
@@ -1229,26 +1233,32 @@ export const subscribeOrchestrationV2Shell = Effect.fn("ws.orchestrationV2.subsc
   },
 );
 
+export { messageIntakeContext };
+
 export const layerWsRpc = (
   currentSession: EnvironmentAuth.AuthenticatedSession,
   clientOrigin: OrchestrationClientOrigin,
   clientAnalyticsProps: Readonly<Record<string, unknown>>,
   previewAutomationBroker: PreviewAutomationBroker.PreviewAutomationBroker["Service"],
   serverBrowser: ServerBrowser.ServerBrowser["Service"],
+  localRouting?: LocalRoutingAuthorityShape,
 ) =>
   Layer.effectContext(
     Effect.gen(function* () {
       const currentSessionId = currentSession.sessionId;
       const sql = yield* SqlClient.SqlClient;
       const threadManagement = yield* ThreadManagementService.ThreadManagementService;
-      const intakeContext = yield* Effect.context<
-        | ThreadManagementService.ThreadManagementService
-        | ThreadLaunchService.ThreadLaunchService
-        | FileSystem.FileSystem
-        | ServerConfig.ServerConfig
-        | ServerSettings.ServerSettingsService
-        | DocumentText.DocumentText
-      >();
+      const intakeContext = messageIntakeContext(
+        yield* Effect.context<
+          | ThreadManagementService.ThreadManagementService
+          | ThreadLaunchService.ThreadLaunchService
+          | FileSystem.FileSystem
+          | ServerConfig.ServerConfig
+          | ServerSettings.ServerSettingsService
+          | DocumentText.DocumentText
+        >(),
+        localRouting,
+      );
       const applicationEvents = yield* OrchestrationEventStore.OrchestrationEventStore;
       const projectStore = yield* ProjectStore.ProjectStoreV2;
       const projectService = yield* ProjectService.ProjectService;
