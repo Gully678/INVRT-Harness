@@ -168,11 +168,17 @@ const makeOrchestrationCommandReceiptRepository = Effect.gen(function* () {
       Effect.flatMap((rows) => {
         if (rows.length === 1) return Effect.succeed(true);
         // The read-back runs inside the caller's transaction, so the row it sees is
-        // the committed winner. Only two defined digests that differ prove different
-        // content; a NULL digest (pre-migration row, or a caller that carries none)
-        // still replays.
-        return sql<{ readonly payload_digest: string | null }>`
-          SELECT payload_digest
+        // the committed winner. Two defined digests that differ prove different
+        // content. A NULL digest (pre-migration row, or a caller that carries none)
+        // cannot prove content, so identity falls back to the aggregate binding:
+        // the same aggregate still replays, a different aggregate conflicts instead
+        // of silently replaying another aggregate's receipt.
+        return sql<{
+          readonly payload_digest: string | null;
+          readonly aggregate_kind: string;
+          readonly aggregate_id: string;
+        }>`
+          SELECT payload_digest, aggregate_kind, aggregate_id
           FROM orchestration_command_receipts
           WHERE command_id = ${receipt.commandId}
         `.pipe(
@@ -180,9 +186,13 @@ const makeOrchestrationCommandReceiptRepository = Effect.gen(function* () {
             toPersistenceSqlError("OrchestrationCommandReceiptRepository.insertIfAbsent:readback"),
           ),
           Effect.flatMap(([stored]) =>
-            stored?.payload_digest != null &&
-            receipt.payloadDigest != null &&
-            stored.payload_digest !== receipt.payloadDigest
+            (stored?.payload_digest != null &&
+              receipt.payloadDigest != null &&
+              stored.payload_digest !== receipt.payloadDigest) ||
+            (stored != null &&
+              (stored.payload_digest == null || receipt.payloadDigest == null) &&
+              (stored.aggregate_kind !== receipt.aggregateKind ||
+                stored.aggregate_id !== receipt.aggregateId))
               ? Effect.fail(
                   new OrchestrationCommandReceiptConflictError({ commandId: receipt.commandId }),
                 )

@@ -1636,6 +1636,39 @@ it.layer(layerTest)("orchestration V2 foundation persistence", (it) => {
     }),
   );
 
+  it.effect("rejects a pre-digest receipt replayed under a different aggregate", () =>
+    Effect.gen(function* () {
+      const receipts = yield* CommandReceiptStore.CommandReceiptStoreV2;
+      const sql = yield* SqlClient.SqlClient;
+      const commandId = CommandId.make("command:foundation-old-format-cross-aggregate");
+      yield* sql`
+        INSERT INTO orchestration_command_receipts (
+          command_id, aggregate_kind, aggregate_id, command_type, accepted_at,
+          result_sequence, status, error
+        ) VALUES (
+          ${commandId}, 'project', 'project:foundation-old-format-cross-aggregate',
+          'foundation.old-format', '2026-11-11T00:00:00.000Z', 1, 'accepted', NULL
+        )
+      `;
+      // The legacy row has no digest, so content cannot prove identity; the
+      // arriving command binds the same id to a different aggregate and must
+      // conflict instead of silently replaying the project A receipt.
+      const conflict = yield* Effect.flip(
+        receipts.insertIfAbsent({
+          commandId,
+          threadId: ThreadId.make("thread:foundation-old-format-cross-aggregate"),
+          commandType: "foundation.old-format",
+          acceptedAt: yield* DateTime.now,
+          resultSequence: 1,
+          status: "accepted",
+          error: null,
+          payloadDigest: "digest:new-payload",
+        }),
+      );
+      assert.equal(conflict._tag, "CommandReceiptPayloadConflictError");
+    }),
+  );
+
   it.effect("denies a stale-revision command and leaves its identity usable", () =>
     Effect.gen(function* () {
       const eventSink = yield* EventSink.EventSinkV2;
