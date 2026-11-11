@@ -342,6 +342,113 @@ it.layer(layerTest)("ProjectService", (it) => {
     }),
   );
 
+  it.effect("replays an explicit workspace move after its root has changed", () =>
+    Effect.gen(function* () {
+      const service = yield* ProjectService.ProjectService;
+      const sql = yield* SqlClient.SqlClient;
+      const projectId = ProjectId.make("project:move-replay");
+      yield* service.create({
+        commandId: CommandId.make("command:move-replay:create"),
+        projectId,
+        title: "Move replay",
+        workspaceRoot: "/work/move-before",
+      });
+      const input = {
+        commandId: CommandId.make("command:move-replay:update"),
+        projectId,
+        workspaceRoot: "/work/move-after/",
+      };
+      yield* service.update(input);
+      const before = yield* sql`SELECT * FROM orchestration_command_receipts
+        WHERE command_id = ${input.commandId}`;
+      const replay = yield* service.update(input);
+      assert.equal(replay.workspaceRoot, "/work/move-after");
+      assert.deepEqual(
+        yield* sql`SELECT * FROM orchestration_command_receipts
+        WHERE command_id = ${input.commandId}`,
+        before,
+      );
+      assert.lengthOf(
+        yield* sql`SELECT sequence FROM orchestration_events
+        WHERE command_id = ${input.commandId}`,
+        1,
+      );
+      const changed = yield* service
+        .update({ ...input, workspaceRoot: "/work/move-third" })
+        .pipe(Effect.flip);
+      assert.instanceOf(changed, ProjectService.ProjectOperationError);
+      assert.equal(
+        Option.getOrThrow(yield* service.getById(projectId)).workspaceRoot,
+        "/work/move-after",
+      );
+    }),
+  );
+
+  it.effect("distinguishes explicit unchanged workspace intent from an omitted root", () =>
+    Effect.gen(function* () {
+      const service = yield* ProjectService.ProjectService;
+      const projectId = ProjectId.make("project:unchanged-root-intent");
+      yield* service.create({
+        commandId: CommandId.make("command:unchanged-root:create"),
+        projectId,
+        title: "Unchanged root",
+        workspaceRoot: "/work/unchanged-root",
+      });
+      const input = {
+        commandId: CommandId.make("command:unchanged-root:update"),
+        projectId,
+        workspaceRoot: "/work/unchanged-root",
+      };
+      yield* service.update(input);
+      yield* service.update(input);
+      const conflict = yield* service
+        .update({ commandId: input.commandId, projectId })
+        .pipe(Effect.flip);
+      assert.instanceOf(conflict, ProjectService.ProjectOperationError);
+      assert.include(
+        String(conflict._tag === "ProjectOperationError" && conflict.cause),
+        "different payload digest",
+      );
+    }),
+  );
+
+  it.effect(
+    "commits concurrent identical workspace moves once without changing another project",
+    () =>
+      Effect.gen(function* () {
+        const service = yield* ProjectService.ProjectService;
+        const sql = yield* SqlClient.SqlClient;
+        const projectId = ProjectId.make("project:concurrent-move");
+        const otherId = ProjectId.make("project:concurrent-move-other");
+        for (const id of [projectId, otherId]) {
+          yield* service.create({
+            commandId: CommandId.make(`command:create:${id}`),
+            projectId: id,
+            title: id,
+            workspaceRoot: `/work/${id}`,
+          });
+        }
+        const otherBefore =
+          yield* sql`SELECT * FROM projection_projects WHERE project_id = ${otherId}`;
+        const input = {
+          commandId: CommandId.make("command:concurrent-move:update"),
+          projectId,
+          workspaceRoot: "/work/concurrent-move-after",
+        };
+        yield* Effect.all([service.update(input), service.update(input)], { concurrency: 2 });
+        yield* service.update(input);
+        assert.lengthOf(
+          yield* sql`SELECT sequence FROM orchestration_events
+        WHERE command_id = ${input.commandId}`,
+          1,
+        );
+        assert.deepEqual(
+          yield* sql`SELECT * FROM projection_projects WHERE project_id = ${otherId}`,
+          otherBefore,
+        );
+      }),
+  );
+
   it.effect("replays an identical rejected command and denies a changed payload", () =>
     Effect.gen(function* () {
       const service = yield* ProjectService.ProjectService;
