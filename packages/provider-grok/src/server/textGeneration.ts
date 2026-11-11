@@ -27,6 +27,7 @@ const isTextGenerationError = Schema.is(TextGenerationError);
 export const makeGrokTextGeneration = Effect.fn("makeGrokTextGeneration")(function* (
   grokSettings: GrokSettings,
   environment: NodeJS.ProcessEnv = process.env,
+  apiKeySelected = false,
 ) {
   const crypto = yield* Crypto.Crypto;
   const commandSpawner = yield* ChildProcessSpawner.ChildProcessSpawner;
@@ -42,6 +43,7 @@ export const makeGrokTextGeneration = Effect.fn("makeGrokTextGeneration")(functi
       const runtime = yield* makeGrokAcpRuntime({
         grokSettings,
         environment,
+        apiKeySelected,
         cwd,
         ...(cliAuthenticated === undefined ? {} : { cliAuthenticated }),
         clientInfo: { name: "invrt-code-git-text", version: "0.0.0" },

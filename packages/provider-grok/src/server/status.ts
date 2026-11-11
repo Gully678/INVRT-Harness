@@ -387,15 +387,11 @@ export function grokSlashCommandsFromInitialize(
  */
 const discoverGrokMetadataViaAcpInitialize = Effect.fn(
   "GrokProviderStatus.discoverGrokMetadataViaAcpInitialize",
-)(function* (
-  grokSettings: GrokSettings,
-  environment: NodeJS.ProcessEnv,
-  cliAuthenticated: boolean | null,
-) {
+)(function* (grokSettings: GrokSettings, environment: NodeJS.ProcessEnv, apiKeySelected: boolean) {
   const acp = yield* makeGrokAcpRuntime({
     grokSettings,
     environment,
-    cliAuthenticated,
+    apiKeySelected,
     cwd: process.cwd(),
     clientInfo: { name: "invrt-code-provider-probe", version: "0.0.0" },
   });
@@ -410,6 +406,7 @@ export const checkGrokProviderStatus = Effect.fn("checkGrokProviderStatus")(func
   grokSettings: GrokSettings,
   environment: NodeJS.ProcessEnv = process.env,
   cwd?: string,
+  apiKeySelected = false,
 ): Effect.fn.Return<
   ServerProviderDraft,
   never,
@@ -523,6 +520,7 @@ export const checkGrokProviderStatus = Effect.fn("checkGrokProviderStatus")(func
   const route = selectGrokProviderRoute({
     cliAuthenticated: cliModels.authenticated,
     apiKeyPresent: Boolean(apiKey),
+    apiKeySelected,
   });
   const auth: ServerProviderAuth = route.auth;
 
@@ -539,11 +537,8 @@ export const checkGrokProviderStatus = Effect.fn("checkGrokProviderStatus")(func
   const acpExit = yield* discoverGrokMetadataViaAcpInitialize(
     grokSettings,
     route.useApiKey ? probeEnvironment : subscriptionProbeEnvironment,
-    cliModels.authenticated,
-  ).pipe(
-    Effect.timeoutOption(GROK_ACP_INITIALIZE_TIMEOUT_MS),
-    Effect.exit,
-  );
+    apiKeySelected,
+  ).pipe(Effect.timeoutOption(GROK_ACP_INITIALIZE_TIMEOUT_MS), Effect.exit);
   const acpMetadata = Exit.isSuccess(acpExit) ? Option.getOrUndefined(acpExit.value) : undefined;
   const acpModels = acpMetadata?.models ?? [];
   const acpFailed = Exit.isFailure(acpExit) || Option.isNone(acpExit.value);
@@ -564,7 +559,9 @@ export const checkGrokProviderStatus = Effect.fn("checkGrokProviderStatus")(func
     : discoveredModels.length === 0
       ? "Grok CLI did not list any models. Model options may be incomplete."
       : undefined;
-  const routeMessage = [incompleteMessage, route.refusal].filter((part) => part !== undefined).join(" ");
+  const routeMessage = [incompleteMessage, route.refusal]
+    .filter((part) => part !== undefined)
+    .join(" ");
 
   if (auth.status === "unauthenticated") {
     return buildServerProvider({
@@ -578,7 +575,9 @@ export const checkGrokProviderStatus = Effect.fn("checkGrokProviderStatus")(func
         version,
         status: "error",
         auth,
-        message: "Grok CLI is installed but not logged in. Run `grok login`.",
+        message: ["Grok CLI is installed but not logged in. Run `grok login`.", route.refusal]
+          .filter(Boolean)
+          .join(" "),
       },
     });
   }
@@ -593,7 +592,7 @@ export const checkGrokProviderStatus = Effect.fn("checkGrokProviderStatus")(func
     probe: {
       installed: true,
       version,
-      status: incompleteMessage ? "warning" : "ready",
+      status: incompleteMessage || auth.status === "unknown" ? "warning" : "ready",
       auth,
       ...(routeMessage ? { message: routeMessage } : {}),
     },

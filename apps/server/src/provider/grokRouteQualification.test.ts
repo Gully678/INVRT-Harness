@@ -1,4 +1,6 @@
+// @effect-diagnostics nodeBuiltinImport:off -- offline CLI fixtures use native paths
 import * as NodePath from "node:path";
+import * as HostProcess from "@t3tools/shared/HostProcess";
 
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { ProviderInstanceId } from "@t3tools/contracts";
@@ -59,7 +61,7 @@ const writeRouteCli = (input: {
     ].join("\n"),
   });
 
-const checkRoute = (modelsOutput: string | ReadonlyArray<string>) =>
+const checkRoute = (modelsOutput: string | ReadonlyArray<string>, apiKeySelected = false) =>
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
     const directory = yield* fs.makeTempDirectoryScoped({ prefix: "grok-route-" });
@@ -67,10 +69,15 @@ const checkRoute = (modelsOutput: string | ReadonlyArray<string>) =>
     const binaryPath = writeRouteCli({ directory, logPath, modelsOutput });
     const previousKey = process.env.XAI_API_KEY;
     process.env.XAI_API_KEY = "xai-parent-key";
-    const snapshot = yield* checkGrokProviderStatus(decodeGrokSettings({ enabled: true, binaryPath }), {
-      ...process.env,
-      XAI_API_KEY: "xai-test-key",
-    }).pipe(
+    const snapshot = yield* checkGrokProviderStatus(
+      decodeGrokSettings({ enabled: true, binaryPath }),
+      {
+        ...process.env,
+        XAI_API_KEY: "xai-test-key",
+      },
+      undefined,
+      apiKeySelected,
+    ).pipe(
       Effect.ensuring(
         Effect.sync(() => {
           if (previousKey === undefined) delete process.env.XAI_API_KEY;
@@ -135,15 +142,35 @@ it("keeps a logged-in subscription and a missing login off the API key", () => {
   const missing = selectGrokProviderRoute({ cliAuthenticated: null, apiKeyPresent: true });
   expect(missing.auth).toEqual({ status: "unknown" });
   expect(missing.useApiKey).toBe(false);
-  const env = grokSpawnEnvironment({ XAI_API_KEY: "xai-test-key", GROK_HOME: "/tmp/grok-a" }, false);
+  const env = grokSpawnEnvironment(
+    { XAI_API_KEY: "xai-test-key", GROK_HOME: "/tmp/grok-a" },
+    false,
+  );
   expect(env.XAI_API_KEY).toBe("");
   expect(env.GROK_HOME).toBe("/tmp/grok-a");
   expect(env.GROK_OAUTH2_REFERRER).toBe("invrt-code");
 });
 
-it.effect("keeps a logged-out Grok CLI on an explicit API key", () =>
+it("refuses an ambient key after a Grok subscription login is revoked", () => {
+  const route = selectGrokProviderRoute({ cliAuthenticated: false, apiKeyPresent: true });
+  expect(route.useApiKey).toBe(false);
+  expect(route.auth.status).toBe("unauthenticated");
+  expect(route.refusal).toContain("Refused automatic paid fallback");
+});
+
+it.effect("refuses an ambient Grok key at the CLI boundary after logout", () =>
   Effect.gen(function* () {
     const { snapshot, log } = yield* checkRoute(LOGGED_OUT);
+    expect(snapshot.auth.status).toBe("unauthenticated");
+    expect(snapshot.status).toBe("error");
+    expect(snapshot.message).toContain("Refused automatic paid fallback");
+    expect(log).not.toContain("key-present");
+  }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+);
+
+it.effect("keeps a logged-out Grok CLI on an explicit API key", () =>
+  Effect.gen(function* () {
+    const { snapshot, log } = yield* checkRoute(LOGGED_OUT, true);
     expect(snapshot.auth).toEqual({
       status: "authenticated",
       type: "api_key",
@@ -157,7 +184,7 @@ it.effect("keeps a logged-out Grok CLI on an explicit API key", () =>
   }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
 );
 
-const skillRoutes = (modelsOutput: string) =>
+const skillRoutes = (modelsOutput: string, apiKeySelected = false) =>
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
     const directory = yield* fs.makeTempDirectoryScoped({ prefix: "grok-skill-route-" });
@@ -174,19 +201,18 @@ const skillRoutes = (modelsOutput: string) =>
         instanceId: ProviderInstanceId.make("grok-skill-route"),
         settings: decodeGrokSettings({ enabled: true, binaryPath }),
         environment: { ...process.env, XAI_API_KEY: "xai-test-key", GROK_HOME: directory },
-        hostPlatform: process.platform,
-        selfInvocation: { command: process.execPath, args: [] },
-      } as Parameters<typeof makeGrokAcpAdapterFlavor>[0],
+        apiKeySelected,
+        hostPlatform: yield* HostProcess.Platform,
+        selfInvocation: { command: process.execPath, entrypoint: undefined },
+      },
       directory,
     );
-    const rewriteLog = yield* flavor
-      .rewriteUserText!("$deploy ship", {
-        runtimePolicy: { cwd: directory },
-      } as Parameters<NonNullable<typeof flavor.rewriteUserText>>[1])
-      .pipe(
-        Effect.andThen(fs.readFileString(logPath)),
-        Effect.ensuring(restoreKey),
-      );
+    const rewriteLog = yield* flavor.rewriteUserText!("$deploy ship", {
+      runtimePolicy: { cwd: directory },
+    } as Parameters<NonNullable<typeof flavor.rewriteUserText>>[1]).pipe(
+      Effect.andThen(fs.readFileString(logPath)),
+      Effect.ensuring(restoreKey),
+    );
     yield* fs.remove(logPath).pipe(Effect.ignore);
     const scanLog = yield* discoverGrokSkills(
       decodeGrokSettings({ enabled: true, binaryPath }),
@@ -223,7 +249,7 @@ it.effect("keeps a parent key off an unknown skill rewrite and a refused inspect
 
 it.effect("lets a logged-out API-key route inspect skills with the key", () =>
   Effect.gen(function* () {
-    const { rewriteLog } = yield* skillRoutes(LOGGED_OUT);
+    const { rewriteLog } = yield* skillRoutes(LOGGED_OUT, true);
     expect(rewriteLog).toContain("key-present inspect");
     expect(rewriteLog).toContain("key-absent models");
   }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),

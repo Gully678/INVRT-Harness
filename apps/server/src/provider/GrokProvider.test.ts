@@ -373,28 +373,32 @@ it.layer(NodeServices.layer)("checkGrokProviderStatus", (it) => {
     }),
   );
 
-  it.effect("treats XAI_API_KEY as authenticated regardless of CLI login state", () =>
-    Effect.gen(function* () {
-      const snapshot = yield* Effect.scoped(
-        Effect.gen(function* () {
-          const grokPath = yield* writeFakeGrokCli({
-            modelsOutput: LOGGED_OUT_MODELS_OUTPUT,
-            acp: false,
-          });
-          return yield* checkGrokProviderStatus(
-            decodeGrokSettings({ enabled: true, binaryPath: grokPath }),
-            { ...process.env, XAI_API_KEY: "xai-test-key" },
-          );
-        }),
-      );
+  it.effect(
+    "treats an explicitly selected XAI_API_KEY as authenticated regardless of CLI login state",
+    () =>
+      Effect.gen(function* () {
+        const snapshot = yield* Effect.scoped(
+          Effect.gen(function* () {
+            const grokPath = yield* writeFakeGrokCli({
+              modelsOutput: LOGGED_OUT_MODELS_OUTPUT,
+              acp: false,
+            });
+            return yield* checkGrokProviderStatus(
+              decodeGrokSettings({ enabled: true, binaryPath: grokPath }),
+              { ...process.env, XAI_API_KEY: "xai-test-key" },
+              undefined,
+              true,
+            );
+          }),
+        );
 
-      expect(snapshot.auth).toEqual({
-        status: "authenticated",
-        type: "api_key",
-        label: "xAI API key",
-      });
-      expect(snapshot.status).toBe("warning");
-    }),
+        expect(snapshot.auth).toEqual({
+          status: "authenticated",
+          type: "api_key",
+          label: "xAI API key",
+        });
+        expect(snapshot.status).toBe("warning");
+      }),
   );
 });
 

@@ -2366,37 +2366,40 @@ it.layer(
       ),
     );
 
-    it.effect("keeps an API key install authenticated when it reports no token source", () =>
-      Effect.gen(function* () {
-        const status = yield* checkClaudeProviderStatus(
-          defaultClaudeSettings,
-          claudeCapabilities({
-            tokenSource: "none",
-            apiKeySource: "ANTHROPIC_API_KEY",
-            apiProvider: "firstParty",
-          }),
-        );
-        assert.strictEqual(status.status, "ready");
-        assert.strictEqual(status.auth.status, "authenticated");
-      }).pipe(
-        Effect.provide(
-          layerMockSpawner((args) => {
-            const joined = args.join(" ");
-            if (joined === "--version") return { stdout: "1.0.0\n", stderr: "", code: 0 };
-            throw new Error(`Unexpected args: ${joined}`);
-          }),
+    it.effect(
+      "keeps an explicitly configured API key authenticated when it reports no token source",
+      () =>
+        Effect.gen(function* () {
+          const status = yield* checkClaudeProviderStatus(
+            defaultClaudeSettings,
+            claudeCapabilities({
+              tokenSource: "none",
+              apiKeySource: "ANTHROPIC_API_KEY",
+              apiProvider: "firstParty",
+            }),
+            { ANTHROPIC_API_KEY: "explicit-instance-key" },
+          );
+          assert.strictEqual(status.status, "ready");
+          assert.strictEqual(status.auth.status, "authenticated");
+        }).pipe(
+          Effect.provide(
+            layerMockSpawner((args) => {
+              const joined = args.join(" ");
+              if (joined === "--version") return { stdout: "1.0.0\n", stderr: "", code: 0 };
+              throw new Error(`Unexpected args: ${joined}`);
+            }),
+          ),
         ),
-      ),
     );
 
-    it.effect("keeps a CLI that says nothing about its account authenticated", () =>
+    it.effect("keeps a CLI that says nothing about its account unknown", () =>
       Effect.gen(function* () {
         const status = yield* checkClaudeProviderStatus(
           defaultClaudeSettings,
           claudeCapabilities(),
         );
-        assert.strictEqual(status.status, "ready");
-        assert.strictEqual(status.auth.status, "authenticated");
+        assert.strictEqual(status.status, "warning");
+        assert.strictEqual(status.auth.status, "unknown");
       }).pipe(
         Effect.provide(
           layerMockSpawner((args) => {

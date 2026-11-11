@@ -36,7 +36,13 @@ import {
   type ServerProviderDraft,
 } from "@t3tools/provider-core/server/snapshotProbe";
 import { resolveClaudeSdkExecutablePath } from "./Drivers/ClaudeExecutable.ts";
-import { hasClaudeManagedMcpConfig, makeClaudeEnvironment } from "./Drivers/ClaudeHome.ts";
+import {
+  hasClaudeManagedMcpConfig,
+  makeClaudeEnvironment,
+  claudeApiRouteSelected,
+  claudeSubscriptionAccountConfirmed,
+  CLAUDE_PAID_FALLBACK_REFUSAL,
+} from "./Drivers/ClaudeHome.ts";
 import { discoverClaudeSkills } from "./Drivers/ClaudeSkills.ts";
 import type { ProviderWorkspaceSnapshot } from "@t3tools/provider-core/server/driver";
 import { makeUnavailableUsageLimits } from "@t3tools/provider-core/server/usageLimits";
@@ -141,8 +147,6 @@ function formatClaudeSubscriptionAuthLabel(subscriptionType: string): string {
   return `Claude ${subscriptionLabel} Subscription`;
 }
 
-const CLAUDE_PAID_FALLBACK_REFUSAL = "Refused automatic paid fallback.";
-
 function claudeAuthMetadata(input: {
   readonly subscriptionType: string | undefined;
   readonly authMethod: string | undefined;
@@ -164,39 +168,30 @@ function claudeAuthMetadata(input: {
   return undefined;
 }
 
-function claudePaidFallbackRefusal(input: {
-  readonly subscriptionType: string | undefined;
-  readonly tokenSource: string | undefined;
-  readonly apiKeySource: string | undefined;
-}): string | undefined {
-  if (!input.subscriptionType) return undefined;
-  const meteredToken = normalizeClaudeAuthMethod(input.tokenSource) === "apiKey";
-  const meteredKey = Boolean(input.apiKeySource) && input.apiKeySource !== "none";
-  return meteredToken || meteredKey ? CLAUDE_PAID_FALLBACK_REFUSAL : undefined;
-}
-
 function apiProviderAuthMetadata(
   apiProvider: string | undefined,
 ): { readonly type: string; readonly label: string } | undefined {
   return apiProvider === "bedrock" ? { type: "bedrock", label: "Amazon Bedrock" } : undefined;
 }
 
-/** Probe completion only proves Claude started. Only tokenSource: "none" disproves auth. */
+/** Probe completion alone does not prove an authenticated account. */
 function claudeAuthStatus(
   capabilities: Pick<
     ClaudeCapabilitiesProbe,
     "email" | "subscriptionType" | "tokenSource" | "apiKeySource" | "apiProvider"
   >,
-): "authenticated" | "unauthenticated" {
+): "authenticated" | "unauthenticated" | "unknown" {
   if (capabilities.apiProvider !== undefined && capabilities.apiProvider !== "firstParty") {
     return "authenticated";
   }
-  if (capabilities.tokenSource !== "none") return "authenticated";
+  if (capabilities.tokenSource && capabilities.tokenSource !== "none") return "authenticated";
   // API keys can authenticate with tokenSource: none; also check key and account fields.
   const hasApiKey = Boolean(capabilities.apiKeySource) && capabilities.apiKeySource !== "none";
   return hasApiKey || capabilities.email || capabilities.subscriptionType
     ? "authenticated"
-    : "unauthenticated";
+    : capabilities.tokenSource === "none"
+      ? "unauthenticated"
+      : "unknown";
 }
 
 // Bedrock initialization includes backend startup and awsAuthRefresh, taking longer than first-party auth.
@@ -621,7 +616,8 @@ export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(
     (endpoint.protocol === "http:" || endpoint.protocol === "https:") &&
     endpoint.hostname !== "" &&
     endpoint.hostname !== "api.anthropic.com";
-  if (!customApiEndpoint && claudeAuthStatus(capabilities) === "unauthenticated") {
+  const authStatus = claudeAuthStatus(capabilities);
+  if (!customApiEndpoint && authStatus !== "authenticated") {
     return buildServerProvider({
       presentation: CLAUDE_PRESENTATION,
       enabled: claudeSettings.enabled,
@@ -632,9 +628,12 @@ export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(
       probe: {
         installed: true,
         version: parsedVersion,
-        status: "error",
-        auth: { status: "unauthenticated" },
-        message: "Claude Code is not authenticated. Run `claude auth login` and try again.",
+        status: authStatus === "unknown" ? "warning" : "error",
+        auth: { status: authStatus },
+        message:
+          authStatus === "unknown"
+            ? "Could not verify Claude authentication status from initialization result."
+            : "Claude Code is not authenticated. Run `claude auth login` and try again.",
       },
     });
   }
@@ -646,14 +645,12 @@ export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(
     }) ??
     apiProviderAuthMetadata(capabilities.apiProvider) ??
     (customApiEndpoint ? { type: "customEndpoint", label: "Custom API endpoint" } : undefined);
-  const routeMessage = [
-    versionUpgradeMessage,
-    claudePaidFallbackRefusal({
-      subscriptionType: capabilities.subscriptionType,
-      tokenSource: capabilities.tokenSource,
-      apiKeySource: capabilities.apiKeySource,
-    }),
-  ]
+  const routeRefusal =
+    !claudeApiRouteSelected(resolvedEnvironment) &&
+    !claudeSubscriptionAccountConfirmed(capabilities)
+      ? CLAUDE_PAID_FALLBACK_REFUSAL
+      : undefined;
+  const routeMessage = [versionUpgradeMessage, routeRefusal]
     .filter((part) => part !== undefined)
     .join(" ");
   const usageCheckedAt = capabilities.usageCheckedAt ?? checkedAt;
@@ -686,9 +683,9 @@ export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(
     probe: {
       installed: true,
       version: parsedVersion,
-      status: "ready",
+      status: routeRefusal ? "error" : "ready",
       auth: {
-        status: "authenticated",
+        status: routeRefusal ? "unknown" : "authenticated",
         ...(capabilities.email ? { email: capabilities.email } : {}),
         ...(capabilities.workspaceId ? { workspaceId: capabilities.workspaceId } : {}),
         ...(authMetadata ? authMetadata : {}),

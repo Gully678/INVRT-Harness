@@ -1,4 +1,4 @@
-import type { ClaudeSettings } from "@t3tools/contracts";
+import type { ClaudeSettings, ProviderInstanceEnvironment } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
@@ -7,7 +7,56 @@ import * as Schema from "effect/Schema";
 import { expandHomePath } from "@t3tools/provider-core/server/pathExpansion";
 import * as HostProcess from "@t3tools/shared/HostProcess";
 
+import { mergeProviderInstanceEnvironment } from "@t3tools/provider-core/server/instanceEnvironment";
+
 const quotePath = Schema.encodeSync(Schema.fromJsonString(Schema.String));
+
+export const CLAUDE_PAID_FALLBACK_REFUSAL = "Refused automatic paid fallback.";
+
+// Blank overrides survive SDK/child-process merging; explicit instance credentials are applied last.
+export const makeClaudeInstanceEnvironment = Effect.fn("makeClaudeInstanceEnvironment")(function* (
+  environment: ProviderInstanceEnvironment,
+  hostEnvironment: NodeJS.ProcessEnv = process.env,
+) {
+  return yield* mergeProviderInstanceEnvironment(environment, {
+    ...hostEnvironment,
+    ANTHROPIC_API_KEY: "",
+    ANTHROPIC_AUTH_TOKEN: "",
+    ANTHROPIC_BASE_URL: "",
+    CLAUDE_CODE_USE_BEDROCK: "0",
+    CLAUDE_CODE_USE_VERTEX: "0",
+    CLAUDE_CODE_USE_FOUNDRY: "0",
+  });
+});
+
+export function claudeApiRouteSelected(environment: NodeJS.ProcessEnv | undefined): boolean {
+  return Boolean(
+    environment?.ANTHROPIC_API_KEY?.trim() ||
+    environment?.ANTHROPIC_AUTH_TOKEN?.trim() ||
+    environment?.ANTHROPIC_BASE_URL?.trim() ||
+    ["CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY"].some(
+      (name) => environment?.[name] === "1",
+    ),
+  );
+}
+
+export function claudeSubscriptionAccountConfirmed(
+  account:
+    | {
+        readonly subscriptionType?: string | undefined;
+        readonly tokenSource?: string | undefined;
+        readonly apiKeySource?: string | undefined;
+        readonly apiProvider?: string | undefined;
+      }
+    | undefined,
+): boolean {
+  return (
+    Boolean(account?.subscriptionType?.trim()) &&
+    account?.tokenSource === "claude.ai" &&
+    (account.apiKeySource === undefined || account.apiKeySource === "none") &&
+    (account.apiProvider === undefined || account.apiProvider === "firstParty")
+  );
+}
 
 export const resolveClaudeHomePath = Effect.fn("resolveClaudeHomePath")(function* (
   config: Pick<ClaudeSettings, "homePath">,

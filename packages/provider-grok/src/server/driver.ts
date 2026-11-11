@@ -1,5 +1,6 @@
 import { ProviderDriverKind } from "@t3tools/contracts";
 import { GrokSettings } from "../settings.ts";
+import { blankGrokApiKey } from "./acpSupport.ts";
 import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -124,7 +125,13 @@ export const GrokDriver: ProviderDriver<GrokSettings, GrokDriverEnv, Path.Path> 
     const path = yield* Path.Path;
     const host = yield* ProviderHost.ProviderHost;
     const { cwd } = host.paths;
-    const processEnv = yield* mergeProviderInstanceEnvironment(environment);
+    const processEnv = yield* mergeProviderInstanceEnvironment(
+      environment,
+      blankGrokApiKey(process.env),
+    );
+    const apiKeySelected = environment.some(
+      (entry) => entry.name === "XAI_API_KEY" && entry.value.trim().length > 0,
+    );
     const continuationIdentity = defaultProviderContinuationIdentity({
       driverKind: DRIVER_KIND,
       instanceId,
@@ -165,9 +172,18 @@ export const GrokDriver: ProviderDriver<GrokSettings, GrokDriverEnv, Path.Path> 
           }),
       ),
     );
-    const textGeneration = yield* makeGrokTextGeneration(effectiveConfig, processEnv);
+    const textGeneration = yield* makeGrokTextGeneration(
+      effectiveConfig,
+      processEnv,
+      apiKeySelected,
+    );
 
-    const checkProvider = checkGrokProviderStatus(effectiveConfig, processEnv, cwd).pipe(
+    const checkProvider = checkGrokProviderStatus(
+      effectiveConfig,
+      processEnv,
+      cwd,
+      apiKeySelected,
+    ).pipe(
       Effect.filterOrElse(
         (snapshot) =>
           !(

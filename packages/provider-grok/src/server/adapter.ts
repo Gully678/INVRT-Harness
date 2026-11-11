@@ -27,6 +27,7 @@ import * as McpProviderSessions from "@t3tools/provider-core/server/McpProviderS
 import * as ProviderHost from "@t3tools/provider-core/server/ProviderHost";
 import { makeAcpNativeLoggerFactory } from "@t3tools/provider-acp/server/nativeLogging";
 import {
+  blankGrokApiKey,
   applyGrokAcpModelSelection,
   currentGrokModelIdFromSessionSetup,
   grokApprovalOptions,
@@ -120,6 +121,7 @@ export interface GrokAdapterV2Options {
   readonly instanceId: Parameters<typeof makeAcpAdapterV2>[0]["instanceId"];
   readonly settings: GrokSettings;
   readonly environment: NodeJS.ProcessEnv;
+  readonly apiKeySelected?: boolean;
   readonly hostPlatform: NodeJS.Platform;
   readonly selfInvocation: SelfInvocation;
   readonly nativeLogging?: Parameters<typeof makeAcpAdapterV2>[0]["nativeLogging"];
@@ -250,7 +252,11 @@ export function makeGrokAcpAdapterFlavor(
               Effect.orElseSucceed(() => null),
             )
           : null;
-        const allowApiKey = selectGrokProviderRoute({ cliAuthenticated, apiKeyPresent }).useApiKey;
+        const allowApiKey = selectGrokProviderRoute({
+          cliAuthenticated,
+          apiKeyPresent,
+          apiKeySelected: options.apiKeySelected ?? false,
+        }).useApiKey;
         return yield* discoverGrokSkills(
           options.settings,
           options.environment,
@@ -312,6 +318,7 @@ export function makeGrokAcpAdapterFlavor(
             interruptPromptOnCancel: input.interruptPromptOnCancel ?? false,
             grokSettings: options.settings,
             environment: options.environment,
+            apiKeySelected: options.apiKeySelected ?? false,
             runtimeMode: grokLaunchRuntimeMode(runtimePolicy),
             ...(cliAuthenticated === undefined ? {} : { cliAuthenticated }),
           });
@@ -399,7 +406,13 @@ export const GrokAdapterV2Driver: ProviderAdapterDriver<GrokSettings, GrokAdapte
       return yield* makeGrokAdapterV2({
         instanceId: input.instanceId,
         settings: { ...input.config, enabled: input.enabled },
-        environment: yield* mergeProviderInstanceEnvironment(input.environment, hostEnvironment),
+        environment: yield* mergeProviderInstanceEnvironment(
+          input.environment,
+          blankGrokApiKey(hostEnvironment),
+        ),
+        apiKeySelected: input.environment.some(
+          (entry) => entry.name === "XAI_API_KEY" && entry.value.trim().length > 0,
+        ),
         hostPlatform,
         selfInvocation,
         continuationRequests,

@@ -1,3 +1,4 @@
+import { createModelCapabilities } from "@t3tools/shared/model";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
@@ -73,7 +74,14 @@ function codexSnapshot(
       account: { type: "chatgpt", email: "a@example.com", planType: "pro" },
       requiresOpenaiAuth: false,
     },
-    models: [{ slug: "gpt-live", name: "GPT Live", isCustom: false }],
+    models: [
+      {
+        slug: "gpt-live",
+        name: "GPT Live",
+        isCustom: false,
+        capabilities: createModelCapabilities({ optionDescriptors: [] }),
+      },
+    ],
     skills: [],
     ...input,
   };
@@ -108,23 +116,25 @@ it.effect(
     }).pipe(Effect.provide(NodeServices.layer)),
 );
 
-it.effect("does not promote a missing Codex login to an API key when a metered key is present", () =>
-  Effect.gen(function* () {
-    const status = yield* checkCodexProviderStatus(
-      decodeCodexSettings({}),
-      () =>
-        Effect.succeed(
-          codexSnapshot({
-            account: { account: null, requiresOpenaiAuth: true },
-            models: [],
-          }),
-        ),
-      meteredCodexEnv,
-    );
-    assert.strictEqual(status.status, "error");
-    assert.strictEqual(status.auth.status, "unauthenticated");
-    assert.strictEqual(status.auth.type, undefined);
-  }).pipe(Effect.provide(NodeServices.layer)),
+it.effect(
+  "does not promote a missing Codex login to an API key when a metered key is present",
+  () =>
+    Effect.gen(function* () {
+      const status = yield* checkCodexProviderStatus(
+        decodeCodexSettings({}),
+        () =>
+          Effect.succeed(
+            codexSnapshot({
+              account: { account: null, requiresOpenaiAuth: true },
+              models: [],
+            }),
+          ),
+        meteredCodexEnv,
+      );
+      assert.strictEqual(status.status, "error");
+      assert.strictEqual(status.auth.status, "unauthenticated");
+      assert.strictEqual(status.auth.type, undefined);
+    }).pipe(Effect.provide(NodeServices.layer)),
 );
 
 it.effect("leaves a missing Codex model catalog and usage response unknown", () =>
@@ -140,31 +150,30 @@ it.effect("leaves a missing Codex model catalog and usage response unknown", () 
   }).pipe(Effect.provide(NodeServices.layer)),
 );
 
-it.effect(
-  "refuses to label a Claude subscription as an API key when the quota is exhausted",
-  () =>
-    Effect.gen(function* () {
-      const status = yield* checkClaudeProviderStatus(
-        decodeClaudeSettings({}),
-        claudeProbe({
-          subscriptionType: "pro",
-          tokenSource: "apiKey",
-          apiKeySource: "ANTHROPIC_API_KEY",
-          usage: {
-            rate_limits_available: true,
-            rate_limits: {
-              five_hour: { utilization: 100, resets_at: "2026-11-12T00:00:00Z" },
-            },
+it.effect("refuses to label a Claude subscription as an API key when the quota is exhausted", () =>
+  Effect.gen(function* () {
+    const status = yield* checkClaudeProviderStatus(
+      decodeClaudeSettings({}),
+      claudeProbe({
+        subscriptionType: "pro",
+        tokenSource: "apiKey",
+        apiKeySource: "ANTHROPIC_API_KEY",
+        usage: {
+          rate_limits_available: true,
+          rate_limits: {
+            five_hour: { utilization: 100, resets_at: "2026-11-12T00:00:00Z" },
           },
-        }),
-        { ANTHROPIC_API_KEY: "metered-test-key" },
-      );
-      assert.strictEqual(status.auth.status, "authenticated");
-      assert.strictEqual(status.auth.type, "pro");
-      assert.notStrictEqual(status.auth.type, "apiKey");
-      assert.ok(status.message?.includes("Refused automatic paid fallback"));
-      assert.strictEqual(status.usageLimits?.windows[0]?.usedPercent, 100);
-    }).pipe(Effect.provide(layerVersionSpawner), Effect.provide(NodeServices.layer)),
+        },
+      }),
+      { ANTHROPIC_API_KEY: "" },
+    );
+    assert.strictEqual(status.auth.status, "unknown");
+    assert.strictEqual(status.status, "error");
+    assert.strictEqual(status.auth.type, "pro");
+    assert.notStrictEqual(status.auth.type, "apiKey");
+    assert.ok(status.message?.includes("Refused automatic paid fallback"));
+    assert.strictEqual(status.usageLimits?.windows[0]?.usedPercent, 100);
+  }).pipe(Effect.provide(layerVersionSpawner), Effect.provide(NodeServices.layer)),
 );
 
 it.effect("records a refusal when a Claude subscription is present beside an API key", () =>
@@ -176,7 +185,7 @@ it.effect("records a refusal when a Claude subscription is present beside an API
         tokenSource: "none",
         apiKeySource: "ANTHROPIC_API_KEY",
       }),
-      { ANTHROPIC_API_KEY: "metered-test-key" },
+      { ANTHROPIC_API_KEY: "" },
     );
     assert.strictEqual(status.auth.type, "pro");
     assert.notStrictEqual(status.auth.type, "apiKey");
@@ -184,27 +193,43 @@ it.effect("records a refusal when a Claude subscription is present beside an API
   }).pipe(Effect.provide(layerVersionSpawner), Effect.provide(NodeServices.layer)),
 );
 
-it.effect("keeps a Claude API-key install on the API-key route when no subscription is reported", () =>
-  Effect.gen(function* () {
-    const status = yield* checkClaudeProviderStatus(
-      decodeClaudeSettings({}),
-      claudeProbe({
-        tokenSource: "apiKey",
-        apiKeySource: "ANTHROPIC_API_KEY",
-      }),
-    );
-    assert.strictEqual(status.auth.status, "authenticated");
-    assert.strictEqual(status.auth.type, "apiKey");
-    assert.strictEqual(status.message?.includes("Refused automatic paid fallback") ?? false, false);
-  }).pipe(Effect.provide(layerVersionSpawner), Effect.provide(NodeServices.layer)),
+it.effect(
+  "keeps a Claude API-key install on the API-key route when no subscription is reported",
+  () =>
+    Effect.gen(function* () {
+      const status = yield* checkClaudeProviderStatus(
+        decodeClaudeSettings({}),
+        claudeProbe({
+          tokenSource: "apiKey",
+          apiKeySource: "ANTHROPIC_API_KEY",
+        }),
+        { ANTHROPIC_API_KEY: "explicit-instance-key" },
+      );
+      assert.strictEqual(status.auth.status, "authenticated");
+      assert.strictEqual(status.auth.type, "apiKey");
+      assert.strictEqual(
+        status.message?.includes("Refused automatic paid fallback") ?? false,
+        false,
+      );
+    }).pipe(Effect.provide(layerVersionSpawner), Effect.provide(NodeServices.layer)),
 );
 
 it.effect("leaves a missing Claude account response unknown", () =>
   Effect.gen(function* () {
     const status = yield* checkClaudeProviderStatus(decodeClaudeSettings({}), () =>
-      Effect.succeed(undefined),
+      Effect.succeed(Option.getOrUndefined(Option.none<ClaudeCapabilitiesProbe>())),
     );
     assert.strictEqual(status.auth.status, "unknown");
+    assert.strictEqual(status.auth.type, undefined);
+    assert.strictEqual(status.usageLimits, undefined);
+  }).pipe(Effect.provide(layerVersionSpawner), Effect.provide(NodeServices.layer)),
+);
+
+it.effect("leaves a successful empty Claude account response unknown", () =>
+  Effect.gen(function* () {
+    const status = yield* checkClaudeProviderStatus(decodeClaudeSettings({}), claudeProbe({}));
+    assert.strictEqual(status.auth.status, "unknown");
+    assert.strictEqual(status.status, "warning");
     assert.strictEqual(status.auth.type, undefined);
     assert.strictEqual(status.usageLimits, undefined);
   }).pipe(Effect.provide(layerVersionSpawner), Effect.provide(NodeServices.layer)),

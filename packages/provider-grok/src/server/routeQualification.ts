@@ -10,6 +10,7 @@ export function grokCliAuthenticated(output: string): boolean | null {
 export function selectGrokProviderRoute(input: {
   readonly cliAuthenticated: boolean | null;
   readonly apiKeyPresent: boolean;
+  readonly apiKeySelected?: boolean;
 }): {
   readonly auth: {
     readonly status: "authenticated" | "unauthenticated" | "unknown";
@@ -19,25 +20,18 @@ export function selectGrokProviderRoute(input: {
   readonly useApiKey: boolean;
   readonly refusal?: string;
 } {
-  if (input.cliAuthenticated === null) {
-    return {
-      auth: { status: "unknown" },
-      useApiKey: false,
-      ...(input.apiKeyPresent ? { refusal: GROK_PAID_FALLBACK_REFUSAL } : {}),
-    };
-  }
-  if (input.cliAuthenticated) {
-    return {
-      auth: { status: "authenticated", type: "cached_token", label: "Grok account" },
-      useApiKey: false,
-      ...(input.apiKeyPresent ? { refusal: GROK_PAID_FALLBACK_REFUSAL } : {}),
-    };
-  }
-  if (input.apiKeyPresent) {
+  if (input.apiKeySelected && input.apiKeyPresent) {
     return {
       auth: { status: "authenticated", type: "api_key", label: "xAI API key" },
       useApiKey: true,
     };
   }
-  return { auth: { status: "unauthenticated" }, useApiKey: false };
+  return {
+    auth:
+      input.cliAuthenticated === true
+        ? { status: "authenticated", type: "cached_token", label: "Grok account" }
+        : { status: input.cliAuthenticated === false ? "unauthenticated" : "unknown" },
+    useApiKey: false,
+    ...(input.apiKeyPresent ? { refusal: GROK_PAID_FALLBACK_REFUSAL } : {}),
+  };
 }

@@ -8,7 +8,8 @@ import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
-import { expect } from "vite-plus/test";
+import { expect, vi, beforeEach } from "vite-plus/test";
+import { probeClaudeCapabilities } from "../provider/ClaudeProvider.ts";
 
 import * as ServerConfig from "../config.ts";
 import { processProbeSource } from "../testUtils/processProbe.ts";
@@ -22,6 +23,20 @@ import * as TextGeneration from "./TextGeneration.ts";
 import { sanitizeThreadTitle } from "@t3tools/provider-core/server/textGenerationUtils";
 import { makeClaudeTextGeneration } from "./ClaudeTextGeneration.ts";
 import { writeFakeCli } from "@t3tools/provider-testing/fakeCli";
+vi.mock("../provider/ClaudeProvider.ts", () => ({ probeClaudeCapabilities: vi.fn() }));
+beforeEach(() => {
+  vi.mocked(probeClaudeCapabilities).mockImplementation(() =>
+    Effect.succeed({
+      subscriptionType: "pro",
+      tokenSource: "claude.ai",
+      apiKeySource: "none",
+      apiProvider: "firstParty",
+      email: undefined,
+      slashCommands: [],
+    }),
+  );
+});
+
 const decodeClaudeSettings = Schema.decodeSync(ClaudeSettings);
 
 const layerClaudeTextGenerationTest = ServerConfig.ServerConfig.layerTest(process.cwd(), {
@@ -196,6 +211,36 @@ function withFakeClaudeEnv<A, E, R>(
 }
 
 it.layer(layerClaudeTextGenerationTest)("ClaudeTextGeneration", (it) => {
+  it.effect("refuses automatic title generation before launching a stored metered credential", () =>
+    Effect.gen(function* () {
+      vi.mocked(probeClaudeCapabilities).mockImplementation(() =>
+        Effect.succeed({
+          subscriptionType: "pro",
+          tokenSource: "apiKey",
+          apiKeySource: "/login managed key",
+          apiProvider: "firstParty",
+          email: undefined,
+          slashCommands: [],
+        }),
+      );
+      const result = yield* withFakeClaudeEnv(
+        { output: JSON.stringify({ structured_output: { title: "must not succeed" } }) },
+        (generation) =>
+          generation.generateThreadTitle({
+            cwd: process.cwd(),
+            message: "no billing fallback",
+            modelSelection: {
+              instanceId: ProviderInstanceId.make("claudeAgent"),
+              model: SYNTHETIC_CLAUDE_STANDARD_MODEL,
+            },
+          }),
+      ).pipe(Effect.result);
+      expect(result._tag).toBe("Failure");
+      if (result._tag === "Failure")
+        expect(result.failure.message).toContain("Refused automatic paid fallback");
+    }),
+  );
+
   it.effect(
     "keeps canonical built-in capabilities when a custom model collides with its alias",
     () =>

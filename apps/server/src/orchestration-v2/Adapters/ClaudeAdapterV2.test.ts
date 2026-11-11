@@ -1024,6 +1024,7 @@ const captureSdkExecutablePaths = Effect.fn("captureSdkExecutablePaths")(functio
 ) {
   const executablePaths: Array<string | undefined> = [];
   const taskToolEnvironment: Array<string | undefined> = [];
+  const sdkEnvironments: Array<NodeJS.ProcessEnv | undefined> = [];
   const adapter = yield* ClaudeAdapterV2.createClaudeAdapterV2(
     {
       instanceId: ClaudeAdapterV2.CLAUDE_DEFAULT_INSTANCE_ID,
@@ -1044,6 +1045,7 @@ const captureSdkExecutablePaths = Effect.fn("captureSdkExecutablePaths")(functio
       open: (input) =>
         Effect.sync(() => {
           executablePaths.push(input.options.pathToClaudeCodeExecutable);
+          sdkEnvironments.push(input.options.env);
           taskToolEnvironment.push(input.options.env?.CLAUDE_CODE_ENABLE_TODO_TOOLS);
           return {
             messages: Stream.never,
@@ -1084,10 +1086,79 @@ const captureSdkExecutablePaths = Effect.fn("captureSdkExecutablePaths")(functio
       attachments: [],
     }),
   );
-  return { executablePaths, taskToolEnvironment };
+  return { executablePaths, taskToolEnvironment, sdkEnvironments };
 });
 
 describe("ClaudeAdapterV2 executable path", () => {
+  it.effect.each([
+    [[], ""],
+    [[{ name: "ANTHROPIC_API_KEY", value: "", sensitive: true }], ""],
+    [
+      [{ name: "ANTHROPIC_API_KEY", value: "explicit-instance-key", sensitive: true }],
+      "explicit-instance-key",
+    ],
+  ] as const)(
+    "applies Claude instance credential choice after blanking host keys %j",
+    ([entries, expected]) =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const { sdkEnvironments } = yield* captureSdkExecutablePaths("/opt/claude/cli.js", [
+            ...entries,
+          ]).pipe(
+            Effect.provideService(HostProcess.Environment, {
+              PATH: "/usr/bin",
+              ANTHROPIC_API_KEY: "ambient-key",
+              ANTHROPIC_AUTH_TOKEN: "ambient-token",
+              ANTHROPIC_BASE_URL: "https://ambient.invalid",
+              CLAUDE_CODE_USE_BEDROCK: "1",
+              CLAUDE_CODE_USE_VERTEX: "1",
+              CLAUDE_CODE_USE_FOUNDRY: "1",
+            }),
+          );
+          assert.equal(sdkEnvironments[0]?.ANTHROPIC_API_KEY, expected);
+          assert.equal(sdkEnvironments[0]?.ANTHROPIC_AUTH_TOKEN, "");
+          assert.equal(sdkEnvironments[0]?.ANTHROPIC_BASE_URL, "");
+          for (const name of [
+            "CLAUDE_CODE_USE_BEDROCK",
+            "CLAUDE_CODE_USE_VERTEX",
+            "CLAUDE_CODE_USE_FOUNDRY",
+          ])
+            assert.equal(sdkEnvironments[0]?.[name], "0");
+        }).pipe(
+          Effect.provide(
+            Layer.mergeAll(IdAllocator.layer, McpProviderSessions.layer, NodeServices.layer),
+          ),
+        ),
+      ),
+  );
+
+  it.effect("keeps explicitly configured cloud and endpoint overrides at the SDK boundary", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const { sdkEnvironments } = yield* captureSdkExecutablePaths("/opt/claude/cli.js", [
+          { name: "ANTHROPIC_BASE_URL", value: "https://configured.invalid", sensitive: false },
+          { name: "CLAUDE_CODE_USE_BEDROCK", value: "1", sensitive: false },
+          { name: "ANTHROPIC_AUTH_TOKEN", value: "explicit-token", sensitive: true },
+        ]).pipe(
+          Effect.provideService(HostProcess.Environment, {
+            PATH: "/usr/bin",
+            ANTHROPIC_API_KEY: "ambient-key",
+            CLAUDE_CODE_USE_VERTEX: "1",
+          }),
+        );
+        assert.equal(sdkEnvironments[0]?.ANTHROPIC_BASE_URL, "https://configured.invalid");
+        assert.equal(sdkEnvironments[0]?.CLAUDE_CODE_USE_BEDROCK, "1");
+        assert.equal(sdkEnvironments[0]?.ANTHROPIC_AUTH_TOKEN, "explicit-token");
+        assert.equal(sdkEnvironments[0]?.ANTHROPIC_API_KEY, "");
+        assert.equal(sdkEnvironments[0]?.CLAUDE_CODE_USE_VERTEX, "0");
+      }).pipe(
+        Effect.provide(
+          Layer.mergeAll(IdAllocator.layer, McpProviderSessions.layer, NodeServices.layer),
+        ),
+      ),
+    ),
+  );
+
   it.effect("follows a bare claude on Windows to the npm package executable", () =>
     Effect.scoped(
       Effect.gen(function* () {
@@ -2194,9 +2265,22 @@ describe("ClaudeAdapterV2 native fork", () => {
   );
 });
 
-function makeFakeClaudeCli(answerSetServers = true) {
+function makeFakeClaudeCli(
+  answerSetServers = true,
+  account: Record<string, string> = {
+    subscriptionType: "pro",
+    tokenSource: "claude.ai",
+    apiKeySource: "none",
+    apiProvider: "firstParty",
+  },
+) {
   const spawns: Array<SpawnOptions> = [];
   const controlRequests: Array<object> = [];
+  const userMessages: Array<object> = [];
+  let receiveUser!: () => void;
+  const userReceived = new Promise<void>((resolve) => {
+    receiveUser = resolve;
+  });
   const stdins: Array<NodeStream.PassThrough> = [];
   const spawn = (options: SpawnOptions): SpawnedProcess => {
     spawns.push(options);
@@ -2220,6 +2304,10 @@ function makeFakeClaudeCli(answerSetServers = true) {
       for (let end = pending.indexOf("\n"); end >= 0; end = pending.indexOf("\n")) {
         const frame = JSON.parse(pending.slice(0, end));
         pending = pending.slice(end + 1);
+        if (frame.type === "user") {
+          userMessages.push(frame);
+          receiveUser();
+        }
         if (frame.type !== "control_request") continue;
         controlRequests.push(frame.request);
         const setServers = frame.request.subtype === "mcp_set_servers";
@@ -2227,7 +2315,7 @@ function makeFakeClaudeCli(answerSetServers = true) {
         const response = {
           subtype: "success",
           request_id: frame.request_id,
-          response: setServers ? { added: [], removed: [], errors: {} } : {},
+          response: setServers ? { added: [], removed: [], errors: {} } : { account },
         };
         stdout.write(`${JSON.stringify({ type: "control_response", response })}\n`);
       }
@@ -2239,7 +2327,7 @@ function makeFakeClaudeCli(answerSetServers = true) {
     return child;
   };
   const closed = () => stdins.length > 0 && stdins.every((stdin) => stdin.writableEnded);
-  return { spawn, spawns, controlRequests, closed };
+  return { spawn, spawns, controlRequests, userMessages, userReceived, closed };
 }
 
 describe("ClaudeAdapterV2 MCP credential channel", () => {
@@ -2251,6 +2339,11 @@ describe("ClaudeAdapterV2 MCP credential channel", () => {
   const openWith = (
     cli: ReturnType<typeof makeFakeClaudeCli>,
     native?: ProviderEventLoggers.EventNdjsonLogger,
+    environment: NodeJS.ProcessEnv = {
+      PATH: "/usr/bin",
+      ANTHROPIC_API_KEY: "",
+      ANTHROPIC_AUTH_TOKEN: "",
+    },
   ) =>
     Effect.gen(function* () {
       const runner = yield* ClaudeAdapterV2.ClaudeAgentSdkQueryRunner;
@@ -2263,7 +2356,7 @@ describe("ClaudeAdapterV2 MCP credential channel", () => {
             nativeThreadId: "native-thread-claude-mcp-channel",
             resume: false,
             cwd: null,
-            environment: { PATH: "/usr/bin" },
+            environment,
             mcpServers: { "invrt-code": t3McpServer },
           }),
           pathToClaudeCodeExecutable: "/opt/claude/cli.js",
@@ -2278,6 +2371,50 @@ describe("ClaudeAdapterV2 MCP credential channel", () => {
       }),
       Effect.provide(NodeServices.layer),
     );
+
+  it.effect.each([
+    {},
+    { tokenSource: "none", apiKeySource: "none", apiProvider: "firstParty" },
+    {
+      subscriptionType: "pro",
+      tokenSource: "apiKey",
+      apiKeySource: "/login managed key",
+      apiProvider: "firstParty",
+    },
+  ])("refuses a Claude prompt before queueing for unqualified subscription account %j", (account) =>
+    Effect.gen(function* () {
+      const cli = makeFakeClaudeCli(true, account);
+      const opened = yield* openWith(cli).pipe(Effect.exit);
+      if (Exit.isSuccess(opened)) yield* opened.value.close;
+      assert.isTrue(Exit.isFailure(opened));
+      if (Exit.isFailure(opened)) {
+        assert.include(String(opened.cause), "Refused automatic paid fallback");
+      }
+      assert.isTrue(cli.closed());
+      assert.lengthOf(cli.userMessages, 0);
+      assert.equal(cli.spawns[0]?.env.ANTHROPIC_API_KEY, "");
+      assert.equal(cli.spawns[0]?.env.ANTHROPIC_AUTH_TOKEN, "");
+    }),
+  );
+
+  it.effect("permits a deliberately configured Claude API key at the native SDK boundary", () =>
+    Effect.gen(function* () {
+      const cli = makeFakeClaudeCli(true, {
+        tokenSource: "apiKey",
+        apiKeySource: "ANTHROPIC_API_KEY",
+      });
+      const session = yield* openWith(cli, undefined, {
+        PATH: "/usr/bin",
+        ANTHROPIC_API_KEY: "explicit-instance-key",
+      });
+      yield* session.offer(ClaudeAdapterV2.makeClaudeUserMessage({ text: "offline fixture" }));
+      yield* Effect.promise(() => cli.userReceived);
+      yield* session.close;
+      assert.equal(cli.spawns[0]?.env.ANTHROPIC_API_KEY, "explicit-instance-key");
+      assert.lengthOf(cli.userMessages, 1);
+      assert.isTrue(cli.closed());
+    }),
+  );
 
   it.effect("commits queued delivery before interruptible protocol logging", () =>
     Effect.gen(function* () {

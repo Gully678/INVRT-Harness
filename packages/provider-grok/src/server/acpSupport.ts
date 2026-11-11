@@ -37,6 +37,7 @@ interface GrokAcpRuntimeInput extends Omit<
   readonly runtimeMode?: RuntimeMode;
   /** Set from `grok models`. Omit it only when this session has not qualified a subscription. */
   readonly cliAuthenticated?: boolean | null;
+  readonly apiKeySelected?: boolean;
 }
 
 export function grokSpawnEnvironment(
@@ -143,13 +144,18 @@ export const makeGrokAcpRuntime = Effect.fn("GrokAcpSupport.makeGrokAcpRuntime")
   const processGroupPlatform = yield* HostProcess.Platform.pipe(Effect.provide(NodeServices.layer));
   const { cliAuthenticated: suppliedLogin, ...runtimeInput } = input;
   const apiKeyPresent = Boolean(input.environment?.[GROK_API_KEY_ENV]?.trim());
-  // Callers that have not read the CLI login keep the explicit API-key route.
-  // Status passes the login result so an available, expired, or unknown
-  // subscription does not spawn on that key.
-  const useApiKey =
-    suppliedLogin === undefined
-      ? apiKeyPresent
-      : selectGrokProviderRoute({ cliAuthenticated: suppliedLogin, apiKeyPresent }).useApiKey;
+  const route = selectGrokProviderRoute({
+    cliAuthenticated: suppliedLogin ?? null,
+    apiKeyPresent,
+    apiKeySelected: input.apiKeySelected ?? false,
+  });
+  const useApiKey = route.useApiKey;
+  if (suppliedLogin !== undefined && route.auth.status !== "authenticated") {
+    return yield* new EffectAcpErrors.AcpTransportError({
+      detail: "Refused automatic paid fallback. Grok subscription login is unavailable or unknown",
+      cause: undefined,
+    });
+  }
   const acpContext = yield* Layer.build(
     AcpSessionRuntime.layer({
       ...runtimeInput,

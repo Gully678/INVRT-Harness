@@ -145,6 +145,10 @@ import { signalProcessGroup } from "@t3tools/provider-core/server/processGroup";
 import {
   claudeSignedOutMessage,
   makeClaudeEnvironment,
+  makeClaudeInstanceEnvironment,
+  claudeApiRouteSelected,
+  claudeSubscriptionAccountConfirmed,
+  CLAUDE_PAID_FALLBACK_REFUSAL,
   resolveClaudeHomePath,
 } from "../../provider/Drivers/ClaudeHome.ts";
 import {
@@ -165,7 +169,6 @@ import {
   type ClaudeScopedLimitNames,
 } from "../../provider/claudeUsageLimits.ts";
 import type { ManagedServerProvider } from "@t3tools/provider-core/server/snapshot";
-import { mergeProviderInstanceEnvironment } from "@t3tools/provider-core/server/instanceEnvironment";
 import { T3_CODE_ORCHESTRATION_INSTRUCTIONS } from "@t3tools/provider-core/server/orchestrationInstructions";
 import { buildRuntimeInstructions } from "@t3tools/provider-core/server/runtimeInstructions";
 import {
@@ -1006,6 +1009,20 @@ export const layerQueryRunner: Layer.Layer<
               Effect.tap((queryRuntime) =>
                 restore(
                   Effect.gen(function* () {
+                    if (!claudeApiRouteSelected(options.env)) {
+                      const account = yield* Effect.tryPromise({
+                        try: () => queryRuntime.accountInfo(),
+                        catch: (cause) => queryRunnerError(cause, "accountInfo"),
+                      });
+                      if (!claudeSubscriptionAccountConfirmed(account)) {
+                        return yield* new ClaudeAgentSdkQueryRunnerError({
+                          method: "accountInfo",
+                          cause: new Error(
+                            `${CLAUDE_PAID_FALLBACK_REFUSAL} Claude subscription authentication is unavailable or unknown.`,
+                          ),
+                        });
+                      }
+                    }
                     if (mcpServers !== undefined) {
                       // Errors and mcp_status can echo headers; log only server names.
                       const failed = yield* Effect.tryPromise(() =>
@@ -11016,7 +11033,7 @@ export const createClaudeAdapterV2 = Effect.fn("ClaudeAdapterV2Driver.create")(
     const queryRunner = yield* ClaudeAgentSdkQueryRunner;
     const serverConfig = yield* ServerConfig.ServerConfig;
     const continuationRequests = yield* ProviderContinuationRequests.ProviderContinuationRequests;
-    const baseEnvironment = yield* mergeProviderInstanceEnvironment(environment, hostEnvironment);
+    const baseEnvironment = yield* makeClaudeInstanceEnvironment(environment, hostEnvironment);
     const claudeEnvironment = yield* makeClaudeEnvironment(config, baseEnvironment);
     const path = yield* Path.Path;
     const crypto = yield* Crypto.Crypto;
