@@ -528,3 +528,36 @@ it.effect(
       }).pipe(Effect.provide(layerServices));
     }).pipe(Effect.provide(layerDatabase)),
 );
+
+it.effect("refuses a delete that reuses the create command before any child effect", () =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    yield* Effect.gen(function* () {
+      const service = yield* ProjectService.make;
+      const eventSink = yield* EventSink.EventSinkV2;
+      const projectId = ProjectId.make("project:delete-reused-command");
+      const threadId = ThreadId.make("thread:delete-reused-command");
+      const commandId = CommandId.make("command:create-then-delete");
+      yield* service.create({
+        commandId,
+        projectId,
+        title: "A",
+        workspaceRoot: "/work/delete-reused-command",
+      });
+      yield* eventSink.write({ events: [nativeThreadCreated(projectId, threadId)] });
+      const error = yield* service.delete({ commandId, projectId, force: true }).pipe(Effect.flip);
+      assert.instanceOf(error, ProjectService.ProjectOperationError);
+      const childEvents = yield* sql<{ readonly n: number }>`
+        SELECT count(*) AS n FROM orchestration_events
+        WHERE stream_id = ${threadId} AND event_type = 'thread.deleted'
+      `;
+      const effects = yield* sql<{ readonly n: number }>`
+        SELECT count(*) AS n FROM orchestration_v2_effect_outbox
+        WHERE thread_id = ${threadId}
+      `;
+      assert.equal(childEvents[0]?.n, 0);
+      assert.equal(effects[0]?.n, 0);
+      assert.isTrue(Option.isSome(yield* service.getById(projectId)));
+    }).pipe(Effect.provide(layerServices));
+  }).pipe(Effect.provide(layerDatabase)),
+);

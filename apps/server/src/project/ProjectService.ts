@@ -198,10 +198,12 @@ export const make = Effect.gen(function* () {
     readonly projectId?: ProjectId;
     readonly workspaceRoot: string;
     readonly createIfMissing?: boolean;
+    readonly allowMissing?: boolean;
   }) =>
     workspacePaths
       .normalizeWorkspaceRoot(input.workspaceRoot, {
         createIfMissing: input.createIfMissing ?? false,
+        ...(input.allowMissing === undefined ? {} : { allowMissing: input.allowMissing }),
       })
       .pipe(
         Effect.mapError(
@@ -360,14 +362,35 @@ export const make = Effect.gen(function* () {
     return Option.isNone(row) ? Option.none() : Option.some(yield* hydrate(row.value));
   });
 
+  const admitCommand = (command: ProjectCommand) =>
+    eventSink
+      .reserveProjectCommand({
+        commandId: command.commandId,
+        projectId: command.projectId,
+        commandType: command.type,
+        payloadDigest: commandPayloadDigest(command),
+      })
+      .pipe(
+        Effect.mapError(
+          (cause) =>
+            new ProjectOperationError({
+              operation: "dispatch-project-command",
+              projectId: command.projectId,
+              cause,
+            }),
+        ),
+      );
+
   const create: ProjectService["Service"]["create"] = Effect.fn("ProjectService.create")(
     function* (input) {
+      const createIfMissing = input.createWorkspaceRootIfMissing ?? false;
       const workspaceRoot = yield* normalizeWorkspaceRoot({
         projectId: input.projectId,
         workspaceRoot: input.workspaceRoot,
-        createIfMissing: input.createWorkspaceRootIfMissing ?? false,
+        createIfMissing: false,
+        allowMissing: createIfMissing,
       });
-      yield* commit({
+      const command: ProjectCommand = {
         type: "project.create",
         commandId: input.commandId,
         projectId: input.projectId,
@@ -377,7 +400,24 @@ export const make = Effect.gen(function* () {
           ? {}
           : { defaultModelSelection: input.defaultModelSelection }),
         ...(input.scripts === undefined ? {} : { scripts: input.scripts }),
-      });
+      };
+      const admission = yield* admitCommand(command);
+      yield* Effect.gen(function* () {
+        if (admission.phase === "open" && createIfMissing) {
+          yield* normalizeWorkspaceRoot({
+            projectId: input.projectId,
+            workspaceRoot,
+            createIfMissing: true,
+          });
+        }
+        yield* commit(command);
+      }).pipe(
+        Effect.tapError(() =>
+          admission.phase === "open"
+            ? eventSink.releaseProjectCommandClaim(command.commandId).pipe(Effect.ignore)
+            : Effect.void,
+        ),
+      );
       yield* projectEnrichment.invalidate([workspaceRoot]);
       return yield* readCommitted(input.projectId);
     },
@@ -535,10 +575,22 @@ export const make = Effect.gen(function* () {
       }
 
       const isFirstDelete = existing.value.deletedAt === null;
-      if (isFirstDelete) {
+      const command: ProjectCommand = {
+        type: "project.delete",
+        commandId: input.commandId,
+        projectId,
+      };
+      const admission = yield* admitCommand(command);
+      if (isFirstDelete && admission.phase === "open") {
         yield* deleteChildThreads(input);
       }
-      yield* commit({ type: "project.delete", commandId: input.commandId, projectId });
+      yield* commit(command).pipe(
+        Effect.tapError(() =>
+          admission.phase === "open"
+            ? eventSink.releaseProjectCommandClaim(command.commandId).pipe(Effect.ignore)
+            : Effect.void,
+        ),
+      );
       if (isFirstDelete) {
         yield* clearProjectSettingsOverrides(projectId);
       }

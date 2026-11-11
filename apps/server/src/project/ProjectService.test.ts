@@ -35,8 +35,13 @@ import * as ProjectService from "./ProjectService.ts";
 import * as RepositoryIdentityResolver from "./RepositoryIdentityResolver.ts";
 import { commandPayloadDigest } from "../orchestration-v2/CommandReceiptStore.ts";
 
+const createdWorkspaceRoots: Array<string> = [];
 const layerWorkspacePaths = Layer.succeed(WorkspacePaths.WorkspacePaths, {
-  normalizeWorkspaceRoot: (workspaceRoot) => Effect.succeed(workspaceRoot.replace(/\/$/, "")),
+  normalizeWorkspaceRoot: (workspaceRoot, options) => {
+    const normalized = workspaceRoot.replace(/\/$/, "");
+    if (options?.createIfMissing === true) createdWorkspaceRoots.push(normalized);
+    return Effect.succeed(normalized);
+  },
   resolveRelativePathWithinRoot: ({ workspaceRoot, relativePath }) =>
     Effect.succeed({ absolutePath: `${workspaceRoot}/${relativePath}`, relativePath }),
 });
@@ -541,6 +546,38 @@ it.layer(layerTest)("ProjectService", (it) => {
           otherBefore,
         );
       }),
+  );
+
+  it.effect("does not create a workspace when a create command id is already used", () =>
+    Effect.gen(function* () {
+      const service = yield* ProjectService.ProjectService;
+      const projectId = ProjectId.make("project:create-dir-once");
+      const commandId = CommandId.make("command:create-dir-once");
+      createdWorkspaceRoots.length = 0;
+      yield* service.create({
+        commandId,
+        projectId,
+        title: "A",
+        workspaceRoot: "/work/create-dir-once",
+        createWorkspaceRootIfMissing: true,
+      });
+      const createdBeforeRefusal = [...createdWorkspaceRoots];
+      const failure = yield* service
+        .create({
+          commandId,
+          projectId,
+          title: "B",
+          workspaceRoot: "/work/create-dir-unexpected",
+          createWorkspaceRootIfMissing: true,
+        })
+        .pipe(Effect.flip);
+      assert.instanceOf(failure, ProjectService.ProjectOperationError);
+      assert.deepEqual(createdWorkspaceRoots, createdBeforeRefusal);
+      assert.equal(
+        Option.getOrThrow(yield* service.getById(projectId)).workspaceRoot,
+        "/work/create-dir-once",
+      );
+    }),
   );
 
   it.effect("replays an identical rejected command and denies a changed payload", () =>

@@ -170,6 +170,15 @@ export interface EventSinkV2Shape {
     readonly rejectedAt: DateTime.Utc;
     readonly error: string;
   }) => Effect.Effect<CommandReceiptStore.CommandReceiptV2, EventSinkV2Error>;
+  readonly releaseProjectCommandClaim: (
+    commandId: CommandId,
+  ) => Effect.Effect<void, EventSinkV2Error>;
+  readonly reserveProjectCommand: (input: {
+    readonly commandId: CommandId;
+    readonly projectId: ProjectId;
+    readonly commandType: string;
+    readonly payloadDigest?: string;
+  }) => Effect.Effect<{ readonly phase: "open" | "complete" }, EventSinkV2Error>;
   readonly commitProjectCommand: (input: {
     readonly commandId: CommandId;
     readonly projectId: ProjectId;
@@ -771,7 +780,11 @@ const layerBase: Layer.Layer<
               ...(input.payloadDigest === undefined ? {} : { payloadDigest: input.payloadDigest }),
             };
             if (!(yield* commandReceipts.insertIfAbsent(reserved))) {
-              return { receipt: yield* existingProjectReceipt(input.commandId), event: undefined };
+              const existing = yield* existingProjectReceipt(input.commandId);
+              // Sequence 0 is the pre-effect claim. Finish that claim; anything else replays.
+              if (existing.status !== "accepted" || existing.resultSequence !== 0) {
+                return { receipt: existing, event: undefined };
+              }
             }
             const event = yield* eventStore.appendProjectEvent(input.event);
             yield* projectStore.apply(event);
@@ -785,6 +798,31 @@ const layerBase: Layer.Layer<
         return { receipt: result.receipt, committed: result.event !== undefined };
       },
     );
+
+    const reserveProjectCommandEffect = Effect.fn(
+      "orchestrationV2.EventSink.reserveProjectCommand",
+    )(function* (input: Parameters<EventSinkV2Shape["reserveProjectCommand"]>[0]) {
+      const now = yield* DateTime.now;
+      const reserved: CommandReceiptStore.ProjectCommandReceiptV2 = {
+        commandId: input.commandId,
+        projectId: input.projectId,
+        commandType: input.commandType,
+        acceptedAt: now,
+        resultSequence: 0,
+        status: "accepted",
+        error: null,
+        ...(input.payloadDigest === undefined ? {} : { payloadDigest: input.payloadDigest }),
+      };
+      return yield* sql.withTransaction(
+        Effect.gen(function* () {
+          if (yield* commandReceipts.insertIfAbsent(reserved)) return { phase: "open" as const };
+          const existing = yield* existingProjectReceipt(input.commandId);
+          return existing.status === "accepted" && existing.resultSequence === 0
+            ? { phase: "open" as const }
+            : { phase: "complete" as const };
+        }),
+      );
+    });
 
     const commitRejectedProjectCommandEffect = Effect.fn(
       "orchestrationV2.EventSink.commitRejectedProjectCommand",
@@ -801,9 +839,15 @@ const layerBase: Layer.Layer<
             error: input.error,
             ...(input.payloadDigest === undefined ? {} : { payloadDigest: input.payloadDigest }),
           };
-          return (yield* commandReceipts.insertIfAbsent(receipt))
-            ? receipt
-            : yield* existingProjectReceipt(input.commandId);
+          const inserted = yield* commandReceipts.insertIfAbsent(receipt);
+          if (inserted) return receipt;
+          const existing = yield* existingProjectReceipt(input.commandId);
+          // A sequence-0 row is only a claim. The refusal replaces it so the claim cannot replay as success.
+          if (existing.status === "accepted" && existing.resultSequence === 0) {
+            yield* commandReceipts.upsert(receipt);
+            return receipt;
+          }
+          return existing;
         }),
       );
     });
@@ -957,6 +1001,31 @@ const layerBase: Layer.Layer<
             (cause) =>
               new EventSinkWriteError({
                 commandId: input.commandId,
+                eventCount: 0,
+                cause,
+              }),
+          ),
+        ),
+      reserveProjectCommand: (input) =>
+        reserveProjectCommandEffect(input).pipe(
+          Effect.mapError((cause): EventSinkV2Error =>
+            isPayloadConflict(cause)
+              ? cause
+              : new EventSinkWriteError({ commandId: input.commandId, eventCount: 0, cause }),
+          ),
+        ),
+      releaseProjectCommandClaim: (commandId) =>
+        sql`
+          DELETE FROM orchestration_command_receipts
+          WHERE command_id = ${commandId}
+            AND status = 'accepted'
+            AND result_sequence = 0
+        `.pipe(
+          Effect.asVoid,
+          Effect.mapError(
+            (cause) =>
+              new EventSinkWriteError({
+                commandId,
                 eventCount: 0,
                 cause,
               }),
