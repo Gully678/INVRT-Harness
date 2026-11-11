@@ -50,10 +50,19 @@ const checkRoute = (modelsOutput: string | ReadonlyArray<string>) =>
     const directory = yield* fs.makeTempDirectoryScoped({ prefix: "grok-route-" });
     const logPath = NodePath.join(directory, "route.log");
     const binaryPath = writeRouteCli({ directory, logPath, modelsOutput });
+    const previousKey = process.env.XAI_API_KEY;
+    process.env.XAI_API_KEY = "xai-parent-key";
     const snapshot = yield* checkGrokProviderStatus(decodeGrokSettings({ enabled: true, binaryPath }), {
       ...process.env,
       XAI_API_KEY: "xai-test-key",
-    });
+    }).pipe(
+      Effect.ensuring(
+        Effect.sync(() => {
+          if (previousKey === undefined) delete process.env.XAI_API_KEY;
+          else process.env.XAI_API_KEY = previousKey;
+        }),
+      ),
+    );
     const log = yield* fs.readFileString(logPath);
     return { snapshot, log };
   });
@@ -67,10 +76,11 @@ it.effect("keeps a logged-in Grok subscription off the API key and strips it fro
       label: "Grok account",
     });
     expect(snapshot.message).toContain("Refused automatic paid fallback");
+    expect(log).toContain("key-absent --version");
     expect(log).toContain("key-absent models");
+    expect(log).toContain("key-absent inspect");
     expect(log).toContain("key-absent agent");
-    expect(log).not.toContain("key-present models");
-    expect(log).not.toContain("key-present agent");
+    expect(log).not.toContain("key-present");
   }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
 );
 
@@ -79,9 +89,11 @@ it.effect("refreshes an expired Grok subscription instead of falling through to 
     const { snapshot, log } = yield* checkRoute([LOGGED_OUT, LOGGED_IN]);
     expect(snapshot.auth.type).toBe("cached_token");
     expect(snapshot.message).toContain("Refused automatic paid fallback");
+    expect(log).toContain("key-absent --version");
     expect(log.match(/key-absent models/g)?.length).toBe(2);
+    expect(log).toContain("key-absent inspect");
     expect(log).toContain("key-absent agent");
-    expect(log).not.toContain("key-present agent");
+    expect(log).not.toContain("key-present");
   }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
 );
 
@@ -91,9 +103,11 @@ it.effect("keeps a missing Grok login response unknown instead of inventing API-
     expect(snapshot.auth.status).toBe("unknown");
     expect(snapshot.auth.type).toBeUndefined();
     expect(snapshot.message).toContain("Refused automatic paid fallback");
+    expect(log).toContain("key-absent --version");
     expect(log).toContain("key-absent models");
+    expect(log).toContain("key-absent inspect");
     expect(log).toContain("key-absent agent");
-    expect(log).not.toContain("key-present agent");
+    expect(log).not.toContain("key-present");
   }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
 );
 
@@ -107,7 +121,7 @@ it("keeps a logged-in subscription and a missing login off the API key", () => {
   expect(missing.auth).toEqual({ status: "unknown" });
   expect(missing.useApiKey).toBe(false);
   const env = grokSpawnEnvironment({ XAI_API_KEY: "xai-test-key", GROK_HOME: "/tmp/grok-a" }, false);
-  expect(env.XAI_API_KEY).toBeUndefined();
+  expect(env.XAI_API_KEY).toBe("");
   expect(env.GROK_HOME).toBe("/tmp/grok-a");
   expect(env.GROK_OAUTH2_REFERRER).toBe("invrt-code");
 });
@@ -121,7 +135,9 @@ it.effect("keeps a logged-out Grok CLI on an explicit API key", () =>
       label: "xAI API key",
     });
     expect(snapshot.message ?? "").not.toContain("Refused automatic paid fallback");
+    expect(log).toContain("key-absent --version");
     expect(log).toContain("key-absent models");
+    expect(log).toContain("key-present inspect");
     expect(log).toContain("key-present agent");
   }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
 );

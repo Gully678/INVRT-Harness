@@ -47,8 +47,13 @@ export function grokSpawnEnvironment(
     ...environment,
     [GROK_OAUTH2_REFERRER_ENV]: T3_CODE_OAUTH_REFERRER,
   };
-  if (!useApiKey) delete env[GROK_API_KEY_ENV];
+  if (!useApiKey) env[GROK_API_KEY_ENV] = "";
   return env;
+}
+
+/** Empty string overrides a parent `XAI_API_KEY`. Deleting the property does not. */
+export function blankGrokApiKey(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  return { ...environment, [GROK_API_KEY_ENV]: "" };
 }
 
 // grok agent treats settings-only acceptEdits as ask; it has no Auto-accept edits launch mode.
