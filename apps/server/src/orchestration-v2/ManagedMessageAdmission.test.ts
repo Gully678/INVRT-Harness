@@ -469,6 +469,44 @@ it.effect("conflicts when an accepted command id is reused with a different payl
   }).pipe(Effect.ensuring(Effect.sync(files.remove)));
 });
 
+it.effect("replays a pre-digest accepted row when the stored payload digest is null", () => {
+  const files = tempCase("pre-digest");
+  const effects = { count: 0, throwNext: false };
+  const paths = { directory: files.providerDirectory, marker: files.marker };
+  const admission = buildAdmission();
+  const command = message("cmd-ic03-pre-digest");
+  const clearDigest = Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    yield* sql`
+      UPDATE orchestration_command_policy_receipts
+      SET payload_digest = NULL
+      WHERE command_id = ${command.commandId}
+    `;
+  }).pipe(Effect.provide(persistence(files.dbPath)));
+  return Effect.gen(function* () {
+    const first = yield* Effect.exit(
+      withFile(files.dbPath, dispatchCommand(command), effects, paths, admission),
+    );
+    yield* clearDigest;
+    const replay = yield* Effect.exit(
+      withFile(files.dbPath, dispatchCommand(command), effects, paths, admission),
+    );
+    const changed = yield* Effect.exit(
+      withFile(
+        files.dbPath,
+        dispatchCommand({ ...command, text: "different text, no stored digest" }),
+        effects,
+        paths,
+        admission,
+      ),
+    );
+    assert.equal(first._tag, "Success");
+    assert.equal(replay._tag, "Success");
+    assert.equal(changed._tag, "Success");
+    assert.equal(effects.count, 1);
+  }).pipe(Effect.ensuring(Effect.sync(files.remove)));
+});
+
 it.effect("sends a managed guest message with the stored guest files", () => {
   const files = tempCase("guest");
   const effects = { count: 0, throwNext: false };

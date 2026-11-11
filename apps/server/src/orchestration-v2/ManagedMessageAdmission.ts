@@ -204,8 +204,8 @@ const replayResult: OrchestratorV2DispatchResult = {
 
 /**
  * Decides message.dispatch with resolveManagedRoute before any provider effect.
- * The same command id and payload replay the stored decision. A changed payload,
- * policy digest, or route conflicts. runDispatch is yielded only when the provider may run.
+ * The same command id replays a stored decision. A changed payload conflicts only
+ * when the stored digest is present and different. runDispatch is yielded only when the provider may run.
  */
 export const dispatchManagedMessage = Effect.fn("ManagedMessageAdmission.dispatchManagedMessage")(
   function* (
@@ -217,10 +217,11 @@ export const dispatchManagedMessage = Effect.fn("ManagedMessageAdmission.dispatc
     const resolved = resolveAdmission(admission);
     const payloadDigest = commandPayloadDigest(command);
 
-    if (
-      stored !== null &&
-      (stored.payloadDigest !== payloadDigest || !sameDecision(stored, resolved))
-    ) {
+    // A NULL digest is a pre-072 row. It cannot prove the payload, so it stays replayable.
+    // Two stored digests conflict only when both are present and different.
+    const payloadConflicts =
+      stored?.payloadDigest != null && stored.payloadDigest !== payloadDigest;
+    if (stored !== null && (payloadConflicts || !sameDecision(stored, resolved))) {
       return yield* new ManagedCommandPolicyConflictError({ commandId: command.commandId });
     }
     if (stored?.decision === "accepted") return replayResult;
