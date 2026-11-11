@@ -21,6 +21,7 @@ import * as RpcTest from "effect/rpc/RpcTest";
 import * as ServerConfig from "../config.ts";
 import * as EnvironmentAuth from "../auth/EnvironmentAuth.ts";
 import * as RpcAuthorization from "../auth/RpcAuthorization.ts";
+import * as SessionStore from "../auth/SessionStore.ts";
 import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
 import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
 import * as RuntimeLayer from "../orchestration-v2/runtimeLayer.ts";
@@ -205,6 +206,112 @@ it.effect(
       assert.deepEqual(createdRoots, [rootA, rootB]);
       assert.deepEqual(handled, [mutationA.commandId, mutationB.commandId, mutationB.commandId]);
     }).pipe(
+      Effect.provide(layer),
+      Effect.ensuring(Effect.sync(() => NodeFS.rmSync(tempDir, { recursive: true, force: true }))),
+    );
+  },
+);
+
+it.effect(
+  "refuses the same open project client after SessionStore.revoke and keeps the other session",
+  () => {
+    const tempDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "t3-project-open-socket-"));
+    const dbPath = NodePath.join(tempDir, "state.sqlite");
+    const rootA = NodePath.join(tempDir, "open-session-a");
+    const rootB = NodePath.join(tempDir, "open-session-b");
+    const refusedRoot = NodePath.join(tempDir, "open-session-a-retry");
+    const layer = layerFor(dbPath);
+    return Effect.scoped(
+      Effect.gen(function* () {
+        createdRoots.length = 0;
+        const sessions = yield* SessionStore.SessionStore;
+        const serverAuth = yield* EnvironmentAuth.EnvironmentAuth;
+        const projects = yield* ProjectService.ProjectService;
+        const handled: string[] = [];
+        const issuedA = yield* serverAuth.issueSession({
+          subject: "principal-alpha",
+          label: "alpha-desk",
+        });
+        const issuedB = yield* serverAuth.issueSession({
+          subject: "principal-bravo",
+          label: "bravo-desk",
+        });
+        const sessionA = yield* serverAuth.authenticateWebSocketUpgrade(
+          upgradeRequest(issuedA.token),
+          "rpc",
+        );
+        const sessionB = yield* serverAuth.authenticateWebSocketUpgrade(
+          upgradeRequest(issuedB.token),
+          "rpc",
+        );
+        const openClient = (session: EnvironmentAuth.AuthenticatedSession) =>
+          RpcTest.makeClient(group).pipe(
+            Effect.provide(
+              Layer.mergeAll(
+                group.toLayerHandler(WS_METHODS.projectsMutate, (input) =>
+                  Effect.sync(() => {
+                    handled.push(input.commandId);
+                  }).pipe(Effect.andThen(projectMutationOperation(projects, input))),
+                ),
+                RpcAuthorization.layer(session.scopes, undefined, {
+                  sessions,
+                  sessionId: session.sessionId,
+                }),
+              ),
+            ),
+          );
+        const clientA = yield* openClient(sessionA);
+        const clientB = yield* openClient(sessionB);
+        const mutationA: ProjectMutation = {
+          type: "project.create",
+          commandId: CommandId.make("command:open-session-a"),
+          projectId: ProjectId.make("project:open-session-a"),
+          title: "Open session A",
+          workspaceRoot: rootA,
+          createWorkspaceRootIfMissing: true,
+        };
+        const mutationB: ProjectMutation = {
+          type: "project.create",
+          commandId: CommandId.make("command:open-session-b"),
+          projectId: ProjectId.make("project:open-session-b"),
+          title: "Open session B",
+          workspaceRoot: rootB,
+          createWorkspaceRootIfMissing: true,
+        };
+        const createdA = yield* clientA[WS_METHODS.projectsMutate](mutationA);
+        assert.equal(createdA.workspaceRoot, rootA);
+        assert.equal(NodeFS.existsSync(rootA), true);
+        assert.deepEqual(handled, [mutationA.commandId]);
+        assert.equal(yield* sessions.revoke(sessionA.sessionId), true);
+
+        const retryA: ProjectMutation = {
+          type: "project.create",
+          commandId: CommandId.make("command:open-session-a-retry"),
+          projectId: ProjectId.make("project:open-session-a-retry"),
+          title: "Open session A retry",
+          workspaceRoot: refusedRoot,
+          createWorkspaceRootIfMissing: true,
+        };
+        const denied = yield* clientA[WS_METHODS.projectsMutate](retryA).pipe(Effect.flip);
+        const deniedText = errorText(denied);
+        assert.equal(denied._tag, "EnvironmentAuthorizationError");
+        assert.equal(denied.message, "The authenticated session is no longer active.");
+        assert.notInclude(deniedText, issuedB.token);
+        assert.notInclude(deniedText, sessionB.sessionId);
+        assert.notInclude(deniedText, "principal-bravo");
+        assert.notInclude(deniedText, "bravo-desk");
+        assert.notInclude(deniedText, rootB);
+        assert.equal(NodeFS.existsSync(refusedRoot), false);
+        assert.deepEqual(createdRoots, [rootA]);
+        assert.deepEqual(handled, [mutationA.commandId]);
+
+        const createdB = yield* clientB[WS_METHODS.projectsMutate](mutationB);
+        assert.equal(createdB.workspaceRoot, rootB);
+        assert.equal(NodeFS.existsSync(rootB), true);
+        assert.deepEqual(createdRoots, [rootA, rootB]);
+        assert.deepEqual(handled, [mutationA.commandId, mutationB.commandId]);
+      }),
+    ).pipe(
       Effect.provide(layer),
       Effect.ensuring(Effect.sync(() => NodeFS.rmSync(tempDir, { recursive: true, force: true }))),
     );
