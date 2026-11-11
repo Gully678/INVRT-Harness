@@ -2,12 +2,14 @@ import { remapComposerContextAttachments } from "@t3tools/shared/composerContext
 import { appendUserInputAttachmentPaths } from "../provider/userInputAttachments.ts";
 import type { ChatAttachment, OrchestrationV2Command } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import { resolveAttachmentPath } from "../attachmentStore.ts";
 import * as ServerConfig from "../config.ts";
 import * as Orchestrator from "./Orchestrator.ts";
 
 import * as AttachmentClaims from "./AttachmentClaims.ts";
+import { dispatchManagedMessage, ManagedMessageAdmission } from "./ManagedMessageAdmission.ts";
 import * as ThreadLaunch from "./ThreadLaunchService.ts";
 import * as ThreadManagement from "./ThreadManagementService.ts";
 
@@ -84,6 +86,12 @@ const withGuestAttachments = Effect.fn("ThreadMessageIntake.withGuestAttachments
 export const dispatchCommand = Effect.fn("ThreadMessageIntake.dispatchCommand")(function* (
   incoming: OrchestrationV2Command,
 ) {
+  // A caller-supplied policy port is decided before guest reads, attachment claims, or the provider.
+  // The live orchestrator has no FORGE port; commands without one keep the existing path.
+  if (incoming.type === "message.dispatch") {
+    const admission = yield* Effect.serviceOption(ManagedMessageAdmission);
+    if (Option.isSome(admission)) return yield* dispatchManagedMessage(incoming);
+  }
   const command =
     incoming.type === "message.dispatch" ? yield* withGuestAttachments(incoming) : incoming;
   const threads = yield* ThreadManagement.ThreadManagementService;
