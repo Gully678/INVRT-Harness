@@ -9,6 +9,7 @@ import * as NodeURL from "node:url";
 import { assert, it } from "@effect/vitest";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { CommandId, ProjectId, ProviderInstanceId } from "@t3tools/contracts";
+import * as Data from "effect/Data";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
@@ -922,6 +923,10 @@ const waitForPath = (path: string) =>
     return yield* Effect.die(`Timed out waiting for ${path}`);
   });
 
+class RaceChildSpawnError extends Data.TaggedError("RaceChildSpawnError")<{
+  readonly cause: unknown;
+}> {}
+
 const spawnRaceChild = (config: ProcessRaceConfig) => {
   const configPath = NodePath.join(NodePath.dirname(config.dbPath), `${config.role}.json`);
   NodeFS.writeFileSync(configPath, JSON.stringify(config));
@@ -934,30 +939,88 @@ const spawnRaceChild = (config: ProcessRaceConfig) => {
   child.stderr?.on("data", (chunk: string) => {
     stderr += chunk;
   });
-  const exited = Effect.callback<{
-    readonly code: number | null;
-    readonly signal: NodeJS.Signals | null;
-    readonly stderr: string;
-  }>((resume) => {
-    const onError = (error: Error) => resume(Effect.fail(error));
-    const onExit = (code: number | null, signal: NodeJS.Signals | null) =>
-      resume(Effect.succeed({ code, signal, stderr }));
-    child.once("error", onError);
-    child.once("exit", onExit);
-    return Effect.sync(() => {
-      child.removeListener("error", onError);
-      child.removeListener("exit", onExit);
-      if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+  const completion = new Promise<
+    | {
+        readonly _tag: "exit";
+        readonly code: number | null;
+        readonly signal: NodeJS.Signals | null;
+        readonly stderr: string;
+      }
+    | { readonly _tag: "error"; readonly error: Error }
+  >((resolve) => {
+    let spawnError: Error | undefined;
+    child.once("error", (error) => {
+      spawnError = error;
+    });
+    child.once("close", (code, signal) => {
+      resolve(
+        spawnError === undefined
+          ? { _tag: "exit", code, signal, stderr }
+          : { _tag: "error", error: spawnError },
+      );
     });
   });
+  const exited = Effect.tryPromise({
+    try: () =>
+      completion.then((result) => {
+        if (result._tag === "error") throw result.error;
+        return result;
+      }),
+    catch: (cause) => new RaceChildSpawnError({ cause }),
+  });
+  const kill = () => {
+    if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+  };
+  const stop = Effect.sync(kill).pipe(
+    Effect.andThen(Effect.promise(() => completion)),
+    Effect.asVoid,
+  );
+
   return {
+    child,
     exited,
     alive: () => child.exitCode === null && child.signalCode === null,
-    kill: () => {
-      if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
-    },
+    kill,
+    stop,
   };
 };
+
+it.effect("observes a child exit even when awaited after close", () => {
+  const tempDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "t3-project-child-exit-"));
+  return Effect.scoped(
+    Effect.gen(function* () {
+      const dbPath = NodePath.join(tempDir, "state.sqlite");
+      NodeFS.mkdirSync(dbPath);
+      const child = yield* Effect.acquireRelease(
+        Effect.sync(() =>
+          spawnRaceChild({
+            role: "race-create",
+            dbPath,
+            resultPath: NodePath.join(tempDir, "result.json"),
+            readyPath: NodePath.join(tempDir, "ready"),
+            releasePath: NodePath.join(tempDir, "release"),
+            commandId: "command:child-exit",
+            projectId: "project:child-exit",
+            title: "Child exit",
+            workspaceRoot: NodePath.join(tempDir, "root"),
+          }),
+        ),
+        (child) => child.stop,
+      );
+      yield* Effect.promise(
+        () => new Promise<void>((resolve) => child.child.once("close", () => resolve())),
+      );
+      const result = yield* Effect.raceFirst(
+        child.exited,
+        Effect.yieldNow.pipe(Effect.as("missed" as const)),
+      );
+      if (result === "missed") return assert.fail("Child exit was not observed");
+      assert.equal(result.code, 1);
+    }),
+  ).pipe(
+    Effect.ensuring(Effect.sync(() => NodeFS.rmSync(tempDir, { recursive: true, force: true }))),
+  );
+});
 
 const sqliteBusy = (error: unknown): boolean => {
   if (typeof error !== "object" || error === null) return false;
@@ -1056,20 +1119,17 @@ it.effect(
       title: "Root B",
       workspaceRoot: rootB,
     };
-    let stop = () => undefined;
+    let stop: Effect.Effect<void> = Effect.void;
     return Effect.gen(function* () {
       yield* migrateRaceDatabase(dbPath);
       const child = spawnRaceChild(childConfig);
-      stop = () => child.kill();
+      stop = child.stop;
       yield* waitForPath(childConfig.readyPath);
       assert.equal(NodeFS.existsSync(rootA), false);
       assert.equal(NodeFS.existsSync(rootB), false);
       assert.equal(writeLockIsBusy(dbPath), true);
       const observer = spawnRaceChild(observerConfig);
-      stop = () => {
-        child.kill();
-        observer.kill();
-      };
+      stop = Effect.all([child.stop, observer.stop], { concurrency: "unbounded", discard: true });
       yield* waitForPath(observerConfig.blockedPath ?? "");
       const blocked = JSON.parse(NodeFS.readFileSync(observerConfig.blockedPath ?? "", "utf8")) as {
         readonly busy: boolean;
@@ -1094,8 +1154,8 @@ it.effect(
       assert.equal(yield* createdEventCount(dbPath), 1);
     }).pipe(
       Effect.ensuring(
-        Effect.sync(() => {
-          stop();
+        Effect.gen(function* () {
+          yield* stop;
           NodeFS.rmSync(tempDir, { recursive: true, force: true });
         }),
       ),
@@ -1129,11 +1189,11 @@ it.effect("a live other process pid does not create a directory and a dead pid c
       createWorkspaceRootIfMissing: true,
     });
   }).pipe(Effect.provide(layer));
-  let stop = () => undefined;
+  let stop: Effect.Effect<void> = Effect.void;
   return Effect.gen(function* () {
     yield* migrateRaceDatabase(dbPath);
     const child = spawnRaceChild(config);
-    stop = () => child.kill();
+    stop = child.stop;
     yield* waitForPath(config.readyPath);
     const claim = yield* Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
@@ -1151,13 +1211,10 @@ it.effect("a live other process pid does not create a directory and a dead pid c
     assert.ok(claim, "the live process did not leave a sequence-0 claim");
     assert.match(String(claim.error), /^mkdir:[1-9][0-9]*$/);
     const claimedPid = Number(String(claim.error).slice("mkdir:".length));
-    let claimedPidIsLive = false;
-    try {
-      process.kill(claimedPid, 0);
-      claimedPidIsLive = true;
-    } catch {
-      claimedPidIsLive = false;
-    }
+    const claimedPidIsLive = yield* Effect.try({
+      try: () => process.kill(claimedPid, 0),
+      catch: () => false,
+    }).pipe(Effect.orElseSucceed(() => false));
     assert.equal(claimedPidIsLive, true);
     assert.equal(claim.resultSequence, 0);
     const blocked = yield* create.pipe(Effect.flip);
@@ -1184,8 +1241,8 @@ it.effect("a live other process pid does not create a directory and a dead pid c
     assert.equal(finished.created, 1);
   }).pipe(
     Effect.ensuring(
-      Effect.sync(() => {
-        stop();
+      Effect.gen(function* () {
+        yield* stop;
         NodeFS.rmSync(tempDir, { recursive: true, force: true });
       }),
     ),
@@ -1208,11 +1265,11 @@ it.effect("a killed reservation is recovered by the parent as one directory", ()
     title: "Recovered",
     workspaceRoot: root,
   };
-  let stop = () => undefined;
+  let stop: Effect.Effect<void> = Effect.void;
   return Effect.gen(function* () {
     yield* migrateRaceDatabase(dbPath);
     const child = spawnRaceChild(config);
-    stop = () => child.kill();
+    stop = child.stop;
     yield* waitForPath(config.readyPath);
     assert.equal(NodeFS.existsSync(root), false);
     child.kill();
@@ -1246,8 +1303,8 @@ it.effect("a killed reservation is recovered by the parent as one directory", ()
     assert.equal(finished.created, 1);
   }).pipe(
     Effect.ensuring(
-      Effect.sync(() => {
-        stop();
+      Effect.gen(function* () {
+        yield* stop;
         NodeFS.rmSync(tempDir, { recursive: true, force: true });
       }),
     ),

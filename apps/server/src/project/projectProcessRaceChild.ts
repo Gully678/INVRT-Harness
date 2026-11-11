@@ -1,11 +1,16 @@
 // Second OS process for project command races. The vitest parent spawns this file.
+// @effect-diagnostics-next-line nodeBuiltinImport:off -- This child coordinates real filesystem signals across processes.
 import * as NodeFS from "node:fs";
 import * as NodeSqlite from "node:sqlite";
+// @effect-diagnostics-next-line nodeBuiltinImport:off -- Watch the real parent directory for a cross-process signal.
+import * as NodePath from "node:path";
 
 import { CommandId, ProjectId } from "@t3tools/contracts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
 import * as SqlClient from "effect/sql/SqlClient";
 
 import * as ServerConfig from "../config.ts";
@@ -33,37 +38,61 @@ export interface ProcessRaceConfig {
   readonly workspaceRoot: string;
 }
 
+const waitForRelease = (releasePath: string) =>
+  Effect.callback<void>((resume) => {
+    const watcher = NodeFS.watch(NodePath.dirname(releasePath), () => {
+      if (NodeFS.existsSync(releasePath)) {
+        watcher.close();
+        resume(Effect.void);
+      }
+    });
+    watcher.once("error", (error) => {
+      watcher.close();
+      resume(Effect.die(error));
+    });
+    if (NodeFS.existsSync(releasePath)) {
+      watcher.close();
+      resume(Effect.void);
+    }
+    return Effect.sync(() => watcher.close());
+  });
+
+const encodeResult = Schema.encodeEffect(
+  Schema.fromJsonString(
+    Schema.Struct({
+      ok: Schema.Boolean,
+      workspaceRoot: Schema.String,
+      pid: Schema.Number,
+    }),
+  ),
+);
+
 const layerMetadata = Layer.merge(
   Layer.succeed(RepositoryIdentityResolver.RepositoryIdentityResolver, {
-    resolve: () => Effect.succeed(null),
+    resolve: Effect.fn("ProjectRace.resolveIdentity")(() => Effect.succeed(null)),
   }),
   Layer.succeed(ProjectFaviconResolver.ProjectFaviconResolver, {
-    invalidate: () => Effect.void,
-    resolvePath: () => Effect.succeed(null),
+    invalidate: Effect.fn("ProjectRace.invalidateFavicon")(() => Effect.void),
+    resolvePath: Effect.fn("ProjectRace.resolveFavicon")(() => Effect.succeed(null)),
   }),
 );
 
 const holdingPaths = (readyPath: string, releasePath: string) =>
   Layer.succeed(WorkspacePaths.WorkspacePaths, {
-    normalizeWorkspaceRoot: (workspaceRoot, options) =>
-      Effect.gen(function* () {
+    normalizeWorkspaceRoot: Effect.fn("ProjectRace.normalizeWorkspaceRoot")(
+      function* (workspaceRoot, options) {
         if (options?.createIfMissing === true) {
           NodeFS.writeFileSync(readyPath, `${process.pid}`);
-          yield* Effect.callback<void>((resume) => {
-            const timer = setInterval(() => {
-              if (NodeFS.existsSync(releasePath)) {
-                clearInterval(timer);
-                resume(Effect.void);
-              }
-            }, 15);
-            return Effect.sync(() => clearInterval(timer));
-          });
+          yield* waitForRelease(releasePath);
           NodeFS.mkdirSync(workspaceRoot, { recursive: true });
         }
         return workspaceRoot;
-      }),
-    resolveRelativePathWithinRoot: ({ workspaceRoot, relativePath }) =>
-      Effect.succeed({ absolutePath: `${workspaceRoot}/${relativePath}`, relativePath }),
+      },
+    ),
+    resolveRelativePathWithinRoot: Effect.fn("ProjectRace.resolveRelativePath")(
+      ({ workspaceRoot, relativePath }) =>
+        Effect.succeed({ absolutePath: `${workspaceRoot}/${relativePath}`, relativePath }),
+    ),
   });
 
 export const projectRaceLayer = (dbPath: string, workspacePaths = WorkspacePaths.layer) =>
@@ -116,7 +145,7 @@ const observeWriteLock = (dbPath: string): boolean => {
   }
 };
 
-const run = (config: ProcessRaceConfig) => {
+const run = async (config: ProcessRaceConfig) => {
   if (config.role === "lock-then-create") {
     if (config.blockedPath === undefined) {
       process.stderr.write("missing blocked path\n");
@@ -124,13 +153,12 @@ const run = (config: ProcessRaceConfig) => {
     }
     const busy = observeWriteLock(config.dbPath);
     NodeFS.writeFileSync(config.blockedPath, JSON.stringify({ busy }));
-    const started = Date.now();
-    while (!NodeFS.existsSync(config.releasePath)) {
-      if (Date.now() - started > 20_000) {
-        process.stderr.write("timed out waiting for the lock holder to release\n");
-        process.exit(2);
-      }
-      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 15);
+    const released = await Effect.runPromise(
+      waitForRelease(config.releasePath).pipe(Effect.timeoutOption("20 seconds")),
+    );
+    if (Option.isNone(released)) {
+      process.stderr.write("timed out waiting for the lock holder to release\n");
+      process.exit(2);
     }
   }
   if (config.role === "hold-live") {
@@ -157,8 +185,8 @@ const run = (config: ProcessRaceConfig) => {
       }).pipe(Effect.provide(projectRaceLayer(config.dbPath))),
     ).then(() => {
       NodeFS.writeFileSync(config.readyPath, `${process.pid}`);
-      // A pending promise does not keep Node alive. This timer does, until the parent kills us.
-      setInterval(() => undefined, 1_000_000);
+      // Keep this process alive until the parent kills it.
+      NodeFS.watch(config.readyPath, () => undefined);
       return new Promise<void>(() => undefined);
     });
   }
@@ -177,7 +205,7 @@ const run = (config: ProcessRaceConfig) => {
       });
       NodeFS.writeFileSync(
         config.resultPath,
-        JSON.stringify({ ok: true, workspaceRoot: created.workspaceRoot, pid: process.pid }),
+        yield* encodeResult({ ok: true, workspaceRoot: created.workspaceRoot, pid: process.pid }),
       );
     }).pipe(Effect.provide(layer)),
   );

@@ -1,5 +1,7 @@
+// @effect-diagnostics-next-line nodeBuiltinImport:off -- Temporary SQLite paths are created before their Effect layers.
 import * as NodeFS from "node:fs";
 import * as NodeOS from "node:os";
+// @effect-diagnostics-next-line nodeBuiltinImport:off -- Build the temporary SQLite path before its Effect layer exists.
 import * as NodePath from "node:path";
 
 import * as NodeServices from "@effect/platform-node/NodeServices";
@@ -706,7 +708,7 @@ it.effect("restarts after a reserved delete and retries the cascade once", () =>
     projectId,
     force: true as const,
   };
-  const provide = <A, E>(effect: Effect.Effect<A, E, Layer.Layer.Success<typeof layer>>) =>
+  const provide = <A, E>(effect: Effect.Effect<A, E, Layer.Success<typeof layer>>) =>
     effect.pipe(Effect.provide(layer));
   return Effect.gen(function* () {
     yield* provide(
@@ -790,7 +792,7 @@ it.effect(
     ] as const;
     const commandId = CommandId.make("command:cascade-file-partial");
     const input = { commandId, projectId, force: true as const };
-    const provide = <A, E>(effect: Effect.Effect<A, E, Layer.Layer.Success<typeof layer>>) =>
+    const provide = <A, E>(effect: Effect.Effect<A, E, Layer.Success<typeof layer>>) =>
       effect.pipe(Effect.provide(layer));
     return Effect.gen(function* () {
       const interrupted = yield* provide(
@@ -880,9 +882,7 @@ it.effect(
           `;
           const persistedCleanup = yield* readCleanup;
           assert.lengthOf(persistedCleanup, 3);
-          assert.isTrue(
-            persistedCleanup.every((effect) => effect.thread_id === removedThreadId),
-          );
+          assert.isTrue(persistedCleanup.every((effect) => effect.thread_id === removedThreadId));
           const [openReceipt] = yield* sql<{
             readonly status: string;
             readonly resultSequence: number;

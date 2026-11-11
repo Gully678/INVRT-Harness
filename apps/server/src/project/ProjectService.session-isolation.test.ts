@@ -1,14 +1,17 @@
 // No organisation column exists on sessions or command receipts. This test pins
 // session revocation at the websocket upgrade, then the RPC scope gate, then
 // ProjectService. It does not invent a multi-organisation tenancy model.
+// @effect-diagnostics-next-line nodeBuiltinImport:off -- Temporary SQLite paths are created before their Effect layers.
 import * as NodeFS from "node:fs";
 import * as NodeOS from "node:os";
+// @effect-diagnostics-next-line nodeBuiltinImport:off -- Build the temporary SQLite path before its Effect layer exists.
 import * as NodePath from "node:path";
 
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import {
   CommandId,
   ProjectId,
+  ProjectMutationError,
   WS_METHODS,
   WsRpcGroup,
   type ProjectMutation,
@@ -35,7 +38,14 @@ import * as ProjectService from "./ProjectService.ts";
 import * as RepositoryIdentityResolver from "./RepositoryIdentityResolver.ts";
 
 const group = WsRpcGroup.omit(
-  ...[...WsRpcGroup.requests.keys()].filter((tag) => tag !== WS_METHODS.projectsMutate),
+  ...[...WsRpcGroup.requests.keys()].filter(
+    (
+      tag,
+    ): tag is Exclude<
+      keyof typeof RpcAuthorization.RPC_REQUIRED_SCOPES,
+      typeof WS_METHODS.projectsMutate
+    > => tag !== WS_METHODS.projectsMutate,
+  ),
 );
 
 const createdRoots: string[] = [];
@@ -139,7 +149,20 @@ it.effect(
                   group.toLayerHandler(WS_METHODS.projectsMutate, (input) =>
                     Effect.sync(() => {
                       handled.push(input.commandId);
-                    }).pipe(Effect.andThen(projectMutationOperation(projects, input))),
+                    }).pipe(
+                      Effect.andThen(projectMutationOperation(projects, input)),
+                      Effect.mapError(
+                        (cause) =>
+                          new ProjectMutationError({
+                            commandId: input.commandId,
+                            message:
+                              cause._tag === "ProjectNotEmptyError"
+                                ? cause.message
+                                : "Failed to mutate project.",
+                            cause,
+                          }),
+                      ),
+                    ),
                   ),
                   RpcAuthorization.layer(session.scopes),
                 ),
@@ -251,7 +274,20 @@ it.effect(
                 group.toLayerHandler(WS_METHODS.projectsMutate, (input) =>
                   Effect.sync(() => {
                     handled.push(input.commandId);
-                  }).pipe(Effect.andThen(projectMutationOperation(projects, input))),
+                  }).pipe(
+                    Effect.andThen(projectMutationOperation(projects, input)),
+                    Effect.mapError(
+                      (cause) =>
+                        new ProjectMutationError({
+                          commandId: input.commandId,
+                          message:
+                            cause._tag === "ProjectNotEmptyError"
+                              ? cause.message
+                              : "Failed to mutate project.",
+                          cause,
+                        }),
+                    ),
+                  ),
                 ),
                 RpcAuthorization.layer(session.scopes, undefined, {
                   sessions,
