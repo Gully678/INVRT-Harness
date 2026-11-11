@@ -623,6 +623,7 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
         readonly t3Home: string | undefined;
         readonly cwd: string;
         readonly ambientHome: string | undefined;
+        readonly invrtCodeHome?: string | undefined;
       }) =>
         Effect.gen(function* () {
           let captured: Record<string, string | undefined> | undefined;
@@ -644,10 +645,12 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
             Effect.provideService(HostProcess.WorkingDirectory, input.cwd),
             // No ~/.t3 here, so these runs never seed from this machine's install.
             Effect.provideService(HostProcess.HomeDirectory, input.cwd),
-            Effect.provideService(
-              HostProcess.Environment,
-              input.ambientHome === undefined ? {} : { T3CODE_HOME: input.ambientHome },
-            ),
+            Effect.provideService(HostProcess.Environment, {
+              ...(input.ambientHome === undefined ? {} : { T3CODE_HOME: input.ambientHome }),
+              ...(input.invrtCodeHome === undefined
+                ? {}
+                : { INVRT_CODE_HOME: input.invrtCodeHome }),
+            }),
           );
 
           return captured?.INVRT_CODE_HOME;
@@ -676,6 +679,20 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
             ambientHome: "/home/user/.t3",
           });
           assert.equal(home, path.join(path.resolve(root), ".invrt-code"));
+        }).pipe(Effect.scoped),
+      );
+
+      it.effect("prefers INVRT_CODE_HOME over the worktree .invrt-code", () =>
+        Effect.gen(function* () {
+          const path = yield* Path.Path;
+          const root = yield* makeWorktree;
+          const home = yield* spawnedHome({
+            t3Home: undefined,
+            cwd: root,
+            ambientHome: "/home/user/.t3",
+            invrtCodeHome: "/tmp/invrt-code-home",
+          });
+          assert.equal(home, path.resolve("/tmp/invrt-code-home"));
         }).pipe(Effect.scoped),
       );
 
