@@ -305,18 +305,21 @@ const withFile = <A, E>(
 ) =>
   effect.pipe(
     Effect.provideService(ManagedMessageAdmission, admission),
-    Effect.provide(providerLayer(effects, paths)),
     Effect.provide(
-      ProviderReplayHarness.layerWithRegistry(
-        { name: "managed-receipt" },
-        ProviderAdapterRegistry.layerFromAdapters([]),
-        { databaseLayer: persistence(dbPath), runEffectWorker: false, recoverOnStartup: false },
-      ),
-    ),
-    Effect.provide(persistence(dbPath)),
-    Effect.provide(
-      ServerConfig.layerTest(process.cwd(), { prefix: "managed-intake-fixture-" }).pipe(
-        Layer.provideMerge(DocumentText.layer.pipe(Layer.provideMerge(NodeServices.layer))),
+      providerLayer(effects, paths).pipe(
+        Layer.provideMerge(
+          ProviderReplayHarness.layerWithRegistry(
+            { name: "managed-receipt" },
+            ProviderAdapterRegistry.layerFromAdapters([]),
+            { databaseLayer: persistence(dbPath), runEffectWorker: false, recoverOnStartup: false },
+          ),
+        ),
+        Layer.provideMerge(persistence(dbPath)),
+        Layer.provideMerge(
+          ServerConfig.layerTest(process.cwd(), { prefix: "managed-intake-fixture-" }).pipe(
+            Layer.provideMerge(DocumentText.layer.pipe(Layer.provideMerge(NodeServices.layer))),
+          ),
+        ),
       ),
     ),
   );
@@ -623,10 +626,12 @@ it.effect("sends a managed guest message with the stored guest files", () => {
     const exit = yield* Effect.exit(
       dispatchCommand(command).pipe(
         Effect.provideService(ManagedMessageAdmission, admission),
-        Effect.provide(layer),
-        Effect.provide(persistence(files.dbPath)),
         Effect.provide(
-          Layer.mock(OrchestratorV2)({ replayManagedMessage: () => Effect.succeedNone }),
+          Layer.mergeAll(
+            layer,
+            persistence(files.dbPath),
+            Layer.mock(OrchestratorV2)({ replayManagedMessage: () => Effect.succeedNone }),
+          ),
         ),
       ),
     );
@@ -682,10 +687,12 @@ it.effect("claims a pending attachment before the managed provider runs", () => 
     const exit = yield* Effect.exit(
       dispatchCommand(command).pipe(
         Effect.provideService(ManagedMessageAdmission, admission),
-        Effect.provide(layer),
-        Effect.provide(persistence(files.dbPath)),
         Effect.provide(
-          Layer.mock(OrchestratorV2)({ replayManagedMessage: () => Effect.succeedNone }),
+          Layer.mergeAll(
+            layer,
+            persistence(files.dbPath),
+            Layer.mock(OrchestratorV2)({ replayManagedMessage: () => Effect.succeedNone }),
+          ),
         ),
       ),
     );
@@ -717,10 +724,12 @@ it.effect("AUDIT rejects a dispatch selection outside its authorised route", () 
     const result = yield* Effect.exit(
       dispatchCommand(command).pipe(
         Effect.provideService(ManagedMessageAdmission, admission),
-        Effect.provide(dispatch),
-        Effect.provide(persistence(files.dbPath)),
         Effect.provide(
-          Layer.mock(OrchestratorV2)({ replayManagedMessage: () => Effect.succeedNone }),
+          Layer.mergeAll(
+            dispatch,
+            persistence(files.dbPath),
+            Layer.mock(OrchestratorV2)({ replayManagedMessage: () => Effect.succeedNone }),
+          ),
         ),
       ),
     );

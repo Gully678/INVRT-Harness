@@ -1706,8 +1706,8 @@ it.effect("rolls back a claimed attachment when the serialised route check refus
       ServerConfig.layerTest(process.cwd(), { prefix: "managed-route-rollback-" }).pipe(
         Layer.provideMerge(DocumentText.layer.pipe(Layer.provideMerge(NodeServices.layer))),
         Layer.provideMerge(ServerSettings.layerTest()),
+        Layer.provideMerge(layerTest),
       ),
     ),
-    Effect.provide(layerTest),
   ),
 );

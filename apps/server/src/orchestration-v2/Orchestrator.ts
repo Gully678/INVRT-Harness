@@ -1562,7 +1562,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         (candidate) => candidate.id === storedQueuedRun.userMessageId,
       );
       const policyState = yield* eventSink
-        .isManagedMessage({ threadId, messageId: storedQueuedRun.userMessageId })
+        .isManagedMessage({ threadId, runId: storedQueuedRun.id })
         .pipe(Effect.mapError((cause) => new OrchestratorProjectionError({ threadId, cause })));
       if (policyState === "unverified") {
         return yield* new OrchestratorProjectionError({
@@ -8446,7 +8446,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
     }
 
     const managed = yield* eventSink
-      .isManagedMessage({ threadId: command.threadId, messageId: queuedMessage.id })
+      .isManagedMessage({ threadId: command.threadId, runId: queuedRun.id })
       .pipe(
         Effect.mapError(
           (cause) =>
@@ -8846,7 +8846,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       });
     }
     const managed = yield* eventSink
-      .isManagedMessage({ threadId: command.threadId, messageId: queuedMessage.id })
+      .isManagedMessage({ threadId: command.threadId, runId: queuedRun.id })
       .pipe(
         Effect.mapError(
           (cause) =>

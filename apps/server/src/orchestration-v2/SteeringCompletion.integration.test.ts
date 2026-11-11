@@ -1592,6 +1592,125 @@ it.effect("FRESH preserves queued managed A when promotion would steer current B
   ),
 );
 
+it.effect("PF02 duplicate ordinary message ID keeps managed queued route", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const { started, steered, layer, startFirstTurn } =
+        yield* nextTurnSelectionHarness("duplicate-managed-queue");
+      yield* Effect.gen(function* () {
+        const orchestrator = yield* Orchestrator.OrchestratorV2;
+        const worker = yield* EffectWorker.OrchestrationEffectWorkerV2;
+        const threadId = yield* startFirstTurn;
+        const sql = yield* SqlClient.SqlClient;
+        // Model the durable admission row created before managed intake dispatch.
+        yield* sql`INSERT INTO orchestration_command_policy_receipts
+        (command_id, policy_id, policy_revision, policy_digest, route_id, payload_digest, decision)
+        VALUES ('duplicate-managed-queued-A', 'policy-A', 1, 'digest-A', 'A', 'payload-A', 'admitted')`;
+        const first = yield* orchestrator.getThreadProjection(threadId);
+        const target = first.runs.find((run) => run.status === "running")!;
+        yield* orchestrator
+          .dispatch({
+            type: "message.dispatch",
+            commandId: CommandId.make("duplicate-managed-queued-A"),
+            threadId,
+            messageId: target.userMessageId,
+            text: "queued content only for A",
+            attachments: [],
+            modelSelection: { ...runSelection, model: "admitted-A" },
+            dispatchMode: { type: "queue_after_active" },
+            createdBy: "user",
+            creationSource: "web",
+          })
+          .pipe(
+            Effect.provideService(ManagedRouteConstraint, {
+              routeId: "A",
+              providerInstanceRef: instanceId,
+              model: "admitted-A",
+              effort: "xhigh",
+            }),
+          );
+        const queued = yield* orchestrator.getThreadProjection(threadId);
+        const queuedRun = queued.runs.find((run) => run.status === "queued")!;
+        assert.equal(queuedRun.modelSelection.model, "admitted-A");
+        assert.equal(queued.thread.modelSelection.model, "test-model");
+        const result = yield* orchestrator
+          .dispatch({
+            type: "queued-message.promote-to-steer",
+            commandId: CommandId.make("fresh-managed-promotion"),
+            threadId,
+            queuedRunId: queuedRun.id,
+            targetRunId: target.id,
+          })
+          .pipe(Effect.result);
+        yield* worker.drain();
+        const after = yield* orchestrator.getThreadProjection(threadId);
+        assert.equal(
+          result._tag,
+          "Failure",
+          JSON.stringify({
+            result,
+            originalQueuedSelection: queuedRun.modelSelection,
+            originalThreadSelection: queued.thread.modelSelection,
+            started: started.map((input) => input.modelSelection),
+            steered,
+            queuedAfter: after.runs.find((run) => run.id === queuedRun.id)?.status,
+            targetAfter: after.runs.find((run) => run.id === target.id)?.modelSelection,
+          }),
+        );
+        assert.deepEqual(steered, []);
+        assert.equal(after.runs.find((run) => run.id === queuedRun.id)?.status, "queued");
+        const edit = yield* orchestrator
+          .dispatch({
+            type: "queued-run.edit",
+            commandId: CommandId.make("fresh-managed-edit"),
+            threadId,
+            runId: queuedRun.id,
+            text: "changed without admission",
+          })
+          .pipe(Effect.result);
+        assert.equal(edit._tag, "Failure");
+        const afterEdit = yield* orchestrator.getThreadProjection(threadId);
+        assert.equal(
+          afterEdit.messages.find((message) => message.id === queuedRun.userMessageId)?.text,
+          "queued content only for A",
+        );
+        const sink = yield* EventSink.EventSinkV2;
+        const now = yield* DateTime.now;
+        yield* sink.write({
+          events: [
+            ...afterEdit.runs.map((run) => ({
+              id: EventId.make(`origin-restart:${run.id}`),
+              type: "run.updated" as const,
+              threadId,
+              runId: run.id,
+              occurredAt: now,
+              payload: run.status === "queued"
+                ? { ...run, queueHeld: true }
+                : { ...run, status: "cancelled" as const, completedAt: now },
+            })),
+            ...afterEdit.providerTurns.map((turn) => ({
+              id: EventId.make(`origin-restart:${turn.id}`),
+              type: "provider-turn.updated" as const,
+              threadId,
+              occurredAt: now,
+              payload: { ...turn, status: "cancelled" as const, completedAt: now },
+            })),
+          ],
+        });
+        yield* orchestrator.dispatch({
+          type: "queued-run.start",
+          commandId: CommandId.make("origin-start"),
+          threadId,
+          runId: queuedRun.id,
+        });
+        yield* worker.drain();
+        assert.equal(started[1]?.runId, queuedRun.id);
+        assert.equal(started[1]?.modelSelection.model, "admitted-A");
+      }).pipe(Effect.provide(layer));
+    }),
+  ),
+);
+
 it.effect("FRESH prevents ordinary dispatch from consuming a failed managed reservation", () =>
   Effect.scoped(
     Effect.gen(function* () {

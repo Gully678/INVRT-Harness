@@ -294,18 +294,21 @@ const throughWebsocket = (
     >();
     return yield* dispatchCommand(command).pipe(Effect.provide(messageIntakeContext(base, local)));
   }).pipe(
-    Effect.provide(providerLayer(effects, marker)),
     Effect.provide(
-      ProviderReplayHarness.layerWithRegistry(
-        { name: "managed-ws-receipt" },
-        ProviderAdapterRegistry.layerFromAdapters([]),
-        { databaseLayer: persistence(dbPath), runEffectWorker: false, recoverOnStartup: false },
-      ),
-    ),
-    Effect.provide(persistence(dbPath)),
-    Effect.provide(
-      ServerConfig.layerTest(process.cwd(), { prefix: "managed-ws-intake-" }).pipe(
-        Layer.provideMerge(DocumentText.layer.pipe(Layer.provideMerge(NodeServices.layer))),
+      providerLayer(effects, marker).pipe(
+        Layer.provideMerge(
+          ProviderReplayHarness.layerWithRegistry(
+            { name: "managed-ws-receipt" },
+            ProviderAdapterRegistry.layerFromAdapters([]),
+            { databaseLayer: persistence(dbPath), runEffectWorker: false, recoverOnStartup: false },
+          ),
+        ),
+        Layer.provideMerge(persistence(dbPath)),
+        Layer.provideMerge(
+          ServerConfig.layerTest(process.cwd(), { prefix: "managed-ws-intake-" }).pipe(
+            Layer.provideMerge(DocumentText.layer.pipe(Layer.provideMerge(NodeServices.layer))),
+          ),
+        ),
       ),
     ),
   );

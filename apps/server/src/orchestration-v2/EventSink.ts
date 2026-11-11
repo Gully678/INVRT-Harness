@@ -227,7 +227,7 @@ export interface EventSinkV2Shape {
   readonly hasManagedCommand: (commandId: CommandId) => Effect.Effect<boolean, EventSinkV2Error>;
   readonly isManagedMessage: (input: {
     readonly threadId: ThreadId;
-    readonly messageId: string;
+    readonly runId: RunId;
   }) => Effect.Effect<"ordinary" | "bound" | "unverified", EventSinkV2Error>;
 }
 
@@ -681,7 +681,7 @@ const layerBase: Layer.Layer<
 
     const isManagedMessage = Effect.fn("EventSink.isManagedMessage")(function* (input: {
       readonly threadId: ThreadId;
-      readonly messageId: string;
+      readonly runId: RunId;
     }) {
       const rows = yield* sql<{ readonly state: "ordinary" | "bound" | "unverified" }>`
         SELECT CASE WHEN policy.command_id IS NULL THEN 'ordinary'
@@ -690,8 +690,8 @@ const layerBase: Layer.Layer<
         FROM orchestration_events AS event
         LEFT JOIN orchestration_command_policy_receipts AS policy ON policy.command_id = event.command_id
         WHERE event.aggregate_kind = 'thread' AND event.stream_id = ${input.threadId}
-          AND event.application_event_version = 2 AND event.event_type = 'message.updated'
-          AND json_extract(event.payload_json, '$.id') = ${input.messageId}
+          AND event.application_event_version = 2 AND event.event_type = 'run.created'
+          AND json_extract(event.payload_json, '$.id') = ${input.runId}
         ORDER BY event.sequence ASC LIMIT 1
       `.pipe(
         NodeSqliteClient.readOnly,
@@ -700,7 +700,7 @@ const layerBase: Layer.Layer<
       if (rows[0] === undefined) {
         return yield* new EventSinkStreamError({
           threadId: input.threadId,
-          cause: "Queued message origin is unavailable",
+          cause: "Queued run origin is unavailable",
         });
       }
       return rows[0].state;
