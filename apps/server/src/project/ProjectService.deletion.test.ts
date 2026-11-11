@@ -774,3 +774,195 @@ it.effect("restarts after a reserved delete and retries the cascade once", () =>
     Effect.ensuring(Effect.sync(() => NodeFS.rmSync(tempDir, { recursive: true, force: true }))),
   );
 });
+
+it.effect(
+  "reopens the sqlite file after a partial delete cascade and finishes that command once",
+  () => {
+    const tempDir = NodeFS.mkdtempSync(
+      NodePath.join(NodeOS.tmpdir(), "t3-project-cascade-file-partial-"),
+    );
+    const dbPath = NodePath.join(tempDir, "state.sqlite");
+    const layer = layerCascadeFile(dbPath);
+    const projectId = ProjectId.make("project:cascade-file-partial");
+    const threadIds = [
+      ThreadId.make("thread:cascade-file-a"),
+      ThreadId.make("thread:cascade-file-b"),
+    ] as const;
+    const commandId = CommandId.make("command:cascade-file-partial");
+    const input = { commandId, projectId, force: true as const };
+    const provide = <A, E>(effect: Effect.Effect<A, E, Layer.Layer.Success<typeof layer>>) =>
+      effect.pipe(Effect.provide(layer));
+    return Effect.gen(function* () {
+      const interrupted = yield* provide(
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+          const eventSink = yield* EventSink.EventSinkV2;
+          const projections = yield* ProjectionStore.ProjectionStoreV2;
+          yield* seedProject(projectId);
+          yield* eventSink.write({
+            events: threadIds.map((threadId) => nativeThreadCreated(projectId, threadId)),
+          });
+          const attempts: ThreadId[] = [];
+          const failingEventSink = EventSink.EventSinkV2.of({
+            ...eventSink,
+            commitCommand: Effect.fn("ProjectDeletionTest.failSecondChildOnFile")(function* (
+              command: Parameters<EventSink.EventSinkV2Shape["commitCommand"]>[0],
+            ) {
+              attempts.push(command.threadId);
+              if (attempts.length === 2) {
+                return yield* new EventSink.EventSinkWriteError({
+                  commandId: command.commandId,
+                  eventCount: command.events.length,
+                  cause: new Error("Injected failure for the second child"),
+                });
+              }
+              return yield* eventSink.commitCommand(command);
+            }),
+          });
+          const service = yield* ProjectService.make.pipe(
+            Effect.provideService(EventSink.EventSinkV2, failingEventSink),
+          );
+          const failure = yield* service.delete(input).pipe(Effect.flip);
+          assert.instanceOf(failure, ProjectService.ProjectOperationError);
+          if (failure._tag !== "ProjectOperationError") {
+            return assert.fail("Expected the cascade to stop on the second child");
+          }
+          assert.equal(failure.operation, "delete-thread");
+          assert.lengthOf(attempts, 2);
+          const removedThreadId = attempts[0] ?? assert.fail("The first child was not removed");
+          const remainingThreadId = attempts[1] ?? assert.fail("The second child was not reached");
+          assert.notEqual(removedThreadId, remainingThreadId);
+          assert.isNull(Option.getOrThrow(yield* service.getById(projectId)).deletedAt);
+          assert.isNotNull(
+            (yield* projections.getThreadProjection(removedThreadId)).thread.deletedAt,
+          );
+          assert.isNull(
+            (yield* projections.getThreadProjection(remainingThreadId)).thread.deletedAt,
+          );
+          const [receipt] = yield* sql<{
+            readonly status: string;
+            readonly resultSequence: number;
+          }>`
+            SELECT status, result_sequence AS "resultSequence"
+            FROM orchestration_command_receipts
+            WHERE command_id = ${commandId}
+          `;
+          assert.equal(receipt?.status, "accepted");
+          assert.equal(receipt?.resultSequence, 0);
+          const [projectEvent] = yield* sql<{ readonly n: number }>`
+            SELECT COUNT(*) AS n FROM orchestration_events
+            WHERE event_type = 'project.deleted' AND stream_id = ${projectId}
+          `;
+          assert.equal(projectEvent?.n, 0);
+          return { removedThreadId, remainingThreadId };
+        }),
+      );
+
+      yield* provide(
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+          const service = yield* ProjectService.make;
+          const projections = yield* ProjectionStore.ProjectionStoreV2;
+          const { removedThreadId, remainingThreadId } = interrupted;
+          const readCleanup = sql<{
+            readonly effect_id: string;
+            readonly thread_id: string;
+            readonly command_id: string;
+            readonly effect_type: string;
+            readonly status: string;
+            readonly created_at: string;
+            readonly updated_at: string;
+          }>`
+            SELECT effect_id, thread_id, command_id, effect_type, status, created_at, updated_at
+            FROM orchestration_v2_effect_outbox
+            WHERE thread_id IN (${threadIds[0]}, ${threadIds[1]})
+            ORDER BY effect_id ASC
+          `;
+          const persistedCleanup = yield* readCleanup;
+          assert.lengthOf(persistedCleanup, 3);
+          assert.isTrue(
+            persistedCleanup.every((effect) => effect.thread_id === removedThreadId),
+          );
+          const [openReceipt] = yield* sql<{
+            readonly status: string;
+            readonly resultSequence: number;
+          }>`
+            SELECT status, result_sequence AS "resultSequence"
+            FROM orchestration_command_receipts
+            WHERE command_id = ${commandId}
+          `;
+          assert.equal(openReceipt?.status, "accepted");
+          assert.equal(openReceipt?.resultSequence, 0);
+          assert.isNull(Option.getOrThrow(yield* service.getById(projectId)).deletedAt);
+          assert.isNotNull(
+            (yield* projections.getThreadProjection(removedThreadId)).thread.deletedAt,
+          );
+          assert.isNull(
+            (yield* projections.getThreadProjection(remainingThreadId)).thread.deletedAt,
+          );
+
+          const deleted = yield* service.delete(input);
+          assert.isNotNull(deleted.deletedAt);
+          assert.isTrue(Option.isNone(yield* service.getById(projectId)));
+          for (const threadId of threadIds) {
+            const [childEvents] = yield* sql<{ readonly n: number }>`
+              SELECT COUNT(*) AS n FROM orchestration_events
+              WHERE event_type = 'thread.deleted' AND stream_id = ${threadId}
+            `;
+            assert.equal(childEvents?.n, 1);
+            assert.isNotNull((yield* projections.getThreadProjection(threadId)).thread.deletedAt);
+          }
+          const [projectEvents] = yield* sql<{ readonly n: number }>`
+            SELECT COUNT(*) AS n FROM orchestration_events
+            WHERE event_type = 'project.deleted' AND command_id = ${commandId}
+          `;
+          assert.equal(projectEvents?.n, 1);
+          const receipts = yield* sql<{
+            readonly status: string;
+            readonly resultSequence: number;
+          }>`
+            SELECT status, result_sequence AS "resultSequence"
+            FROM orchestration_command_receipts
+            WHERE command_id = ${commandId}
+          `;
+          assert.lengthOf(receipts, 1);
+          assert.equal(receipts[0]?.status, "accepted");
+          assert.notEqual(receipts[0]?.resultSequence, 0);
+          const finishedCleanup = yield* readCleanup;
+          assert.deepEqual(
+            finishedCleanup.filter((effect) => effect.thread_id === removedThreadId),
+            persistedCleanup,
+          );
+          const remainingCleanup = finishedCleanup.filter(
+            (effect) => effect.thread_id === remainingThreadId,
+          );
+          assert.lengthOf(remainingCleanup, 3);
+          const remainingCommandId = `${commandId}:delete-thread:${remainingThreadId}`;
+          assert.deepEqual(
+            remainingCleanup.map((effect) => effect.effect_type),
+            ["preview.cleanup", "scheduled-tasks.cleanup", "terminal.cleanup"],
+          );
+          assert.isTrue(
+            remainingCleanup.every(
+              (effect) => effect.command_id === remainingCommandId && effect.status === "pending",
+            ),
+          );
+
+          const replay = yield* service.delete(input);
+          assert.isNotNull(replay.deletedAt);
+          assert.deepEqual(yield* readCleanup, finishedCleanup);
+          assert.deepEqual(
+            yield* sql`
+              SELECT status, result_sequence AS "resultSequence"
+              FROM orchestration_command_receipts
+              WHERE command_id = ${commandId}
+            `,
+            receipts,
+          );
+        }),
+      );
+    }).pipe(
+      Effect.ensuring(Effect.sync(() => NodeFS.rmSync(tempDir, { recursive: true, force: true }))),
+    );
+  },
+);
