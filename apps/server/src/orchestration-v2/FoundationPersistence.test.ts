@@ -1522,6 +1522,226 @@ it.layer(layerTest)("orchestration V2 foundation persistence", (it) => {
     }),
   );
 
+  it.effect("denies a second payload under an already used command id", () =>
+    Effect.gen(function* () {
+      const receipts = yield* CommandReceiptStore.CommandReceiptStoreV2;
+      const now = yield* DateTime.now;
+      const commandId = CommandId.make("command:foundation-digest-conflict");
+      const receipt = {
+        commandId,
+        threadId: ThreadId.make("thread:foundation-digest-conflict"),
+        commandType: "foundation.digest",
+        acceptedAt: now,
+        resultSequence: 1,
+        status: "accepted" as const,
+        error: null,
+      };
+      assert.isTrue(
+        yield* receipts.insertIfAbsent({ ...receipt, payloadDigest: "digest:first-payload" }),
+      );
+      const conflict = yield* Effect.flip(
+        receipts.insertIfAbsent({ ...receipt, payloadDigest: "digest:other-payload" }),
+      );
+      assert.equal(conflict._tag, "CommandReceiptPayloadConflictError");
+    }),
+  );
+
+  it.effect("admits exactly one concurrent writer per command id", () =>
+    Effect.gen(function* () {
+      const receipts = yield* CommandReceiptStore.CommandReceiptStoreV2;
+      const now = yield* DateTime.now;
+      const commandId = CommandId.make("command:foundation-concurrent-writers");
+      const receipt = {
+        commandId,
+        threadId: ThreadId.make("thread:foundation-concurrent-writers"),
+        commandType: "foundation.concurrent",
+        acceptedAt: now,
+        resultSequence: 1,
+        status: "accepted" as const,
+        error: null,
+        payloadDigest: "digest:concurrent",
+      };
+      const first = yield* receipts.insertIfAbsent(receipt).pipe(Effect.forkChild);
+      const second = yield* receipts.insertIfAbsent(receipt).pipe(Effect.forkChild);
+      const outcomes = yield* Effect.all([Fiber.join(first), Fiber.join(second)]);
+      // One winner inserts; the loser observes the valid replay outcome, not a conflict.
+      assert.deepEqual(outcomes.sort(), [false, true]);
+    }),
+  );
+
+  it.effect("keeps thread and project receipts from satisfying each other's replay", () =>
+    Effect.gen(function* () {
+      const receipts = yield* CommandReceiptStore.CommandReceiptStoreV2;
+      const now = yield* DateTime.now;
+      const threadCommandId = CommandId.make("command:foundation-aggregate-isolation");
+      assert.isTrue(
+        yield* receipts.insertIfAbsent({
+          commandId: threadCommandId,
+          threadId: ThreadId.make("thread:foundation-aggregate-isolation"),
+          commandType: "foundation.isolation",
+          acceptedAt: now,
+          resultSequence: 1,
+          status: "accepted" as const,
+          error: null,
+        }),
+      );
+      assert.isTrue(Option.isNone(yield* receipts.getProjectByCommandId(threadCommandId)));
+      const projectCommandId = CommandId.make("command:foundation-aggregate-isolation-project");
+      assert.isTrue(
+        yield* receipts.insertIfAbsent({
+          commandId: projectCommandId,
+          projectId: ProjectId.make("project:foundation-aggregate-isolation"),
+          commandType: "project.meta.update",
+          acceptedAt: now,
+          resultSequence: 1,
+          status: "accepted" as const,
+          error: null,
+        }),
+      );
+      assert.isTrue(Option.isNone(yield* receipts.getByCommandId(projectCommandId)));
+    }),
+  );
+
+  it.effect("loads a pre-digest receipt and keeps its retries replayable", () =>
+    Effect.gen(function* () {
+      const receipts = yield* CommandReceiptStore.CommandReceiptStoreV2;
+      const sql = yield* SqlClient.SqlClient;
+      const commandId = CommandId.make("command:foundation-old-format");
+      yield* sql`
+        INSERT INTO orchestration_command_receipts (
+          command_id, aggregate_kind, aggregate_id, command_type, accepted_at,
+          result_sequence, status, error
+        ) VALUES (
+          ${commandId}, 'thread', 'thread:foundation-old-format', 'foundation.old-format',
+          '2026-11-11T00:00:00.000Z', 1, 'accepted', NULL
+        )
+      `;
+      const loaded = yield* receipts.getByCommandId(commandId);
+      const receipt = Option.getOrThrow(loaded);
+      assert.equal(receipt.commandType, "foundation.old-format");
+      assert.isUndefined(receipt.payloadDigest);
+      // The stored digest is NULL, so a new digest cannot prove different content.
+      assert.isFalse(
+        yield* receipts.insertIfAbsent({
+          commandId,
+          threadId: ThreadId.make("thread:foundation-old-format"),
+          commandType: "foundation.old-format",
+          acceptedAt: receipt.acceptedAt,
+          resultSequence: receipt.resultSequence,
+          status: "accepted",
+          error: null,
+          payloadDigest: "digest:new-payload",
+        }),
+      );
+    }),
+  );
+
+  it.effect("denies a stale-revision command and leaves its identity usable", () =>
+    Effect.gen(function* () {
+      const eventSink = yield* EventSink.EventSinkV2;
+      const receipts = yield* CommandReceiptStore.CommandReceiptStoreV2;
+      const now = yield* DateTime.now;
+      const commandId = CommandId.make("command:foundation-stale-revision");
+      const threadId = ThreadId.make("thread:foundation-stale-revision");
+      const runId = RunId.make("run:foundation-stale-revision");
+      const attemptId = RunAttemptId.make("attempt:foundation-stale-revision");
+      const thread = makeThread(threadId, now);
+      const run: OrchestrationV2Run = {
+        id: runId,
+        threadId,
+        ordinal: 1,
+        providerInstanceId,
+        modelSelection,
+        providerThreadId: null,
+        userMessageId: MessageId.make("message:foundation-stale-revision"),
+        rootNodeId: null,
+        activeAttemptId: attemptId,
+        status: "starting",
+        queuePosition: null,
+        requestedAt: now,
+        startedAt: null,
+        completedAt: null,
+        checkpointId: null,
+        contextHandoffId: null,
+      };
+      yield* eventSink.write({
+        events: [
+          threadCreatedEvent({ id: "event:foundation-stale-revision:thread", thread, now }),
+          {
+            id: EventId.make("event:foundation-stale-revision:run"),
+            type: "run.created",
+            threadId,
+            runId,
+            providerInstanceId,
+            occurredAt: now,
+            payload: run,
+          },
+        ],
+      });
+      const transition = yield* eventSink.writeIfRunCurrent({
+        threadId,
+        runId,
+        activeAttemptId: attemptId,
+        expectedStatus: "starting",
+        events: [
+          {
+            id: EventId.make("event:foundation-stale-revision:running"),
+            type: "run.updated",
+            threadId,
+            runId,
+            providerInstanceId,
+            occurredAt: now,
+            payload: { ...run, status: "running" as const },
+          },
+        ],
+      });
+      assert.isTrue(transition.committed);
+
+      const stale = yield* eventSink.writeIfRunCurrent({
+        threadId,
+        runId,
+        activeAttemptId: attemptId,
+        expectedStatus: "starting",
+        commandId,
+        events: [
+          {
+            id: EventId.make("event:foundation-stale-revision:stale"),
+            type: "run.updated",
+            threadId,
+            runId,
+            providerInstanceId,
+            occurredAt: now,
+            payload: { ...run, status: "completed" as const },
+          },
+        ],
+      });
+      assert.isFalse(stale.committed);
+      assert.deepEqual(stale.storedEvents, []);
+      // The denial must not consume the command identity: no receipt exists for it.
+      assert.isTrue(Option.isNone(yield* receipts.getByCommandId(commandId)));
+
+      const committed = yield* eventSink.commitCommand({
+        commandId,
+        threadId,
+        commandType: "foundation.stale-revision",
+        acceptedAt: now,
+        events: [
+          {
+            id: EventId.make("event:foundation-stale-revision:accepted"),
+            type: "run.updated",
+            threadId,
+            runId,
+            providerInstanceId,
+            occurredAt: now,
+            payload: { ...run, status: "completed" as const },
+          },
+        ],
+        effects: [],
+      });
+      assert.isTrue(committed.committed);
+    }),
+  );
+
   it.effect("does not publish a stale provider start after an interrupt wins", () =>
     Effect.gen(function* () {
       const eventSink = yield* EventSink.EventSinkV2;

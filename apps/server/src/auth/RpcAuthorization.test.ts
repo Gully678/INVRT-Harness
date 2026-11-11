@@ -5,6 +5,7 @@ import {
   AuthProvidersManageScope,
   AuthSettingsWriteScope,
   DEFAULT_SERVER_SETTINGS,
+  ProjectId,
   ProviderInstanceId,
   ThreadId,
   AuthOrchestrationOperateScope,
@@ -369,5 +370,40 @@ it.effect("denies manual cleanup before the handler without settings permission"
       requiredPermission: AuthSettingsWriteScope,
     });
     expect(handled).toBe(false);
+  }).pipe(Effect.scoped),
+);
+
+it.effect("denies a command mutation once its operate scope is revoked", () =>
+  Effect.gen(function* () {
+    const group = WsRpcGroup.omit(
+      ...[...WsRpcGroup.requests.keys()].filter(
+        (
+          tag,
+        ): tag is Exclude<keyof typeof RPC_REQUIRED_SCOPES, typeof WS_METHODS.projectsCreateNew> =>
+          tag !== WS_METHODS.projectsCreateNew,
+      ),
+    );
+    let handled = 0;
+    const client = yield* RpcTest.makeClient(group).pipe(
+      Effect.provide(
+        Layer.mergeAll(
+          group.toLayerHandler(WS_METHODS.projectsCreateNew, () =>
+            Effect.sync(() => {
+              handled++;
+              return { projectId: ProjectId.make("project:new"), workspaceRoot: "/work/new" };
+            }),
+          ),
+          // A session whose operate scope was revoked keeps only read access.
+          RpcAuthorization.layer([AuthOrchestrationReadScope]),
+        ),
+      ),
+    );
+    expect(
+      yield* client[WS_METHODS.projectsCreateNew]({ name: "New project" }).pipe(Effect.flip),
+    ).toMatchObject({
+      _tag: "EnvironmentAuthorizationError",
+      requiredPermission: AuthOrchestrationOperateScope,
+    });
+    expect(handled).toBe(0);
   }).pipe(Effect.scoped),
 );

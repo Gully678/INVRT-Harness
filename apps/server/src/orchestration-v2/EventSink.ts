@@ -63,8 +63,14 @@ export class EventSinkStreamError extends Schema.TaggedError<EventSinkStreamErro
   }
 }
 
-export const EventSinkV2Error = Schema.Union([EventSinkWriteError, EventSinkStreamError]);
+export const EventSinkV2Error = Schema.Union([
+  EventSinkWriteError,
+  EventSinkStreamError,
+  CommandReceiptStore.CommandReceiptPayloadConflictError,
+]);
 export type EventSinkV2Error = typeof EventSinkV2Error.Type;
+
+const isPayloadConflict = Schema.is(CommandReceiptStore.CommandReceiptPayloadConflictError);
 
 export interface EventSinkV2Shape {
   readonly write: (input: {
@@ -170,6 +176,8 @@ export interface EventSinkV2Shape {
     readonly commandType: string;
     readonly acceptedAt: DateTime.Utc;
     readonly event: UnsequencedProjectEvent;
+    /** commandPayloadDigest of the sender's command; identical retries must pass the same value. */
+    readonly payloadDigest?: string;
   }) => Effect.Effect<
     { readonly receipt: CommandReceiptStore.ProjectCommandReceiptV2; readonly committed: boolean },
     EventSinkV2Error
@@ -180,6 +188,8 @@ export interface EventSinkV2Shape {
     readonly commandType: string;
     readonly rejectedAt: DateTime.Utc;
     readonly error: string;
+    /** Same digest the accepted plan would carry, so same content replays across outcomes. */
+    readonly payloadDigest?: string;
   }) => Effect.Effect<CommandReceiptStore.ProjectCommandReceiptV2, EventSinkV2Error>;
   readonly stream: (input?: {
     readonly threadId?: ThreadId;
@@ -758,6 +768,7 @@ const layerBase: Layer.Layer<
               resultSequence: 0,
               status: "accepted",
               error: null,
+              ...(input.payloadDigest === undefined ? {} : { payloadDigest: input.payloadDigest }),
             };
             if (!(yield* commandReceipts.insertIfAbsent(reserved))) {
               return { receipt: yield* existingProjectReceipt(input.commandId), event: undefined };
@@ -788,6 +799,7 @@ const layerBase: Layer.Layer<
             resultSequence: yield* eventStore.latestApplicationSequence,
             status: "rejected",
             error: input.error,
+            ...(input.payloadDigest === undefined ? {} : { payloadDigest: input.payloadDigest }),
           };
           return (yield* commandReceipts.insertIfAbsent(receipt))
             ? receipt
@@ -952,16 +964,19 @@ const layerBase: Layer.Layer<
         ),
       commitProjectCommand: (input) =>
         commitProjectCommandEffect(input).pipe(
-          Effect.mapError(
-            (cause) =>
-              new EventSinkWriteError({ commandId: input.commandId, eventCount: 1, cause }),
+          // A payload conflict stays itself so callers can tell it from an engine failure.
+          Effect.mapError((cause): EventSinkV2Error =>
+            isPayloadConflict(cause)
+              ? cause
+              : new EventSinkWriteError({ commandId: input.commandId, eventCount: 1, cause }),
           ),
         ),
       commitRejectedProjectCommand: (input) =>
         commitRejectedProjectCommandEffect(input).pipe(
-          Effect.mapError(
-            (cause) =>
-              new EventSinkWriteError({ commandId: input.commandId, eventCount: 0, cause }),
+          Effect.mapError((cause): EventSinkV2Error =>
+            isPayloadConflict(cause)
+              ? cause
+              : new EventSinkWriteError({ commandId: input.commandId, eventCount: 0, cause }),
           ),
         ),
       stream: (input) =>

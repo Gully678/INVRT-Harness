@@ -1,4 +1,6 @@
 import { CommandId, NonNegativeInt, ProjectId, ThreadId } from "@t3tools/contracts";
+// @effect-diagnostics-next-line nodeBuiltinImport:off -- Effect's Crypto is a context service; this digest is a pure synchronous hash.
+import * as NodeCrypto from "node:crypto";
 import * as Context from "effect/Context";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
@@ -31,9 +33,21 @@ export class CommandReceiptStoreReadError extends Schema.TaggedError<CommandRece
   }
 }
 
+export class CommandReceiptPayloadConflictError extends Schema.TaggedError<CommandReceiptPayloadConflictError>()(
+  "CommandReceiptPayloadConflictError",
+  {
+    commandId: CommandId,
+  },
+) {
+  override get message(): string {
+    return `Command ${this.commandId} was already recorded with a different payload digest and cannot be replayed.`;
+  }
+}
+
 export const CommandReceiptStoreV2Error = Schema.Union([
   CommandReceiptStoreWriteError,
   CommandReceiptStoreReadError,
+  CommandReceiptPayloadConflictError,
 ]);
 export type CommandReceiptStoreV2Error = typeof CommandReceiptStoreV2Error.Type;
 
@@ -48,6 +62,7 @@ export const CommandReceiptV2 = Schema.Struct({
   resultSequence: NonNegativeInt,
   status: CommandReceiptV2Status,
   error: Schema.NullOr(Schema.String),
+  payloadDigest: Schema.optional(Schema.NullOr(Schema.String)),
 });
 export type CommandReceiptV2 = typeof CommandReceiptV2.Type;
 
@@ -59,8 +74,19 @@ export const ProjectCommandReceiptV2 = Schema.Struct({
   resultSequence: NonNegativeInt,
   status: CommandReceiptV2Status,
   error: Schema.NullOr(Schema.String),
+  payloadDigest: Schema.optional(Schema.NullOr(Schema.String)),
 });
 export type ProjectCommandReceiptV2 = typeof ProjectCommandReceiptV2.Type;
+
+/**
+ * Digest of the content a sender sent, over the canonical JSON encoding the
+ * persistence layer already uses. Identical retries hash identically; any
+ * other change under the same command id conflicts (IC-02 case b).
+ */
+export const commandPayloadDigest = (payload: unknown): string =>
+  NodeCrypto.createHash("sha256")
+    .update(Schema.encodeSync(Schema.fromJsonString(Schema.Unknown))(payload))
+    .digest("hex");
 
 type AnyCommandReceiptV2 = CommandReceiptV2 | ProjectCommandReceiptV2;
 
@@ -108,6 +134,7 @@ function fromApplicationReceipt(receipt: OrchestrationCommandReceipts.Orchestrat
     resultSequence: receipt.resultSequence,
     status: receipt.status,
     error: receipt.error,
+    ...(receipt.payloadDigest == null ? {} : { payloadDigest: receipt.payloadDigest }),
   });
 }
 
@@ -124,6 +151,7 @@ function toApplicationReceipt(
     resultSequence: receipt.resultSequence,
     status: receipt.status,
     error: receipt.error,
+    ...(receipt.payloadDigest == null ? {} : { payloadDigest: receipt.payloadDigest }),
   };
 }
 
@@ -139,12 +167,13 @@ const layerBase: Layer.Layer<
     return CommandReceiptStoreV2.of({
       insertIfAbsent: (receipt) =>
         receipts.insertIfAbsent(toApplicationReceipt(receipt)).pipe(
-          Effect.mapError(
-            (cause) =>
-              new CommandReceiptStoreWriteError({
-                commandId: receipt.commandId,
-                cause,
-              }),
+          Effect.mapError((cause): CommandReceiptStoreV2Error =>
+            cause._tag === "OrchestrationCommandReceiptConflictError"
+              ? new CommandReceiptPayloadConflictError({ commandId: receipt.commandId })
+              : new CommandReceiptStoreWriteError({
+                  commandId: receipt.commandId,
+                  cause,
+                }),
           ),
         ),
       upsert: (receipt) =>
@@ -189,6 +218,9 @@ const layerBase: Layer.Layer<
                   resultSequence: receipt.value.resultSequence,
                   status: receipt.value.status,
                   error: receipt.value.error,
+                  ...(receipt.value.payloadDigest == null
+                    ? {}
+                    : { payloadDigest: receipt.value.payloadDigest }),
                 }).pipe(Effect.asSome),
           ),
           Effect.mapError((cause) => new CommandReceiptStoreReadError({ commandId, cause })),

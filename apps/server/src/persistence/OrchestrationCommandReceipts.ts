@@ -13,6 +13,17 @@ import {
   type OrchestrationCommandReceiptRepositoryError,
 } from "./Errors.ts";
 
+export class OrchestrationCommandReceiptConflictError extends Schema.TaggedError<OrchestrationCommandReceiptConflictError>()(
+  "OrchestrationCommandReceiptConflictError",
+  {
+    commandId: CommandId,
+  },
+) {
+  override get message(): string {
+    return `Command ${this.commandId} was already recorded with a different payload digest.`;
+  }
+}
+
 export const OrchestrationCommandReceipt = Schema.Struct({
   commandId: CommandId,
   aggregateKind: Schema.Literals(["project", "thread"]),
@@ -22,6 +33,8 @@ export const OrchestrationCommandReceipt = Schema.Struct({
   resultSequence: NonNegativeInt,
   status: Schema.Literals(["accepted", "rejected"]),
   error: Schema.NullOr(Schema.String),
+  // Absent or NULL on pre-migration receipts; only two defined digests that differ conflict.
+  payloadDigest: Schema.optional(Schema.NullOr(Schema.String)),
 });
 export type OrchestrationCommandReceipt = typeof OrchestrationCommandReceipt.Type;
 
@@ -35,7 +48,10 @@ export class OrchestrationCommandReceiptRepository extends Context.Service<
   {
     readonly insertIfAbsent: (
       receipt: OrchestrationCommandReceipt,
-    ) => Effect.Effect<boolean, OrchestrationCommandReceiptRepositoryError>;
+    ) => Effect.Effect<
+      boolean,
+      OrchestrationCommandReceiptRepositoryError | OrchestrationCommandReceiptConflictError
+    >;
 
     readonly upsert: (
       receipt: OrchestrationCommandReceipt,
@@ -65,7 +81,8 @@ const makeOrchestrationCommandReceiptRepository = Effect.gen(function* () {
           accepted_at,
           result_sequence,
           status,
-          error
+          error,
+          payload_digest
         )
         VALUES (
           ${receipt.commandId},
@@ -75,7 +92,8 @@ const makeOrchestrationCommandReceiptRepository = Effect.gen(function* () {
           ${receipt.acceptedAt},
           ${receipt.resultSequence},
           ${receipt.status},
-          ${receipt.error}
+          ${receipt.error},
+          ${receipt.payloadDigest ?? null}
         )
         ON CONFLICT (command_id)
         DO UPDATE SET
@@ -85,7 +103,8 @@ const makeOrchestrationCommandReceiptRepository = Effect.gen(function* () {
           accepted_at = excluded.accepted_at,
           result_sequence = excluded.result_sequence,
           status = excluded.status,
-          error = excluded.error
+          error = excluded.error,
+          payload_digest = excluded.payload_digest
       `,
   });
 
@@ -102,7 +121,8 @@ const makeOrchestrationCommandReceiptRepository = Effect.gen(function* () {
           accepted_at AS "acceptedAt",
           result_sequence AS "resultSequence",
           status,
-          error
+          error,
+          payload_digest AS "payloadDigest"
         FROM orchestration_command_receipts
         WHERE command_id = ${commandId}
       `,
@@ -125,7 +145,8 @@ const makeOrchestrationCommandReceiptRepository = Effect.gen(function* () {
         accepted_at,
         result_sequence,
         status,
-        error
+        error,
+        payload_digest
       )
       VALUES (
         ${receipt.commandId},
@@ -135,15 +156,40 @@ const makeOrchestrationCommandReceiptRepository = Effect.gen(function* () {
         ${receipt.acceptedAt},
         ${receipt.resultSequence},
         ${receipt.status},
-        ${receipt.error}
+        ${receipt.error},
+        ${receipt.payloadDigest ?? null}
       )
       ON CONFLICT(command_id) DO NOTHING
       RETURNING command_id
     `.pipe(
-      Effect.map((rows) => rows.length === 1),
       Effect.mapError(
         toPersistenceSqlError("OrchestrationCommandReceiptRepository.insertIfAbsent:query"),
       ),
+      Effect.flatMap((rows) => {
+        if (rows.length === 1) return Effect.succeed(true);
+        // The read-back runs inside the caller's transaction, so the row it sees is
+        // the committed winner. Only two defined digests that differ prove different
+        // content; a NULL digest (pre-migration row, or a caller that carries none)
+        // still replays.
+        return sql<{ readonly payload_digest: string | null }>`
+          SELECT payload_digest
+          FROM orchestration_command_receipts
+          WHERE command_id = ${receipt.commandId}
+        `.pipe(
+          Effect.mapError(
+            toPersistenceSqlError("OrchestrationCommandReceiptRepository.insertIfAbsent:readback"),
+          ),
+          Effect.flatMap(([stored]) =>
+            stored?.payload_digest != null &&
+            receipt.payloadDigest != null &&
+            stored.payload_digest !== receipt.payloadDigest
+              ? Effect.fail(
+                  new OrchestrationCommandReceiptConflictError({ commandId: receipt.commandId }),
+                )
+              : Effect.succeed(false),
+          ),
+        );
+      }),
     );
 
   const getByCommandId: OrchestrationCommandReceiptRepository["Service"]["getByCommandId"] = (

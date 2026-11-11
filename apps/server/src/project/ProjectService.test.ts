@@ -342,7 +342,7 @@ it.layer(layerTest)("ProjectService", (it) => {
     }),
   );
 
-  it.effect("replays a rejected receipt instead of re-planning the command", () =>
+  it.effect("replays an identical rejected command and denies a changed payload", () =>
     Effect.gen(function* () {
       const service = yield* ProjectService.ProjectService;
       const sql = yield* SqlClient.SqlClient;
@@ -368,13 +368,21 @@ it.layer(layerTest)("ProjectService", (it) => {
       };
       const first = yield* service.update(invalid).pipe(Effect.flip);
       assert.equal(first._tag, "ProjectOperationError");
+      // Identical content under the same id still reproduces the prior rejection.
+      const identical = yield* service.update(invalid).pipe(Effect.flip);
+      assert.equal(identical._tag, "ProjectOperationError");
+      assert.include(
+        String(identical._tag === "ProjectOperationError" && identical.cause),
+        "Script ID",
+      );
+      // Changed content under the same id conflicts instead of silently replaying.
       const replayed = yield* service
         .update({ ...invalid, scripts: [{ ...invalid.scripts[0]!, id: "valid" }] })
         .pipe(Effect.flip);
       assert.equal(replayed._tag, "ProjectOperationError");
       assert.include(
         String(replayed._tag === "ProjectOperationError" && replayed.cause),
-        "Script ID",
+        "different payload digest",
       );
       const receipts = yield* sql<{ readonly status: string; readonly aggregate_id: string }>`
         SELECT status, aggregate_id FROM orchestration_command_receipts

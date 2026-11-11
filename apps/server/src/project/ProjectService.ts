@@ -18,6 +18,7 @@ import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
 
 import { withCommandMetrics } from "../observability/Metrics.ts";
+import { commandPayloadDigest } from "../orchestration-v2/CommandReceiptStore.ts";
 import * as EventSink from "../orchestration-v2/EventSink.ts";
 import * as IdAllocator from "@t3tools/provider-core/server/IdAllocator";
 import * as LegacyV1ThreadImporter from "../orchestration-v2/legacy/LegacyV1ThreadImporter.ts";
@@ -215,6 +216,9 @@ export const make = Effect.gen(function* () {
     const { projectId } = command;
     const dispatchError = (cause: unknown) =>
       new ProjectOperationError({ operation: "dispatch-project-command", projectId, cause });
+    // Digest the sender's command, not the planned event: re-planning allocates fresh
+    // ids and timestamps, so only the command content is stable across retries.
+    const payloadDigest = commandPayloadDigest(command);
     const workspaceRoot = command.type === "project.delete" ? undefined : command.workspaceRoot;
     const planAndCommit = Effect.gen(function* () {
       const project = Option.getOrUndefined(yield* readRow(projectId, { includeDeleted: true }));
@@ -243,6 +247,7 @@ export const make = Effect.gen(function* () {
           commandType: command.type,
           acceptedAt: now,
           event: planned.success,
+          payloadDigest,
         });
         return receipt;
       }
@@ -252,6 +257,7 @@ export const make = Effect.gen(function* () {
         commandType: command.type,
         rejectedAt: now,
         error: encodeProjectCommandRejection(planned.failure),
+        payloadDigest,
       });
     });
     const receipt = yield* projectLocks
