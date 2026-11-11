@@ -4,7 +4,7 @@ import * as NodeCrypto from "node:crypto";
 import * as NodeFS from "node:fs";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
-import { DatabaseSync } from "node:sqlite";
+import * as NodeSqlite from "node:sqlite";
 
 /** INVRT application state directory. Upstream T3 keeps using `.t3`. */
 export const INVRT_STATE_DIRECTORY_NAME = ".invrt-code";
@@ -28,7 +28,7 @@ const trimmed = (value: string | null | undefined): string | undefined => {
  */
 export function resolveInvrtStateDirectory(input: {
   readonly homeDirectory: string;
-  readonly explicitDirectory?: string | null;
+  readonly explicitDirectory?: string | null | undefined;
   readonly environment?: NodeJS.ProcessEnv | undefined;
   readonly worktreeDirectory?: string | null;
   readonly joinPath?: JoinPath;
@@ -36,10 +36,18 @@ export function resolveInvrtStateDirectory(input: {
 }): string {
   const joinPath = input.joinPath ?? NodePath.join;
   const resolvePath = input.resolvePath ?? NodePath.resolve;
+  const resolveSelection = (value: string) =>
+    resolvePath(
+      value === "~"
+        ? input.homeDirectory
+        : value.startsWith("~/") || value.startsWith("~\\")
+          ? joinPath(input.homeDirectory, value.slice(2))
+          : value,
+    );
   const explicit = trimmed(input.explicitDirectory);
-  if (explicit !== undefined) return resolvePath(explicit);
+  if (explicit !== undefined) return resolveSelection(explicit);
   const fromEnv = trimmed(input.environment?.[INVRT_CODE_HOME_ENV]);
-  if (fromEnv !== undefined) return resolvePath(fromEnv);
+  if (fromEnv !== undefined) return resolveSelection(fromEnv);
   const worktree = trimmed(input.worktreeDirectory);
   if (worktree !== undefined) return joinPath(worktree, INVRT_STATE_DIRECTORY_NAME);
   return joinPath(input.homeDirectory, INVRT_STATE_DIRECTORY_NAME);
@@ -124,22 +132,28 @@ const walkState = (root: string): StateEntry[] => {
       if (dirent.isFile()) {
         const hashed = hashFile(absolute);
         entries.push({ relativePath, kind: "file", size: hashed.size, sha256: hashed.sha256 });
+        continue;
       }
+      throw new LegacyStateImportError(`Unsupported filesystem entry: ${relativePath}.`);
     }
   };
   visit(root);
   return entries;
 };
 
-const filesOf = (entries: readonly StateEntry[]) => entries.filter((entry) => entry.kind !== "directory");
+const filesOf = (entries: readonly StateEntry[]) =>
+  entries.filter((entry) => entry.kind !== "directory");
 
 const fingerprint = (entries: readonly StateEntry[]) =>
-  filesOf(entries)
-    .map((entry) => `${entry.relativePath}\0${entry.size}\0${entry.sha256}`)
+  entries
+    .map((entry) => `${entry.relativePath}\0${entry.kind}\0${entry.size}\0${entry.sha256}`)
     .sort()
     .join("\n");
 
-const countTable = (database: DatabaseSync, table: typeof PROJECT_TABLE | typeof THREAD_TABLE) => {
+const countTable = (
+  database: NodeSqlite.DatabaseSync,
+  table: typeof PROJECT_TABLE | typeof THREAD_TABLE,
+) => {
   const found = database
     .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?")
     .get(table) as { name: string } | undefined;
@@ -159,7 +173,7 @@ const countDatabaseCopy = (databasePath: string) => {
       const sidecar = `${databasePath}${suffix}`;
       if (NodeFS.existsSync(sidecar)) NodeFS.copyFileSync(sidecar, `${copyPath}${suffix}`);
     }
-    const database = new DatabaseSync(copyPath, { readOnly: true });
+    const database = new NodeSqlite.DatabaseSync(copyPath, { readOnly: true });
     try {
       return {
         projectCount: countTable(database, PROJECT_TABLE),
@@ -176,10 +190,9 @@ const countDatabaseCopy = (databasePath: string) => {
 };
 
 const databaseFile = (fileNames: readonly string[]) =>
-  fileNames.find((name) => name === "userdata/statev2.sqlite" || name.endsWith("/statev2.sqlite")) ??
   fileNames.find(
-    (name) => name.endsWith("state.sqlite") && !name.endsWith("statev2.sqlite"),
-  );
+    (name) => name === "userdata/statev2.sqlite" || name.endsWith("/statev2.sqlite"),
+  ) ?? fileNames.find((name) => name.endsWith("state.sqlite") && !name.endsWith("statev2.sqlite"));
 
 export function previewLegacyState(sourcePath: string): LegacyStatePreview {
   const source = NodePath.resolve(sourcePath);
@@ -211,18 +224,17 @@ const isInside = (parent: string, child: string) => {
   const relative = NodePath.relative(parent, child);
   return (
     relative === "" ||
-    (!relative.startsWith(`..${NodePath.sep}`) && relative !== ".." && !NodePath.isAbsolute(relative))
+    (!relative.startsWith(`..${NodePath.sep}`) &&
+      relative !== ".." &&
+      !NodePath.isAbsolute(relative))
   );
 };
 
-const restoreBackup = (destination: string, backup: string | null) => {
-  NodeFS.rmSync(destination, { recursive: true, force: true });
-  if (backup !== null && NodeFS.existsSync(backup)) {
-    NodeFS.renameSync(backup, destination);
-  }
-};
-
-const verifyCopy = (sourceRoot: string, destinationRoot: string, entries: readonly StateEntry[]) => {
+const verifyCopy = (
+  sourceRoot: string,
+  destinationRoot: string,
+  entries: readonly StateEntry[],
+) => {
   for (const entry of filesOf(entries)) {
     const destination = NodePath.join(destinationRoot, ...entry.relativePath.split("/"));
     if (entry.kind === "symlink") {
@@ -242,10 +254,77 @@ const verifyCopy = (sourceRoot: string, destinationRoot: string, entries: readon
   }
 };
 
+const journalPathFor = (destination: string) =>
+  NodePath.join(
+    NodePath.dirname(destination),
+    `.invrt-import-${hashBuffer(destination).slice(0, 24)}`,
+  );
+
+const recoverInterruptedImport = (source: string, destination: string) => {
+  const journal = journalPathFor(destination);
+  if (!NodeFS.existsSync(journal)) return;
+  const metadataPath = NodePath.join(journal, "transaction.json");
+  let metadata: {
+    pid: number;
+    source: string;
+    destination: string;
+    sourceFingerprint: string;
+    destinationFingerprint: string | null;
+  };
+  try {
+    metadata = JSON.parse(NodeFS.readFileSync(metadataPath, "utf8"));
+  } catch {
+    throw new LegacyStateImportError("Incomplete import journal requires manual recovery.");
+  }
+  if (
+    !Number.isSafeInteger(metadata.pid) ||
+    metadata.pid <= 0 ||
+    metadata.source !== source ||
+    metadata.destination !== destination ||
+    typeof metadata.sourceFingerprint !== "string" ||
+    (typeof metadata.destinationFingerprint !== "string" &&
+      metadata.destinationFingerprint !== null)
+  ) {
+    throw new LegacyStateImportError("Unrecognised import journal requires manual recovery.");
+  }
+  try {
+    process.kill(metadata.pid, 0);
+    throw new LegacyStateImportError("Another import is active.");
+  } catch (cause) {
+    if (!(cause instanceof Error) || !("code" in cause) || cause.code !== "ESRCH") throw cause;
+  }
+  const stage = NodePath.join(journal, "stage");
+  const backup = NodePath.join(journal, "backup");
+  const names = NodeFS.readdirSync(journal).sort();
+  if (
+    names.some((name) => !["transaction.json", "stage", "backup"].includes(name)) ||
+    fingerprint(walkState(source)) !== metadata.sourceFingerprint ||
+    (NodeFS.existsSync(stage) && fingerprint(walkState(stage)) !== metadata.sourceFingerprint) ||
+    (NodeFS.existsSync(backup) &&
+      fingerprint(walkState(backup)) !== metadata.destinationFingerprint)
+  ) {
+    throw new LegacyStateImportError("Import recovery found changed or foreign state.");
+  }
+  const current = NodeFS.existsSync(destination) ? fingerprint(walkState(destination)) : null;
+  if (NodeFS.existsSync(backup)) {
+    if (current === null && NodeFS.existsSync(stage)) NodeFS.renameSync(backup, destination);
+    else if (current !== metadata.sourceFingerprint || NodeFS.existsSync(stage))
+      throw new LegacyStateImportError("Import recovery found changed or foreign state.");
+  } else if (
+    current !== metadata.destinationFingerprint &&
+    current !== metadata.sourceFingerprint
+  ) {
+    throw new LegacyStateImportError("Import recovery found changed or foreign state.");
+  }
+  NodeFS.rmSync(journal, { recursive: true });
+};
+
 export function importLegacyState(input: {
   readonly sourcePath: string;
   readonly destinationPath: string;
   readonly replace?: boolean;
+  readonly afterMovingDestination?: () => void;
+  readonly afterPublishingDestination?: () => void;
   readonly afterCopiedFile?: (event: {
     readonly copiedCount: number;
     readonly relativePath: string;
@@ -256,9 +335,22 @@ export function importLegacyState(input: {
   if (!NodeFS.existsSync(source) || !NodeFS.statSync(source).isDirectory()) {
     throw new LegacyStateImportError("Legacy import source must be a directory.");
   }
-  if (isInside(source, destination) || isInside(destination, source)) {
-    throw new LegacyStateImportError("Legacy import source and destination must be separate directories.");
+  const physicalSource = NodeFS.realpathSync(source);
+  let existingParent = destination;
+  while (!NodeFS.existsSync(existingParent)) existingParent = NodePath.dirname(existingParent);
+  const physicalDestination = NodePath.resolve(
+    NodeFS.realpathSync(existingParent),
+    NodePath.relative(existingParent, destination),
+  );
+  if (
+    isInside(physicalSource, physicalDestination) ||
+    isInside(physicalDestination, physicalSource)
+  ) {
+    throw new LegacyStateImportError(
+      "Legacy import source and destination must be separate directories.",
+    );
   }
+  recoverInterruptedImport(source, destination);
   const sourceEntries = walkState(source);
   const sourceFingerprint = fingerprint(sourceEntries);
   const destinationExists = NodeFS.existsSync(destination);
@@ -283,25 +375,26 @@ export function importLegacyState(input: {
     }
   }
 
-  const backup = destinationExists
-    ? NodePath.join(
-        NodePath.dirname(destination),
-        `.invrt-import-backup-${NodeCrypto.randomBytes(8).toString("hex")}`,
-      )
-    : null;
-  if (backup !== null) {
-    NodeFS.cpSync(destination, backup, { recursive: true, dereference: false });
-  }
-
+  const destinationFingerprint = destinationExists ? fingerprint(walkState(destination)) : null;
+  NodeFS.mkdirSync(NodePath.dirname(destination), { recursive: true });
+  const stage = NodeFS.mkdtempSync(
+    NodePath.join(
+      NodePath.dirname(destination),
+      `.invrt-import-stage-${hashBuffer(destination).slice(0, 24)}-`,
+    ),
+  );
+  const journal = journalPathFor(destination);
+  const backup = destinationExists ? NodePath.join(journal, "backup") : null;
+  let published = false;
+  let movedDestination = false;
+  let journalCreated = false;
   try {
-    NodeFS.rmSync(destination, { recursive: true, force: true });
-    NodeFS.mkdirSync(destination, { recursive: true });
     let copiedCount = 0;
     const ordered = [...sourceEntries].sort((left, right) =>
       left.relativePath.localeCompare(right.relativePath),
     );
     for (const entry of ordered) {
-      const target = NodePath.join(destination, ...entry.relativePath.split("/"));
+      const target = NodePath.join(stage, ...entry.relativePath.split("/"));
       if (entry.kind === "directory") {
         NodeFS.mkdirSync(target, { recursive: true });
         continue;
@@ -315,8 +408,71 @@ export function importLegacyState(input: {
       copiedCount += 1;
       input.afterCopiedFile?.({ copiedCount, relativePath: entry.relativePath });
     }
-    verifyCopy(source, destination, sourceEntries);
-    if (backup !== null) NodeFS.rmSync(backup, { recursive: true, force: true });
+    verifyCopy(source, stage, sourceEntries);
+    if (fingerprint(walkState(stage)) !== sourceFingerprint) {
+      throw new LegacyStateImportError("The staged copy contains changed or foreign state.");
+    }
+    if (
+      destinationFingerprint !==
+      (NodeFS.existsSync(destination) ? fingerprint(walkState(destination)) : null)
+    ) {
+      throw new LegacyStateImportError("Destination changed during import.");
+    }
+    try {
+      NodeFS.mkdirSync(journal);
+      journalCreated = true;
+    } catch (cause) {
+      if (NodeFS.existsSync(journal))
+        throw new LegacyStateImportError("Another import or recovery is active.");
+      throw cause;
+    }
+    if (
+      destinationFingerprint !==
+      (NodeFS.existsSync(destination) ? fingerprint(walkState(destination)) : null)
+    ) {
+      NodeFS.rmdirSync(journal);
+      throw new LegacyStateImportError("Destination changed during import.");
+    }
+    NodeFS.writeFileSync(
+      NodePath.join(journal, "transaction.json"),
+      JSON.stringify({
+        pid: process.pid,
+        source,
+        destination,
+        sourceFingerprint,
+        destinationFingerprint,
+      }),
+      { flag: "wx" },
+    );
+    NodeFS.renameSync(stage, NodePath.join(journal, "stage"));
+    if (
+      fingerprint(walkState(NodePath.join(journal, "stage"))) !== sourceFingerprint ||
+      fingerprint(walkState(source)) !== sourceFingerprint
+    ) {
+      throw new LegacyStateImportError("Source or staged copy changed during import.");
+    }
+    if (backup !== null) {
+      NodeFS.renameSync(destination, backup);
+      movedDestination = true;
+      input.afterMovingDestination?.();
+    }
+    NodeFS.renameSync(NodePath.join(journal, "stage"), destination);
+    published = true;
+    input.afterPublishingDestination?.();
+    if (
+      fingerprint(walkState(destination)) !== sourceFingerprint ||
+      fingerprint(walkState(source)) !== sourceFingerprint
+    ) {
+      throw new LegacyStateImportError("Source or destination changed during publication.");
+    }
+    if (
+      NodeFS.readdirSync(journal).sort().join(",") !==
+        (backup === null ? "transaction.json" : "backup,transaction.json") ||
+      (backup !== null && fingerprint(walkState(backup)) !== destinationFingerprint)
+    ) {
+      throw new LegacyStateImportError("Import journal contains changed or foreign state.");
+    }
+    NodeFS.rmSync(journal, { recursive: true });
     return {
       verified: true,
       idempotent: false,
@@ -324,7 +480,28 @@ export function importLegacyState(input: {
       message: `Copied ${copiedCount} files.`,
     };
   } catch (cause) {
-    restoreBackup(destination, backup);
+    if (
+      !published &&
+      movedDestination &&
+      backup !== null &&
+      !NodeFS.existsSync(destination) &&
+      fingerprint(walkState(backup)) === destinationFingerprint
+    )
+      NodeFS.renameSync(backup, destination);
+    // An interrupted stage may contain foreign writes; retain it rather than delete unverified data.
+    const journalStage = NodePath.join(journal, "stage");
+    if (
+      journalCreated &&
+      !published &&
+      NodeFS.existsSync(journalStage) &&
+      NodeFS.readdirSync(journal).sort().join(",") === "stage,transaction.json" &&
+      fingerprint(walkState(journalStage)) === sourceFingerprint &&
+      fingerprint(walkState(source)) === sourceFingerprint &&
+      (NodeFS.existsSync(destination) ? fingerprint(walkState(destination)) : null) ===
+        destinationFingerprint
+    ) {
+      NodeFS.rmSync(journal, { recursive: true });
+    }
     if (cause instanceof LegacyStateImportError) throw cause;
     throw cause;
   }

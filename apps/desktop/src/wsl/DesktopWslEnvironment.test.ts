@@ -2,6 +2,9 @@
 import { describe, it } from "@effect/vitest";
 import { afterAll, expect } from "vite-plus/test";
 import * as NodeChildProcess from "node:child_process";
+import * as NodeFS from "node:fs";
+import * as NodeOS from "node:os";
+import * as NodePath from "node:path";
 
 import {
   buildWslRuntimeInstallScript,
@@ -75,6 +78,41 @@ const readField = (stdout: string, field: string) => {
 const SERVER_ENTRY_SOURCE = '#!/bin/sh\necho "t3code wsl runtime test server 0.0.0"\n';
 
 describe("WSL runtime cache", () => {
+  it("invalidates only the INVRT marker in a disposable home", () => {
+    const home = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "invrt-wsl-home-"));
+    try {
+      const invrt = NodePath.join(home, ".invrt-code/wsl-runtime/sha256-test");
+      const upstream = NodePath.join(home, ".t3/wsl-runtime/sha256-test");
+      NodeFS.mkdirSync(invrt, { recursive: true });
+      NodeFS.mkdirSync(upstream, { recursive: true });
+      for (const root of [invrt, upstream])
+        NodeFS.writeFileSync(NodePath.join(root, ".t3code-wsl-runtime-ready"), "sentinel");
+      const run = NodeChildProcess.spawnSync("/bin/sh", ["-s"], {
+        input: buildWslRuntimeInvalidateScript("sha256-test"),
+        env: { ...process.env, HOME: home },
+        encoding: "utf8",
+      });
+      expect(run.status, run.stderr).toBe(0);
+      expect(NodeFS.existsSync(NodePath.join(invrt, ".t3code-wsl-runtime-ready"))).toBe(false);
+      expect(
+        NodeFS.readFileSync(NodePath.join(upstream, ".t3code-wsl-runtime-ready"), "utf8"),
+      ).toBe("sentinel");
+    } finally {
+      NodeFS.rmSync(home, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps every lifecycle script in the INVRT-owned namespace", () => {
+    for (const script of [
+      buildWslRuntimeInstallScript("/runtime.tar.gz", "sha256-test", "b".repeat(64)),
+      buildWslRuntimePruneScript("sha256-test"),
+      buildWslRuntimeInvalidateScript("sha256-test"),
+    ]) {
+      expect(script).toContain("$HOME/.invrt-code/wsl-runtime");
+      expect(script).not.toContain("$HOME/.t3/wsl-runtime");
+    }
+  });
+
   it.each([
     [
       "install",
@@ -132,9 +170,9 @@ describe.skipIf(posixShellRunner === null)("WSL runtime install script (executed
       archivePath,
       archiveSha,
       runtimeId,
-      runtimeParent: `${work}/home/.t3/wsl-runtime`,
-      runtimeRoot: `${work}/home/.t3/wsl-runtime/${runtimeId}`,
-      serverEntry: `${work}/home/.t3/wsl-runtime/${runtimeId}/t3`,
+      runtimeParent: `${work}/home/.invrt-code/wsl-runtime`,
+      runtimeRoot: `${work}/home/.invrt-code/wsl-runtime/${runtimeId}`,
+      serverEntry: `${work}/home/.invrt-code/wsl-runtime/${runtimeId}/t3`,
       installScript,
       install: (archive?: string, sha?: string) => runShell(installScript(archive, sha)),
     };
@@ -378,7 +416,7 @@ describe.skipIf(posixShellRunner === null)("WSL runtime install script (executed
         "set -eu",
         "work=$(mktemp -d)",
         'home="$work/home"',
-        'runtime_parent="$home/.t3/wsl-runtime"',
+        'runtime_parent="$home/.invrt-code/wsl-runtime"',
         'mkdir -p "$runtime_parent"',
         'make_ready() { mkdir -p "$runtime_parent/$1"; printf ready > "$runtime_parent/$1/.t3code-wsl-runtime-ready"; }',
         "make_ready sha256-current",
