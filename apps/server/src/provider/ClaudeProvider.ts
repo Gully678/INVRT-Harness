@@ -141,17 +141,12 @@ function formatClaudeSubscriptionAuthLabel(subscriptionType: string): string {
   return `Claude ${subscriptionLabel} Subscription`;
 }
 
+const CLAUDE_PAID_FALLBACK_REFUSAL = "Refused automatic paid fallback.";
+
 function claudeAuthMetadata(input: {
   readonly subscriptionType: string | undefined;
   readonly authMethod: string | undefined;
 }): { readonly type: string; readonly label: string } | undefined {
-  if (normalizeClaudeAuthMethod(input.authMethod) === "apiKey") {
-    return {
-      type: "apiKey",
-      label: "Claude API Key",
-    };
-  }
-
   if (input.subscriptionType) {
     return {
       type: input.subscriptionType,
@@ -159,7 +154,25 @@ function claudeAuthMetadata(input: {
     };
   }
 
+  if (normalizeClaudeAuthMethod(input.authMethod) === "apiKey") {
+    return {
+      type: "apiKey",
+      label: "Claude API Key",
+    };
+  }
+
   return undefined;
+}
+
+function claudePaidFallbackRefusal(input: {
+  readonly subscriptionType: string | undefined;
+  readonly tokenSource: string | undefined;
+  readonly apiKeySource: string | undefined;
+}): string | undefined {
+  if (!input.subscriptionType) return undefined;
+  const meteredToken = normalizeClaudeAuthMethod(input.tokenSource) === "apiKey";
+  const meteredKey = Boolean(input.apiKeySource) && input.apiKeySource !== "none";
+  return meteredToken || meteredKey ? CLAUDE_PAID_FALLBACK_REFUSAL : undefined;
 }
 
 function apiProviderAuthMetadata(
@@ -633,6 +646,16 @@ export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(
     }) ??
     apiProviderAuthMetadata(capabilities.apiProvider) ??
     (customApiEndpoint ? { type: "customEndpoint", label: "Custom API endpoint" } : undefined);
+  const routeMessage = [
+    versionUpgradeMessage,
+    claudePaidFallbackRefusal({
+      subscriptionType: capabilities.subscriptionType,
+      tokenSource: capabilities.tokenSource,
+      apiKeySource: capabilities.apiKeySource,
+    }),
+  ]
+    .filter((part) => part !== undefined)
+    .join(" ");
   const usageCheckedAt = capabilities.usageCheckedAt ?? checkedAt;
   const usageLimits = !capabilities.usage
     ? makeUnavailableUsageLimits({ checkedAt, reason: "probeFailed" })
@@ -670,7 +693,7 @@ export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(
         ...(capabilities.workspaceId ? { workspaceId: capabilities.workspaceId } : {}),
         ...(authMetadata ? authMetadata : {}),
       },
-      ...(versionUpgradeMessage ? { message: versionUpgradeMessage } : {}),
+      ...(routeMessage ? { message: routeMessage } : {}),
       usageLimits: resetCredits ? { ...usageLimits, resetCredits } : usageLimits,
     },
   });

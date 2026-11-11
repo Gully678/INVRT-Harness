@@ -40,10 +40,15 @@ import {
 import {
   GROK_DEFAULT_MODEL_SLUG,
   GROK_SUPPORTED_RUNTIME_MODES,
+  grokSpawnEnvironment,
+  blankGrokApiKey,
   isValidGrokReasoningEffortToken,
   makeGrokAcpRuntime,
   resolveGrokAcpBaseModelId,
 } from "./acpSupport.ts";
+import { grokCliAuthenticated, selectGrokProviderRoute } from "./routeQualification.ts";
+
+export { grokSpawnEnvironment, selectGrokProviderRoute };
 import { sessionModelStateFromInitialize } from "@t3tools/provider-acp/server/runtimeModel";
 import { discoverGrokSkills } from "./skills.ts";
 import { grokProbeEnvironment } from "./probeEnvironment.ts";
@@ -249,11 +254,7 @@ export interface GrokModelsCliOutput {
 
 /** Exit status is always 0; only output text indicates login state. */
 export function parseGrokModelsCliOutput(output: string): GrokModelsCliOutput {
-  const authenticated = /you are logged in/i.test(output)
-    ? true
-    : /not authenticated|not logged in/i.test(output)
-      ? false
-      : null;
+  const authenticated = grokCliAuthenticated(output);
 
   const seen = new Set<string>();
   const models: ServerProviderModel[] = [];
@@ -332,6 +333,19 @@ const probeGrokModels = Effect.fn("GrokProviderStatus.probeGrokModels")(function
   return cliModels;
 });
 
+/** Login verdict for the subscription, read without a metered key that could hide it. */
+export const readGrokSubscriptionLogin = Effect.fn("GrokProviderStatus.readGrokSubscriptionLogin")(
+  function* (grokSettings: GrokSettings, environment: NodeJS.ProcessEnv) {
+    const probeEnvironment = blankGrokApiKey(grokProbeEnvironment({ ...environment }));
+    let cliModels = yield* probeGrokModels(grokSettings, probeEnvironment);
+    if (cliModels.authenticated === false) {
+      const recheck = yield* probeGrokModels(grokSettings, probeEnvironment);
+      if (recheck.authenticated !== null) cliModels = recheck;
+    }
+    return cliModels.authenticated;
+  },
+);
+
 const decodeAvailableCommands = Schema.decodeUnknownOption(Schema.Array(Schema.Unknown));
 const decodeAvailableCommand = Schema.decodeUnknownOption(
   Schema.Struct({
@@ -373,10 +387,15 @@ export function grokSlashCommandsFromInitialize(
  */
 const discoverGrokMetadataViaAcpInitialize = Effect.fn(
   "GrokProviderStatus.discoverGrokMetadataViaAcpInitialize",
-)(function* (grokSettings: GrokSettings, environment: NodeJS.ProcessEnv) {
+)(function* (
+  grokSettings: GrokSettings,
+  environment: NodeJS.ProcessEnv,
+  cliAuthenticated: boolean | null,
+) {
   const acp = yield* makeGrokAcpRuntime({
     grokSettings,
     environment,
+    cliAuthenticated,
     cwd: process.cwd(),
     clientInfo: { name: "invrt-code-provider-probe", version: "0.0.0" },
   });
@@ -418,10 +437,11 @@ export const checkGrokProviderStatus = Effect.fn("checkGrokProviderStatus")(func
   const probeEnvironment = grokProbeEnvironment(environment);
   const apiKey = environment[GROK_API_KEY_ENV]?.trim();
 
+  const versionEnvironment = blankGrokApiKey(probeEnvironment);
   const versionResult = yield* runGrokCliCommand(
     grokSettings,
     ["--version"],
-    probeEnvironment,
+    versionEnvironment,
   ).pipe(Effect.timeoutOption(VERSION_PROBE_TIMEOUT_MS), Effect.result);
 
   if (Result.isFailure(versionResult)) {
@@ -485,31 +505,42 @@ export const checkGrokProviderStatus = Effect.fn("checkGrokProviderStatus")(func
     });
   }
 
+  // Read the subscription login without the API key, so a metered key cannot hide it.
+  const subscriptionProbeEnvironment = blankGrokApiKey(probeEnvironment);
   // `grok models` reports login state and model slugs without starting the agent.
-  let cliModels = yield* probeGrokModels(grokSettings, probeEnvironment);
+  let cliModels = yield* probeGrokModels(grokSettings, subscriptionProbeEnvironment);
   // An expired access token prints the logged-out line, then the CLI refreshes it in the same
   // process. Probing again after that process exited tells a refresh from a real logout.
-  if (cliModels.authenticated === false && !apiKey) {
-    const recheck = yield* probeGrokModels(grokSettings, probeEnvironment);
+  // The recheck still runs when an API key is present. An expired subscription must not skip
+  // straight to that key.
+  if (cliModels.authenticated === false) {
+    const recheck = yield* probeGrokModels(grokSettings, subscriptionProbeEnvironment);
     if (recheck.authenticated !== null) {
       cliModels = recheck;
     }
   }
 
-  const auth: ServerProviderAuth = apiKey
-    ? { status: "authenticated", type: "api_key", label: "xAI API key" }
-    : cliModels.authenticated === true
-      ? { status: "authenticated", type: "cached_token", label: "Grok account" }
-      : cliModels.authenticated === false
-        ? { status: "unauthenticated" }
-        : { status: "unknown" };
+  const route = selectGrokProviderRoute({
+    cliAuthenticated: cliModels.authenticated,
+    apiKeyPresent: Boolean(apiKey),
+  });
+  const auth: ServerProviderAuth = route.auth;
 
-  const skills = yield* discoverGrokSkills(grokSettings, environment, cwd).pipe(
+  const skills = yield* discoverGrokSkills(
+    grokSettings,
+    route.useApiKey ? environment : subscriptionProbeEnvironment,
+    cwd,
+    route.useApiKey,
+  ).pipe(
     Effect.tapError((cause) => Effect.logDebug("Grok skill discovery failed.", { cause })),
     Effect.orElseSucceed(() => []),
   );
 
-  const acpExit = yield* discoverGrokMetadataViaAcpInitialize(grokSettings, probeEnvironment).pipe(
+  const acpExit = yield* discoverGrokMetadataViaAcpInitialize(
+    grokSettings,
+    route.useApiKey ? probeEnvironment : subscriptionProbeEnvironment,
+    cliModels.authenticated,
+  ).pipe(
     Effect.timeoutOption(GROK_ACP_INITIALIZE_TIMEOUT_MS),
     Effect.exit,
   );
@@ -533,6 +564,7 @@ export const checkGrokProviderStatus = Effect.fn("checkGrokProviderStatus")(func
     : discoveredModels.length === 0
       ? "Grok CLI did not list any models. Model options may be incomplete."
       : undefined;
+  const routeMessage = [incompleteMessage, route.refusal].filter((part) => part !== undefined).join(" ");
 
   if (auth.status === "unauthenticated") {
     return buildServerProvider({
@@ -563,7 +595,7 @@ export const checkGrokProviderStatus = Effect.fn("checkGrokProviderStatus")(func
       version,
       status: incompleteMessage ? "warning" : "ready",
       auth,
-      ...(incompleteMessage ? { message: incompleteMessage } : {}),
+      ...(routeMessage ? { message: routeMessage } : {}),
     },
   });
 });

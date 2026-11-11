@@ -94,7 +94,8 @@ export function grokUsageResponseToLimits(
 const readGrokCredential = Effect.fn("readGrokCredential")(function* (
   environment: NodeJS.ProcessEnv,
 ) {
-  // T3's ACP adapter explicitly selects API-key auth when this variable is set.
+  // A present key bills a different account. The session route may ignore it when a
+  // subscription login is visible, but this reader must not spend that account's quota.
   if (environment.XAI_API_KEY?.trim()) return undefined;
   // Alternate auth deployments can select another scope or account from the same file.
   if (

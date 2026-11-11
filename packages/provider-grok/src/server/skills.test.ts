@@ -192,6 +192,7 @@ describe("discoverGrokSkills", () => {
       expect(spawnOptions[0]?.env).toEqual({
         GROK_DISABLE_AUTOUPDATER: "1",
         GROK_HOME: "/home/dev/.grok",
+        XAI_API_KEY: "",
       });
       expect(environment.GROK_DISABLE_AUTOUPDATER).toBe("0");
     });

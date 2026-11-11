@@ -228,21 +228,28 @@ export const GrokDriver: ProviderDriver<GrokSettings, GrokDriverEnv, Path.Path> 
     const snapshotForCwd = (workspaceCwd: string) =>
       !effectiveConfig.enabled
         ? snapshot.getSnapshot
-        : Effect.all([
-            snapshot.getSnapshot,
-            discoverGrokSkills(effectiveConfig, processEnv, workspaceCwd).pipe(
-              Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
-              Effect.mapError(
-                (cause) =>
-                  new ProviderDriverError({
-                    driver: DRIVER_KIND,
-                    instanceId,
-                    detail: `Failed to discover Grok skills for '${workspaceCwd}'`,
-                    cause,
-                  }),
+        : snapshot.getSnapshot.pipe(
+            Effect.flatMap((machineSnapshot) =>
+              discoverGrokSkills(
+                effectiveConfig,
+                processEnv,
+                workspaceCwd,
+                machineSnapshot.auth.type === "api_key",
+              ).pipe(
+                Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
+                Effect.mapError(
+                  (cause) =>
+                    new ProviderDriverError({
+                      driver: DRIVER_KIND,
+                      instanceId,
+                      detail: `Failed to discover Grok skills for '${workspaceCwd}'`,
+                      cause,
+                    }),
+                ),
+                Effect.map((skills) => ({ ...machineSnapshot, skills })),
               ),
             ),
-          ]).pipe(Effect.map(([machineSnapshot, skills]) => ({ ...machineSnapshot, skills })));
+          );
 
     return {
       instanceId,
