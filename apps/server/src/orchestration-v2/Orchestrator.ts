@@ -296,6 +296,46 @@ function canReplayCommandReceipt(receiptThreadId: ThreadId, commandThreadId: Thr
   return receiptThreadId === commandThreadId;
 }
 
+function attachmentsWithoutIds<T extends { readonly id: string }>(
+  attachments: ReadonlyArray<T>,
+): ReadonlyArray<Omit<T, "id">> {
+  return attachments.map((attachment) => {
+    const { id: _id, ...stable } = attachment;
+    return stable;
+  });
+}
+
+// A retry of the same command id can be given a newly allocated message id,
+// a newly claimed attachment id, or the workspace strategy the resume would
+// have used. Those are not a second user request. Text, thread, model and
+// attachment name, type and size stay in the hash.
+function commandReceiptIdentity(command: OrchestrationV2ServerCommand): unknown {
+  if (command.type === "queued-run.edit") {
+    return command.attachments === undefined
+      ? command
+      : { ...command, attachments: attachmentsWithoutIds(command.attachments) };
+  }
+  if (command.type !== "message.dispatch") return command;
+  const { messageId: _messageId, context, ...withoutMessageId } = command;
+  return {
+    ...withoutMessageId,
+    dispatchMode: { type: command.dispatchMode.type },
+    attachments: attachmentsWithoutIds(command.attachments),
+    ...(context === undefined
+      ? {}
+      : {
+          context: {
+            ...context,
+            records: context.records.map((record) => {
+              if (!("attachmentId" in record)) return record;
+              const { attachmentId: _attachmentId, ...stable } = record;
+              return stable;
+            }),
+          },
+        }),
+  };
+}
+
 export const OrchestratorV2Error = Schema.Union([
   OrchestratorDispatchError,
   OrchestratorThreadAlreadyExistsError,
@@ -12158,7 +12198,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       "orchestration_v2.thread_id": commandThreadId(command),
     });
 
-    const requestedDigest = commandPayloadDigest(command);
+    const requestedDigest = commandPayloadDigest(commandReceiptIdentity(command));
     const existingReceipt = yield* commandReceipts.getByCommandId(command.commandId).pipe(
       Effect.mapError(
         (cause) =>
