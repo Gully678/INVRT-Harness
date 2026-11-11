@@ -9,6 +9,7 @@ import {
   type ThreadId,
 } from "@t3tools/contracts";
 import * as KeyedLock from "@t3tools/shared/KeyedLock";
+import * as NodeSqliteClient from "@t3tools/shared/nodeSqliteClient";
 import * as Context from "effect/Context";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
@@ -16,6 +17,8 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
+import * as Semaphore from "effect/Semaphore";
+import * as SqlClient from "effect/sql/SqlClient";
 
 import { withCommandMetrics } from "../observability/Metrics.ts";
 import {
@@ -145,8 +148,53 @@ export class ProjectService extends Context.Service<
   }
 >()("t3/project/ProjectService") {}
 
+const MKDIR_CLAIM_PREFIX = "mkdir:";
+
+// Each connection builds its own service, so an instance lock cannot stop the
+// other connection in this process from writing. One semaphore per command.
+const directoryClaims = new Map<string, { semaphore: Semaphore.Semaphore; users: number }>();
+
+const withDirectoryClaim = <A, E, R>(commandId: CommandId, effect: Effect.Effect<A, E, R>) =>
+  Effect.acquireUseRelease(
+    Effect.sync(() => {
+      const existing = directoryClaims.get(commandId);
+      if (existing !== undefined) {
+        existing.users += 1;
+        return existing;
+      }
+      const created = { semaphore: Semaphore.makeUnsafe(1), users: 1 };
+      directoryClaims.set(commandId, created);
+      return created;
+    }),
+    (entry) => entry.semaphore.withPermit(effect),
+    (entry) =>
+      Effect.sync(() => {
+        entry.users -= 1;
+        if (entry.users === 0) directoryClaims.delete(commandId);
+      }),
+  );
+
+const mkdirClaimToken = (): string => `${MKDIR_CLAIM_PREFIX}${process.pid}`;
+
+const mkdirClaimPid = (error: string | null): number | undefined => {
+  if (error === null || !error.startsWith(MKDIR_CLAIM_PREFIX)) return undefined;
+  const pid = Number(error.slice(MKDIR_CLAIM_PREFIX.length));
+  return Number.isInteger(pid) && pid > 0 ? pid : undefined;
+};
+
+// Signal 0 checks that the pid exists. It does not terminate the process.
+const isLivePid = (pid: number): boolean => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (cause) {
+    return typeof cause === "object" && cause !== null && "code" in cause && cause.code === "EPERM";
+  }
+};
+
 export const make = Effect.gen(function* () {
   const projects = yield* ProjectStore.ProjectStoreV2;
+  const sql = yield* SqlClient.SqlClient;
   const projectEnrichment = yield* ProjectEnrichmentService.ProjectEnrichmentService;
   const workspacePaths = yield* WorkspacePaths.WorkspacePaths;
   const threadProjections = yield* ProjectionStore.ProjectionStoreV2;
@@ -362,6 +410,70 @@ export const make = Effect.gen(function* () {
     return Option.isNone(row) ? Option.none() : Option.some(yield* hydrate(row.value));
   });
 
+  // Sequence 0 stays open for every connection. This update elects one directory
+  // creator and stays uncommitted until the project event is in the same transaction.
+  // A later process takes the marker only after that pid is gone. The owner deletes
+  // the sequence-0 row only when directory creation fails.
+  const ownsDirectoryCreate = Effect.fn("ProjectService.ownsDirectoryCreate")(function* (
+    commandId: CommandId,
+    projectId: ProjectId,
+  ) {
+    const claimFresh = sql<{ readonly command_id: string }>`
+      UPDATE orchestration_command_receipts
+      SET error = ${mkdirClaimToken()}
+      WHERE command_id = ${commandId}
+        AND status = 'accepted'
+        AND result_sequence = 0
+        AND error IS NULL
+      RETURNING command_id
+    `;
+    const claimFrom = (error: string) =>
+      sql<{ readonly command_id: string }>`
+        UPDATE orchestration_command_receipts
+        SET error = ${mkdirClaimToken()}
+        WHERE command_id = ${commandId}
+          AND status = 'accepted'
+          AND result_sequence = 0
+          AND error = ${error}
+        RETURNING command_id
+      `;
+    return yield* Effect.gen(function* () {
+      if ((yield* claimFresh).length === 1) return true;
+      const [row] = yield* sql<{
+        readonly error: string | null;
+        readonly resultSequence: number;
+        readonly status: string;
+      }>`
+        SELECT error, result_sequence AS "resultSequence", status
+        FROM orchestration_command_receipts
+        WHERE command_id = ${commandId}
+      `;
+      if (row === undefined || row.status !== "accepted" || row.resultSequence !== 0) {
+        return false;
+      }
+      const marker = row.error;
+      const ownerPid = mkdirClaimPid(marker);
+      if (
+        marker === null ||
+        ownerPid === undefined ||
+        ownerPid === process.pid ||
+        isLivePid(ownerPid)
+      ) {
+        return false;
+      }
+      return (yield* claimFrom(marker)).length === 1;
+    }).pipe(
+      Effect.mapError(
+        (cause) =>
+          new ProjectOperationError({
+            operation: "dispatch-project-command",
+            projectId,
+            cause,
+          }),
+      ),
+    );
+  });
+
   const admitCommand = (command: ProjectCommand) =>
     eventSink
       .reserveProjectCommand({
@@ -380,6 +492,28 @@ export const make = Effect.gen(function* () {
             }),
         ),
       );
+
+  const payloadConflicts = (command: ProjectCommand) =>
+    NodeSqliteClient.readOnly(
+      sql<{ readonly payload_digest: string | null }>`
+        SELECT payload_digest
+        FROM orchestration_command_receipts
+        WHERE command_id = ${command.commandId}
+      `,
+    ).pipe(
+      Effect.map(
+        ([row]) =>
+          row?.payload_digest != null && row.payload_digest !== commandPayloadDigest(command),
+      ),
+      Effect.mapError(
+        (cause) =>
+          new ProjectOperationError({
+            operation: "dispatch-project-command",
+            projectId: command.projectId,
+            cause,
+          }),
+      ),
+    );
 
   const create: ProjectService["Service"]["create"] = Effect.fn("ProjectService.create")(
     function* (input) {
@@ -401,23 +535,85 @@ export const make = Effect.gen(function* () {
           : { defaultModelSelection: input.defaultModelSelection }),
         ...(input.scripts === undefined ? {} : { scripts: input.scripts }),
       };
-      const admission = yield* admitCommand(command);
-      yield* Effect.gen(function* () {
-        if (admission.phase === "open" && createIfMissing) {
-          yield* normalizeWorkspaceRoot({
-            projectId: input.projectId,
-            workspaceRoot,
-            createIfMissing: true,
-          });
+      const dispatchError = (cause: unknown) =>
+        new ProjectOperationError({
+          operation: "dispatch-project-command",
+          projectId: input.projectId,
+          cause,
+        });
+      // A different payload must fail before waiting: the holder is inside
+      // create-if-missing, and this read does not take the write lock.
+      if (createIfMissing && (yield* payloadConflicts(command))) {
+        return yield* dispatchError(
+          new CommandReceiptPayloadConflictError({ commandId: command.commandId }),
+        );
+      }
+      const createOnce = Effect.gen(function* () {
+        for (;;) {
+          let owned = false;
+          const admission = yield* admitCommand(command);
+          if (!createIfMissing || admission.phase === "complete") {
+            yield* commit(command).pipe(
+              Effect.tapError(() =>
+                admission.phase === "open"
+                  ? eventSink.releaseProjectCommandClaim(command.commandId).pipe(Effect.ignore)
+                  : Effect.void,
+              ),
+            );
+            return;
+          }
+          const outcome = yield* sql
+            .withTransaction(
+              Effect.gen(function* () {
+                if (yield* ownsDirectoryCreate(command.commandId, input.projectId)) {
+                  owned = true;
+                  yield* normalizeWorkspaceRoot({
+                    projectId: input.projectId,
+                    workspaceRoot,
+                    createIfMissing: true,
+                  });
+                  yield* commit(command);
+                  return "done" as const;
+                }
+                const [row] = yield* sql<{
+                  readonly status: string;
+                  readonly resultSequence: number;
+                }>`
+                  SELECT status, result_sequence AS "resultSequence"
+                  FROM orchestration_command_receipts
+                  WHERE command_id = ${command.commandId}
+                `;
+                if (row === undefined) return "deleted" as const;
+                if (row.status !== "accepted" || row.resultSequence !== 0) {
+                  yield* commit(command);
+                  return "done" as const;
+                }
+                return "open" as const;
+              }),
+            )
+            .pipe(
+              Effect.tapError(() =>
+                owned
+                  ? eventSink.releaseProjectCommandClaim(command.commandId).pipe(Effect.ignore)
+                  : Effect.void,
+              ),
+              Effect.mapError((cause) =>
+                Schema.is(ProjectOperationError)(cause) ? cause : dispatchError(cause),
+              ),
+            );
+          if (outcome === "done") return;
+          // Still sequence 0 under a live owner. Do not commit and do not release.
+          if (outcome === "open") return yield* dispatchError("Directory creation is in progress.");
         }
-        yield* commit(command);
-      }).pipe(
-        Effect.tapError(() =>
-          admission.phase === "open"
-            ? eventSink.releaseProjectCommandClaim(command.commandId).pipe(Effect.ignore)
-            : Effect.void,
-        ),
-      );
+      });
+      // Same-process losers wait here, before any write, so they cannot commit
+      // while create-if-missing is inside this process. Other processes block
+      // on the write transaction that stays open across directory creation.
+      if (createIfMissing) {
+        yield* withDirectoryClaim(command.commandId, createOnce);
+      } else {
+        yield* createOnce;
+      }
       yield* projectEnrichment.invalidate([workspaceRoot]);
       return yield* readCommitted(input.projectId);
     },

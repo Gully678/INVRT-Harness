@@ -27,17 +27,23 @@ const createdWorkspaceRoots: Array<string> = [];
 const createGate: {
   holding: Deferred.Deferred<void> | undefined;
   release: Deferred.Deferred<void> | undefined;
-} = { holding: undefined, release: undefined };
+  failCreate: boolean;
+} = { holding: undefined, release: undefined, failCreate: false };
 
 const layerWorkspacePaths = Layer.succeed(WorkspacePaths.WorkspacePaths, {
   normalizeWorkspaceRoot: (workspaceRoot, options) =>
     Effect.gen(function* () {
       const normalized = workspaceRoot.replace(/\/$/, "");
       if (options?.createIfMissing === true) {
-        createdWorkspaceRoots.push(normalized);
+        if (!createGate.failCreate) {
+          createdWorkspaceRoots.push(normalized);
+        }
         if (createGate.holding !== undefined && createGate.release !== undefined) {
           yield* Deferred.succeed(createGate.holding, undefined);
           yield* Deferred.await(createGate.release);
+        }
+        if (createGate.failCreate) {
+          return yield* Effect.fail(new Error("mkdir failed"));
         }
       }
       return normalized;
@@ -233,6 +239,8 @@ it.effect(
     const root = "/work/two-conn";
     return Effect.gen(function* () {
       createdWorkspaceRoots.length = 0;
+      const winner = yield* Layer.build(layer);
+      const other = yield* Layer.build(layer);
       const holding = yield* Deferred.make<void>();
       const release = yield* Deferred.make<void>();
       createGate.holding = holding;
@@ -247,7 +255,7 @@ it.effect(
             workspaceRoot: root,
             createWorkspaceRootIfMissing: true,
           });
-        }).pipe(Effect.provide(layer)),
+        }).pipe(Effect.provide(winner)),
       );
       yield* Deferred.await(holding);
       const second = yield* Effect.gen(function* () {
@@ -261,7 +269,7 @@ it.effect(
             createWorkspaceRootIfMissing: true,
           })
           .pipe(Effect.flip);
-      }).pipe(Effect.provide(layer));
+      }).pipe(Effect.provide(other));
       assert.instanceOf(second, ProjectService.ProjectOperationError);
       assert.deepEqual(createdWorkspaceRoots, [root]);
       yield* Deferred.succeed(release, undefined);
@@ -279,3 +287,367 @@ it.effect(
     );
   },
 );
+
+it.effect("two connections commit one directory for the same create command", () => {
+  const tempDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "t3-project-same-conn-"));
+  const dbPath = NodePath.join(tempDir, "state.sqlite");
+  const layer = layerFor(dbPath);
+  const projectId = ProjectId.make("project:two-conn-same");
+  const commandId = CommandId.make("command:two-conn-same");
+  const root = "/work/two-conn-same";
+  const create = Effect.gen(function* () {
+    const service = yield* ProjectService.ProjectService;
+    return yield* service.create({
+      commandId,
+      projectId,
+      title: "Same",
+      workspaceRoot: root,
+      createWorkspaceRootIfMissing: true,
+    });
+  }).pipe(Effect.provide(layer));
+  return Effect.gen(function* () {
+    createdWorkspaceRoots.length = 0;
+    createGate.holding = undefined;
+    createGate.release = undefined;
+    yield* Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      yield* sql`SELECT 1`;
+    }).pipe(Effect.provide(layer));
+    const [first, second] = yield* Effect.all([create, create], { concurrency: 2 });
+    assert.equal(first.workspaceRoot, root);
+    assert.equal(second.workspaceRoot, root);
+    assert.deepEqual(createdWorkspaceRoots, [root]);
+    const events = yield* Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      return yield* sql<{ readonly n: number }>`
+        SELECT COUNT(*) AS n FROM orchestration_events WHERE command_id = ${commandId}
+      `;
+    }).pipe(Effect.provide(layer));
+    assert.equal(events[0]?.n, 1);
+  }).pipe(
+    Effect.ensuring(Effect.sync(() => NodeFS.rmSync(tempDir, { recursive: true, force: true }))),
+  );
+});
+
+it.effect(
+  "a same-payload create commits no event while the directory is still being created",
+  () => {
+    const tempDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "t3-project-same-held-"));
+    const dbPath = NodePath.join(tempDir, "state.sqlite");
+    const layer = layerFor(dbPath);
+    const projectId = ProjectId.make("project:same-held");
+    const commandId = CommandId.make("command:same-held");
+    const root = "/work/same-held";
+    const create = Effect.gen(function* () {
+      const service = yield* ProjectService.ProjectService;
+      return yield* service.create({
+        commandId,
+        projectId,
+        title: "Same",
+        workspaceRoot: root,
+        createWorkspaceRootIfMissing: true,
+      });
+    });
+    const observed = Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      const [receipt] = yield* sql<{
+        readonly resultSequence: number;
+        readonly error: string | null;
+      }>`
+        SELECT result_sequence AS "resultSequence", error
+        FROM orchestration_command_receipts
+        WHERE command_id = ${commandId}
+      `;
+      const [events] = yield* sql<{ readonly n: number }>`
+        SELECT COUNT(*) AS n FROM orchestration_events WHERE command_id = ${commandId}
+      `;
+      return { receipt, events: events?.n };
+    });
+    return Effect.gen(function* () {
+      createdWorkspaceRoots.length = 0;
+      createGate.failCreate = false;
+      const winner = yield* Layer.build(layer);
+      const loser = yield* Layer.build(layer);
+      const reader = yield* Layer.build(layer);
+      const holding = yield* Deferred.make<void>();
+      const release = yield* Deferred.make<void>();
+      createGate.holding = holding;
+      createGate.release = release;
+      const first = yield* Effect.forkChild(create.pipe(Effect.provide(winner)));
+      yield* Deferred.await(holding);
+      const during = yield* observed.pipe(Effect.provide(reader));
+      assert.ok(during.receipt);
+      assert.strictEqual(during.receipt.resultSequence, 0);
+      assert.strictEqual(during.receipt.error, null);
+      assert.strictEqual(during.events, 0);
+      const second = yield* Effect.forkChild(create.pipe(Effect.provide(loser)));
+      yield* Deferred.succeed(release, undefined);
+      const created = yield* Fiber.join(first);
+      const replayed = yield* Fiber.join(second);
+      assert.equal(created.workspaceRoot, root);
+      assert.equal(replayed.workspaceRoot, root);
+      assert.deepEqual(createdWorkspaceRoots, [root]);
+      const after = yield* observed.pipe(Effect.provide(reader));
+      assert.strictEqual(after.events, 1);
+      assert.ok(after.receipt);
+      assert.strictEqual(after.receipt.error, null);
+      assert.notStrictEqual(after.receipt.resultSequence, 0);
+    }).pipe(
+      Effect.ensuring(
+        Effect.gen(function* () {
+          if (createGate.release !== undefined) {
+            yield* Deferred.succeed(createGate.release, undefined).pipe(Effect.ignore);
+          }
+          createGate.holding = undefined;
+          createGate.release = undefined;
+          createGate.failCreate = false;
+          NodeFS.rmSync(tempDir, { recursive: true, force: true });
+        }),
+      ),
+    );
+  },
+);
+
+it.effect("a failed create-if-missing leaves no finished receipt without a directory", () => {
+  const tempDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "t3-project-mkdir-fail-"));
+  const dbPath = NodePath.join(tempDir, "state.sqlite");
+  const layer = layerFor(dbPath);
+  const projectId = ProjectId.make("project:mkdir-fail");
+  const commandId = CommandId.make("command:mkdir-fail");
+  const root = "/work/mkdir-fail";
+  return Effect.gen(function* () {
+    createdWorkspaceRoots.length = 0;
+    createGate.failCreate = true;
+    const winner = yield* Layer.build(layer);
+    const reader = yield* Layer.build(layer);
+    const holding = yield* Deferred.make<void>();
+    const release = yield* Deferred.make<void>();
+    createGate.holding = holding;
+    createGate.release = release;
+    const first = yield* Effect.forkChild(
+      Effect.gen(function* () {
+        const service = yield* ProjectService.ProjectService;
+        return yield* service.create({
+          commandId,
+          projectId,
+          title: "Missing",
+          workspaceRoot: root,
+          createWorkspaceRootIfMissing: true,
+        });
+      }).pipe(Effect.provide(winner)),
+    );
+    yield* Deferred.await(holding);
+    const during = yield* Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      return yield* sql<{ readonly n: number }>`
+        SELECT COUNT(*) AS n FROM orchestration_events WHERE command_id = ${commandId}
+      `;
+    }).pipe(Effect.provide(reader));
+    assert.equal(during[0]?.n, 0);
+    yield* Deferred.succeed(release, undefined);
+    const failed = yield* Fiber.join(first).pipe(Effect.flip);
+    assert.instanceOf(failed, ProjectService.ProjectOperationError);
+    assert.deepEqual(createdWorkspaceRoots, []);
+    const after = yield* Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      const events = yield* sql<{ readonly n: number }>`
+        SELECT COUNT(*) AS n FROM orchestration_events WHERE command_id = ${commandId}
+      `;
+      const finished = yield* sql<{ readonly n: number }>`
+        SELECT COUNT(*) AS n
+        FROM orchestration_command_receipts
+        WHERE command_id = ${commandId}
+          AND status = 'accepted'
+          AND result_sequence != 0
+      `;
+      return { events: events[0]?.n, finished: finished[0]?.n };
+    }).pipe(Effect.provide(reader));
+    assert.equal(after.events, 0);
+    assert.equal(after.finished, 0);
+  }).pipe(
+    Effect.ensuring(
+      Effect.gen(function* () {
+        if (createGate.release !== undefined) {
+          yield* Deferred.succeed(createGate.release, undefined).pipe(Effect.ignore);
+        }
+        createGate.holding = undefined;
+        createGate.release = undefined;
+        createGate.failCreate = false;
+        NodeFS.rmSync(tempDir, { recursive: true, force: true });
+      }),
+    ),
+  );
+});
+
+const deadPidCandidates = [
+  2_000_001, 2_000_002, 2_000_003, 2_000_004, 2_000_005, 2_000_006, 2_000_007, 2_000_008,
+] as const;
+
+const killErrorCode = (pid: number): string | undefined => {
+  try {
+    process.kill(pid, 0);
+    return undefined;
+  } catch (cause) {
+    return typeof cause === "object" &&
+      cause !== null &&
+      "code" in cause &&
+      typeof cause.code === "string"
+      ? cause.code
+      : undefined;
+  }
+};
+
+const insertAcceptedSequenceZero = (
+  command: {
+    readonly type: "project.create";
+    readonly commandId: CommandId;
+    readonly projectId: ProjectId;
+    readonly title: string;
+    readonly workspaceRoot: string;
+  },
+  error: string,
+) =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    yield* sql`
+      INSERT INTO orchestration_command_receipts (
+        command_id,
+        aggregate_kind,
+        aggregate_id,
+        command_type,
+        accepted_at,
+        result_sequence,
+        status,
+        error,
+        payload_digest
+      )
+      VALUES (
+        ${command.commandId},
+        'project',
+        ${command.projectId},
+        ${command.type},
+        '2026-11-11T12:00:00.000Z',
+        0,
+        'accepted',
+        ${error},
+        ${commandPayloadDigest(command)}
+      )
+    `;
+  });
+
+it.effect("a dead mkdir pid is claimed and commits one directory", () => {
+  const deadPid = deadPidCandidates.find((pid) => killErrorCode(pid) === "ESRCH");
+  if (deadPid === undefined) {
+    throw new Error("no dead pid in the candidate list");
+  }
+  const tempDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "t3-project-dead-pid-"));
+  const dbPath = NodePath.join(tempDir, "state.sqlite");
+  const layer = layerFor(dbPath);
+  const command = {
+    type: "project.create" as const,
+    commandId: CommandId.make("command:dead-pid"),
+    projectId: ProjectId.make("project:dead-pid"),
+    title: "Dead pid",
+    workspaceRoot: "/work/dead-pid",
+  };
+  return Effect.gen(function* () {
+    createdWorkspaceRoots.length = 0;
+    createGate.holding = undefined;
+    createGate.release = undefined;
+    createGate.failCreate = false;
+    yield* insertAcceptedSequenceZero(command, `mkdir:${deadPid}`).pipe(Effect.provide(layer));
+    const created = yield* Effect.gen(function* () {
+      const service = yield* ProjectService.ProjectService;
+      return yield* service.create({
+        ...command,
+        createWorkspaceRootIfMissing: true,
+      });
+    }).pipe(Effect.provide(layer));
+    assert.equal(created.workspaceRoot, command.workspaceRoot);
+    assert.deepEqual(createdWorkspaceRoots, [command.workspaceRoot]);
+    const after = yield* Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      const [events] = yield* sql<{ readonly n: number }>`
+        SELECT COUNT(*) AS n FROM orchestration_events WHERE command_id = ${command.commandId}
+      `;
+      const [receipt] = yield* sql<{
+        readonly error: string | null;
+        readonly resultSequence: number;
+      }>`
+        SELECT error, result_sequence AS "resultSequence"
+        FROM orchestration_command_receipts
+        WHERE command_id = ${command.commandId}
+      `;
+      return { events: events?.n, receipt };
+    }).pipe(Effect.provide(layer));
+    assert.strictEqual(after.events, 1);
+    assert.ok(after.receipt);
+    assert.strictEqual(after.receipt.error, null);
+    assert.notStrictEqual(after.receipt.resultSequence, 0);
+  }).pipe(
+    Effect.ensuring(
+      Effect.sync(() => {
+        createGate.holding = undefined;
+        createGate.release = undefined;
+        createGate.failCreate = false;
+        NodeFS.rmSync(tempDir, { recursive: true, force: true });
+      }),
+    ),
+  );
+});
+
+it.effect("a live other mkdir pid does not create a directory", () => {
+  let liveOtherPid: number | undefined;
+  try {
+    process.kill(process.ppid, 0);
+    liveOtherPid = process.ppid;
+  } catch (cause) {
+    throw new Error(`process.ppid ${process.ppid} is not signalable`, { cause });
+  }
+  const tempDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "t3-project-live-pid-"));
+  const dbPath = NodePath.join(tempDir, "state.sqlite");
+  const layer = layerFor(dbPath);
+  const command = {
+    type: "project.create" as const,
+    commandId: CommandId.make("command:live-pid"),
+    projectId: ProjectId.make("project:live-pid"),
+    title: "Live pid",
+    workspaceRoot: "/work/live-pid",
+  };
+  return Effect.gen(function* () {
+    createdWorkspaceRoots.length = 0;
+    createGate.holding = undefined;
+    createGate.release = undefined;
+    createGate.failCreate = false;
+    yield* insertAcceptedSequenceZero(command, `mkdir:${liveOtherPid}`).pipe(Effect.provide(layer));
+    const failed = yield* Effect.gen(function* () {
+      const service = yield* ProjectService.ProjectService;
+      return yield* service.create({
+        ...command,
+        createWorkspaceRootIfMissing: true,
+      });
+    }).pipe(Effect.provide(layer), Effect.flip);
+    assert.instanceOf(failed, ProjectService.ProjectOperationError);
+    assert.deepEqual(createdWorkspaceRoots, []);
+    const finished = yield* Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      const [row] = yield* sql<{ readonly n: number }>`
+        SELECT COUNT(*) AS n
+        FROM orchestration_command_receipts
+        WHERE command_id = ${command.commandId}
+          AND result_sequence != 0
+      `;
+      return row?.n;
+    }).pipe(Effect.provide(layer));
+    assert.strictEqual(finished, 0);
+  }).pipe(
+    Effect.ensuring(
+      Effect.sync(() => {
+        createGate.holding = undefined;
+        createGate.release = undefined;
+        createGate.failCreate = false;
+        NodeFS.rmSync(tempDir, { recursive: true, force: true });
+      }),
+    ),
+  );
+});
