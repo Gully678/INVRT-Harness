@@ -1,4 +1,5 @@
 import "vite-plus/test/config";
+import { fileURLToPath } from "node:url";
 import { defineConfig, mergeConfig } from "vite-plus";
 
 import baseConfig from "../../vite.config.ts";
@@ -69,9 +70,34 @@ const { projects: _rootTestProjects, ...baseTestConfig } = baseConfig.test ?? {}
 // Workspace cache configuration is invalid on a package config.
 const { run: _rootRunConfig, ...basePackageConfig } = baseConfig;
 
+// This checkout's apps/server/node_modules/@t3tools/provider-grok symlink points at the
+// wave install. Route tests import this worktree's package source by path. Node then
+// resolves that file's bare imports from the package directory and misses the server
+// install. Rewrite only those imports.
+const localGrokRoot = fileURLToPath(new URL("../../packages/provider-grok/", import.meta.url));
+const serverPackage = fileURLToPath(new URL("./package.json", import.meta.url));
+
 export default mergeConfig(
   { ...basePackageConfig, test: baseTestConfig },
   defineConfig({
+    plugins: [
+      {
+        name: "ic04-resolve-local-grok-deps",
+        enforce: "pre",
+        async resolveId(this: { resolve: Function }, source: string, importer: string | undefined) {
+          if (!importer?.startsWith(localGrokRoot)) return null;
+          if (
+            source.startsWith(".") ||
+            source.startsWith("/") ||
+            source.startsWith("\0") ||
+            source.startsWith("node:")
+          ) {
+            return null;
+          }
+          return this.resolve(source, serverPackage, { skipSelf: true });
+        },
+      },
+    ],
     run: {
       tasks: {
         build: {

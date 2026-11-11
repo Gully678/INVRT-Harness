@@ -33,6 +33,7 @@ import {
   makeGrokAcpRuntime,
   resolveGrokAcpBaseModelId,
 } from "./acpSupport.ts";
+import { readGrokSubscriptionLogin } from "./status.ts";
 import {
   extractGrokPlanMarkdownFromToolCallData,
   extractXAiAcpBackgroundToolMutation,
@@ -290,12 +291,19 @@ export function makeGrokAcpAdapterFlavor(
     makeRuntime:
       options.makeRuntime ??
       (({ runtimePolicy, ...input }) =>
-        makeGrokAcpRuntime({
-          ...input,
-          interruptPromptOnCancel: input.interruptPromptOnCancel ?? false,
-          grokSettings: options.settings,
-          environment: options.environment,
-          runtimeMode: grokLaunchRuntimeMode(runtimePolicy),
+        Effect.gen(function* () {
+          const apiKeyPresent = Boolean(options.environment.XAI_API_KEY?.trim());
+          const cliAuthenticated = apiKeyPresent
+            ? yield* readGrokSubscriptionLogin(options.settings, options.environment)
+            : undefined;
+          return yield* makeGrokAcpRuntime({
+            ...input,
+            interruptPromptOnCancel: input.interruptPromptOnCancel ?? false,
+            grokSettings: options.settings,
+            environment: options.environment,
+            runtimeMode: grokLaunchRuntimeMode(runtimePolicy),
+            ...(cliAuthenticated === undefined ? {} : { cliAuthenticated }),
+          });
         })),
     // Auto prompts represent classifier refusals and must reach the user.
     permissionDisposition: (policy, request) =>

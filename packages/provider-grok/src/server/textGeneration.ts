@@ -18,6 +18,7 @@ import {
   makeGrokAcpRuntime,
   resolveGrokAcpBaseModelId,
 } from "./acpSupport.ts";
+import { readGrokSubscriptionLogin } from "./status.ts";
 
 const GROK_TIMEOUT_MS = 180_000;
 
@@ -35,10 +36,14 @@ export const makeGrokTextGeneration = Effect.fn("makeGrokTextGeneration")(functi
       const { operation, cwd, prompt, modelSelection } = request;
 
       const outputRef = yield* Ref.make("");
+      const cliAuthenticated = environment.XAI_API_KEY?.trim()
+        ? yield* readGrokSubscriptionLogin(grokSettings, environment)
+        : undefined;
       const runtime = yield* makeGrokAcpRuntime({
         grokSettings,
         environment,
         cwd,
+        ...(cliAuthenticated === undefined ? {} : { cliAuthenticated }),
         clientInfo: { name: "invrt-code-git-text", version: "0.0.0" },
       }).pipe(
         Effect.provideService(Crypto.Crypto, crypto),

@@ -16,6 +16,7 @@ import * as HostProcess from "@t3tools/shared/HostProcess";
 import { normalizeModelSlug } from "@t3tools/shared/model";
 
 import * as AcpSessionRuntime from "@t3tools/provider-acp/server/AcpSessionRuntime";
+import { selectGrokProviderRoute } from "./routeQualification.ts";
 import { makeXAiPromptCompletionRuntime } from "./xaiAcpExtension.ts";
 
 const GROK_API_KEY_ENV = "XAI_API_KEY";
@@ -34,6 +35,20 @@ interface GrokAcpRuntimeInput extends Omit<
   readonly grokSettings: GrokAcpRuntimeGrokSettings | null | undefined;
   readonly environment?: NodeJS.ProcessEnv;
   readonly runtimeMode?: RuntimeMode;
+  /** Set from `grok models`. Omit it only when this session has not qualified a subscription. */
+  readonly cliAuthenticated?: boolean | null;
+}
+
+export function grokSpawnEnvironment(
+  environment: NodeJS.ProcessEnv | undefined,
+  useApiKey: boolean,
+): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {
+    ...environment,
+    [GROK_OAUTH2_REFERRER_ENV]: T3_CODE_OAUTH_REFERRER,
+  };
+  if (!useApiKey) delete env[GROK_API_KEY_ENV];
+  return env;
 }
 
 // grok agent treats settings-only acceptEdits as ask; it has no Auto-accept edits launch mode.
@@ -60,24 +75,16 @@ export function grokAcpSpawnArgs(runtimeMode?: RuntimeMode): ReadonlyArray<strin
 function buildGrokAcpSpawnInput(
   grokSettings: GrokAcpRuntimeGrokSettings | null | undefined,
   cwd: string,
-  environment?: NodeJS.ProcessEnv,
-  runtimeMode?: RuntimeMode,
+  environment: NodeJS.ProcessEnv | undefined,
+  runtimeMode: RuntimeMode | undefined,
+  useApiKey: boolean,
 ): AcpSessionRuntime.AcpSpawnInput {
   return {
     command: grokSettings?.binaryPath || "grok",
     args: [...grokAcpSpawnArgs(runtimeMode)],
     cwd,
-    env: {
-      ...environment,
-      [GROK_OAUTH2_REFERRER_ENV]: T3_CODE_OAUTH_REFERRER,
-    },
+    env: grokSpawnEnvironment(environment, useApiKey),
   };
-}
-
-function resolveGrokAuthMethodId(environment: NodeJS.ProcessEnv | undefined): string {
-  return environment?.[GROK_API_KEY_ENV]?.trim()
-    ? GROK_AUTH_METHOD_API_KEY
-    : GROK_AUTH_METHOD_CACHED_TOKEN;
 }
 
 function grokAcpRuntimeProcessOwnership(
@@ -129,16 +136,26 @@ export const makeGrokAcpRuntime = Effect.fn("GrokAcpSupport.makeGrokAcpRuntime")
   ChildProcessSpawner.ChildProcessSpawner | Crypto.Crypto | Scope.Scope
 > {
   const processGroupPlatform = yield* HostProcess.Platform.pipe(Effect.provide(NodeServices.layer));
+  const { cliAuthenticated: suppliedLogin, ...runtimeInput } = input;
+  const apiKeyPresent = Boolean(input.environment?.[GROK_API_KEY_ENV]?.trim());
+  // Callers that have not read the CLI login keep the explicit API-key route.
+  // Status passes the login result so an available, expired, or unknown
+  // subscription does not spawn on that key.
+  const useApiKey =
+    suppliedLogin === undefined
+      ? apiKeyPresent
+      : selectGrokProviderRoute({ cliAuthenticated: suppliedLogin, apiKeyPresent }).useApiKey;
   const acpContext = yield* Layer.build(
     AcpSessionRuntime.layer({
-      ...input,
+      ...runtimeInput,
       spawn: buildGrokAcpSpawnInput(
         input.grokSettings,
         input.cwd,
         input.environment,
         input.runtimeMode,
+        useApiKey,
       ),
-      authMethodId: resolveGrokAuthMethodId(input.environment),
+      authMethodId: useApiKey ? GROK_AUTH_METHOD_API_KEY : GROK_AUTH_METHOD_CACHED_TOKEN,
       cancelMeta: { ...input.cancelMeta, ...GROK_ACP_CANCEL_META },
       initializeMeta: GROK_ACP_INITIALIZE_META,
       ...grokAcpRuntimeProcessOwnership(processGroupPlatform),
