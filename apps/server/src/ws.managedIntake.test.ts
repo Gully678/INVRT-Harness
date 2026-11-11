@@ -303,6 +303,11 @@ const throughWebsocket = (
       ),
     ),
     Effect.provide(persistence(dbPath)),
+    Effect.provide(
+      ServerConfig.layerTest(process.cwd(), { prefix: "managed-ws-intake-" }).pipe(
+        Layer.provideMerge(DocumentText.layer.pipe(Layer.provideMerge(NodeServices.layer))),
+      ),
+    ),
   );
 
 const readDecision = (dbPath: string, commandId: CommandId) =>
