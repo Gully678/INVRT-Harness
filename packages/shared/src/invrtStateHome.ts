@@ -254,6 +254,34 @@ const verifyCopy = (
   }
 };
 
+// Contents alone cannot detect replacement of the directory or metadata being verified.
+type EntryIdentity = Pick<NodeFS.Stats, "dev" | "ino" | "mode">;
+
+const identityOf = ({ dev, ino, mode }: NodeFS.Stats): EntryIdentity => ({ dev, ino, mode });
+const validIdentity = (value: EntryIdentity | null | undefined): value is EntryIdentity =>
+  value !== null &&
+  value !== undefined &&
+  Number.isSafeInteger(value.dev) &&
+  Number.isSafeInteger(value.ino) &&
+  Number.isSafeInteger(value.mode);
+
+const sameEntry = (path: string, expected: EntryIdentity | undefined) => {
+  if (expected === undefined) return false;
+  const actual = NodeFS.lstatSync(path, { throwIfNoEntry: false });
+  return (
+    actual !== undefined &&
+    actual.dev === expected.dev &&
+    actual.ino === expected.ino &&
+    actual.mode === expected.mode
+  );
+};
+
+const realDirectory = (path: string) =>
+  NodeFS.lstatSync(path, { throwIfNoEntry: false })?.isDirectory() === true;
+
+const sameFile = (path: string, expected: EntryIdentity | undefined, bytes: string) =>
+  sameEntry(path, expected) && NodeFS.readFileSync(path, "utf8") === bytes;
+
 const journalPathFor = (destination: string) =>
   NodePath.join(
     NodePath.dirname(destination),
@@ -264,24 +292,54 @@ const recoverInterruptedImport = (source: string, destination: string) => {
   const journal = journalPathFor(destination);
   if (!NodeFS.existsSync(journal)) return;
   const metadataPath = NodePath.join(journal, "transaction.json");
+  const sealPath = NodePath.join(journal, "transaction.sha256");
+  const journalIdentity = NodeFS.lstatSync(journal);
+  const metadataIdentity = NodeFS.lstatSync(metadataPath, { throwIfNoEntry: false });
+  const sealIdentity = NodeFS.lstatSync(sealPath, { throwIfNoEntry: false });
+  if (!journalIdentity.isDirectory() || !metadataIdentity?.isFile() || !sealIdentity?.isFile()) {
+    throw new LegacyStateImportError("Unrecognised import journal requires manual recovery.");
+  }
+  let metadataBytes: string;
+  let sealBytes: string;
+  let seal: { sha256: string; metadataIdentity: EntryIdentity };
   let metadata: {
     pid: number;
     source: string;
     destination: string;
     sourceFingerprint: string;
     destinationFingerprint: string | null;
+    journalIdentity: EntryIdentity;
+    stageIdentity: EntryIdentity;
+    destinationIdentity: EntryIdentity | null;
   };
   try {
-    metadata = JSON.parse(NodeFS.readFileSync(metadataPath, "utf8"));
+    metadataBytes = NodeFS.readFileSync(metadataPath, "utf8");
+    sealBytes = NodeFS.readFileSync(sealPath, "utf8");
+    seal = JSON.parse(sealBytes);
+    metadata = JSON.parse(metadataBytes);
   } catch {
     throw new LegacyStateImportError("Incomplete import journal requires manual recovery.");
   }
   if (
+    seal === null ||
+    typeof seal !== "object" ||
+    !validIdentity(seal.metadataIdentity) ||
+    !sameEntry(metadataPath, seal.metadataIdentity) ||
+    seal.sha256 !== hashBuffer(metadataBytes)
+  ) {
+    throw new LegacyStateImportError("Import metadata changed; manual recovery required.");
+  }
+  if (
+    metadata === null ||
+    typeof metadata !== "object" ||
     !Number.isSafeInteger(metadata.pid) ||
     metadata.pid <= 0 ||
     metadata.source !== source ||
     metadata.destination !== destination ||
     typeof metadata.sourceFingerprint !== "string" ||
+    !validIdentity(metadata.journalIdentity) ||
+    !validIdentity(metadata.stageIdentity) ||
+    (metadata.destinationIdentity !== null && !validIdentity(metadata.destinationIdentity)) ||
     (typeof metadata.destinationFingerprint !== "string" &&
       metadata.destinationFingerprint !== null)
   ) {
@@ -297,7 +355,15 @@ const recoverInterruptedImport = (source: string, destination: string) => {
   const backup = NodePath.join(journal, "backup");
   const names = NodeFS.readdirSync(journal).sort();
   if (
-    names.some((name) => !["transaction.json", "stage", "backup"].includes(name)) ||
+    !sameEntry(journal, metadata.journalIdentity) ||
+    names.some(
+      (name) => !["transaction.json", "transaction.sha256", "stage", "backup"].includes(name),
+    ) ||
+    (names.includes("stage") && !sameEntry(stage, metadata.stageIdentity)) ||
+    (names.includes("backup") && !sameEntry(backup, metadata.destinationIdentity ?? undefined)) ||
+    (names.includes("stage") && !realDirectory(stage)) ||
+    (names.includes("backup") && !realDirectory(backup)) ||
+    (NodeFS.existsSync(destination) && !realDirectory(destination)) ||
     fingerprint(walkState(source)) !== metadata.sourceFingerprint ||
     (NodeFS.existsSync(stage) && fingerprint(walkState(stage)) !== metadata.sourceFingerprint) ||
     (NodeFS.existsSync(backup) &&
@@ -306,6 +372,20 @@ const recoverInterruptedImport = (source: string, destination: string) => {
     throw new LegacyStateImportError("Import recovery found changed or foreign state.");
   }
   const current = NodeFS.existsSync(destination) ? fingerprint(walkState(destination)) : null;
+  if (
+    current !== null &&
+    !sameEntry(destination, metadata.stageIdentity) &&
+    !sameEntry(destination, metadata.destinationIdentity ?? undefined)
+  ) {
+    throw new LegacyStateImportError("Import recovery found changed or foreign state.");
+  }
+  if (
+    !sameEntry(journal, journalIdentity) ||
+    !sameFile(metadataPath, metadataIdentity, metadataBytes) ||
+    !sameFile(sealPath, sealIdentity, sealBytes)
+  ) {
+    throw new LegacyStateImportError("Import recovery found changed or foreign state.");
+  }
   if (NodeFS.existsSync(backup)) {
     if (current === null && NodeFS.existsSync(stage)) NodeFS.renameSync(backup, destination);
     else if (current !== metadata.sourceFingerprint || NodeFS.existsSync(stage))
@@ -313,6 +393,13 @@ const recoverInterruptedImport = (source: string, destination: string) => {
   } else if (
     current !== metadata.destinationFingerprint &&
     current !== metadata.sourceFingerprint
+  ) {
+    throw new LegacyStateImportError("Import recovery found changed or foreign state.");
+  }
+  if (
+    !sameEntry(journal, journalIdentity) ||
+    !sameFile(metadataPath, metadataIdentity, metadataBytes) ||
+    !sameFile(sealPath, sealIdentity, sealBytes)
   ) {
     throw new LegacyStateImportError("Import recovery found changed or foreign state.");
   }
@@ -376,6 +463,7 @@ export function importLegacyState(input: {
   }
 
   const destinationFingerprint = destinationExists ? fingerprint(walkState(destination)) : null;
+  const destinationIdentity = destinationExists ? NodeFS.lstatSync(destination) : undefined;
   NodeFS.mkdirSync(NodePath.dirname(destination), { recursive: true });
   const stage = NodeFS.mkdtempSync(
     NodePath.join(
@@ -383,7 +471,16 @@ export function importLegacyState(input: {
       `.invrt-import-stage-${hashBuffer(destination).slice(0, 24)}-`,
     ),
   );
+  const stageIdentity = NodeFS.lstatSync(stage);
   const journal = journalPathFor(destination);
+  const metadataPath = NodePath.join(journal, "transaction.json");
+  const sealPath = NodePath.join(journal, "transaction.sha256");
+  let journalIdentity: NodeFS.Stats | undefined;
+  let metadataIdentity: NodeFS.Stats | undefined;
+  let sealIdentity: NodeFS.Stats | undefined;
+  let metadataBytes = "";
+  let sealBytes = "";
+  let backupIdentity: NodeFS.Stats | undefined;
   const backup = destinationExists ? NodePath.join(journal, "backup") : null;
   let published = false;
   let movedDestination = false;
@@ -421,29 +518,49 @@ export function importLegacyState(input: {
     try {
       NodeFS.mkdirSync(journal);
       journalCreated = true;
+      journalIdentity = NodeFS.lstatSync(journal);
     } catch (cause) {
       if (NodeFS.existsSync(journal))
         throw new LegacyStateImportError("Another import or recovery is active.");
       throw cause;
     }
+    if (journalIdentity === undefined || !journalIdentity.isDirectory()) {
+      throw new LegacyStateImportError("Import journal changed during creation.");
+    }
     if (
       destinationFingerprint !==
       (NodeFS.existsSync(destination) ? fingerprint(walkState(destination)) : null)
     ) {
+      if (!sameEntry(journal, journalIdentity))
+        throw new LegacyStateImportError("Import journal changed during creation.");
       NodeFS.rmdirSync(journal);
       throw new LegacyStateImportError("Destination changed during import.");
     }
-    NodeFS.writeFileSync(
-      NodePath.join(journal, "transaction.json"),
-      JSON.stringify({
-        pid: process.pid,
-        source,
-        destination,
-        sourceFingerprint,
-        destinationFingerprint,
-      }),
-      { flag: "wx" },
-    );
+    metadataBytes = JSON.stringify({
+      pid: process.pid,
+      source,
+      destination,
+      sourceFingerprint,
+      destinationFingerprint,
+      journalIdentity: identityOf(journalIdentity),
+      stageIdentity: identityOf(stageIdentity),
+      destinationIdentity:
+        destinationIdentity === undefined ? null : identityOf(destinationIdentity),
+    });
+    NodeFS.writeFileSync(metadataPath, metadataBytes, { flag: "wx" });
+    metadataIdentity = NodeFS.lstatSync(metadataPath);
+    if (!metadataIdentity.isFile())
+      throw new LegacyStateImportError("Import metadata changed during creation.");
+    sealBytes = JSON.stringify({
+      sha256: hashBuffer(metadataBytes),
+      metadataIdentity: identityOf(metadataIdentity),
+    });
+    NodeFS.writeFileSync(sealPath, sealBytes, { flag: "wx" });
+    sealIdentity = NodeFS.lstatSync(sealPath);
+    if (!sealIdentity.isFile())
+      throw new LegacyStateImportError("Import checksum changed during creation.");
+    if (!stageIdentity.isDirectory() || !sameEntry(stage, stageIdentity))
+      throw new LegacyStateImportError("Stage root changed during import.");
     NodeFS.renameSync(stage, NodePath.join(journal, "stage"));
     if (
       fingerprint(walkState(NodePath.join(journal, "stage"))) !== sourceFingerprint ||
@@ -452,23 +569,45 @@ export function importLegacyState(input: {
       throw new LegacyStateImportError("Source or staged copy changed during import.");
     }
     if (backup !== null) {
+      if (!sameEntry(destination, destinationIdentity))
+        throw new LegacyStateImportError("Destination changed during import.");
       NodeFS.renameSync(destination, backup);
       movedDestination = true;
+      backupIdentity = NodeFS.lstatSync(backup);
       input.afterMovingDestination?.();
+    }
+    if (
+      !sameEntry(journal, journalIdentity) ||
+      !sameEntry(NodePath.join(journal, "stage"), stageIdentity) ||
+      !sameFile(metadataPath, metadataIdentity, metadataBytes) ||
+      !sameFile(sealPath, sealIdentity, sealBytes)
+    ) {
+      throw new LegacyStateImportError("Import journal or stage changed during publication.");
     }
     NodeFS.renameSync(NodePath.join(journal, "stage"), destination);
     published = true;
     input.afterPublishingDestination?.();
     if (
+      !sameEntry(destination, stageIdentity) ||
+      !realDirectory(destination) ||
+      isInside(NodeFS.realpathSync(source), NodeFS.realpathSync(destination)) ||
+      isInside(NodeFS.realpathSync(destination), NodeFS.realpathSync(source)) ||
       fingerprint(walkState(destination)) !== sourceFingerprint ||
       fingerprint(walkState(source)) !== sourceFingerprint
     ) {
       throw new LegacyStateImportError("Source or destination changed during publication.");
     }
     if (
+      !sameEntry(journal, journalIdentity) ||
+      !sameFile(metadataPath, metadataIdentity, metadataBytes) ||
+      !sameFile(sealPath, sealIdentity, sealBytes) ||
       NodeFS.readdirSync(journal).sort().join(",") !==
-        (backup === null ? "transaction.json" : "backup,transaction.json") ||
-      (backup !== null && fingerprint(walkState(backup)) !== destinationFingerprint)
+        (backup === null
+          ? "transaction.json,transaction.sha256"
+          : "backup,transaction.json,transaction.sha256") ||
+      (backup !== null &&
+        (!sameEntry(backup, backupIdentity) ||
+          fingerprint(walkState(backup)) !== destinationFingerprint))
     ) {
       throw new LegacyStateImportError("Import journal contains changed or foreign state.");
     }
@@ -485,6 +624,8 @@ export function importLegacyState(input: {
       movedDestination &&
       backup !== null &&
       !NodeFS.existsSync(destination) &&
+      sameEntry(journal, journalIdentity) &&
+      sameEntry(backup, backupIdentity) &&
       fingerprint(walkState(backup)) === destinationFingerprint
     )
       NodeFS.renameSync(backup, destination);
@@ -493,8 +634,13 @@ export function importLegacyState(input: {
     if (
       journalCreated &&
       !published &&
+      sameEntry(journal, journalIdentity) &&
+      sameFile(metadataPath, metadataIdentity, metadataBytes) &&
+      sameFile(sealPath, sealIdentity, sealBytes) &&
+      sameEntry(journalStage, stageIdentity) &&
       NodeFS.existsSync(journalStage) &&
-      NodeFS.readdirSync(journal).sort().join(",") === "stage,transaction.json" &&
+      NodeFS.readdirSync(journal).sort().join(",") ===
+        "stage,transaction.json,transaction.sha256" &&
       fingerprint(walkState(journalStage)) === sourceFingerprint &&
       fingerprint(walkState(source)) === sourceFingerprint &&
       (NodeFS.existsSync(destination) ? fingerprint(walkState(destination)) : null) ===

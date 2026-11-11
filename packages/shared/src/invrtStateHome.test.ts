@@ -293,6 +293,343 @@ describe("legacy state import", () => {
     }
   });
 
+  it("refuses a stage-root symlink substituted before publication", () => {
+    const home = disposableHome();
+    try {
+      const source = NodePath.join(home.root, "source");
+      const destination = NodePath.join(home.root, "destination");
+      const id = NodeCrypto.createHash("sha256").update(destination).digest("hex").slice(0, 24);
+      const journal = NodePath.join(home.root, `.invrt-import-${id}`);
+      const stage = NodePath.join(journal, "stage");
+      writeTree(source, { new: "source" });
+      writeTree(destination, { old: "old" });
+      assert.throws(
+        () =>
+          importLegacyState({
+            sourcePath: source,
+            destinationPath: destination,
+            replace: true,
+            afterMovingDestination: () => {
+              NodeFS.renameSync(stage, NodePath.join(home.root, "original-stage"));
+              NodeFS.symlinkSync(source, stage);
+            },
+          }),
+        /changed|foreign/i,
+      );
+      assert.equal(NodeFS.readFileSync(NodePath.join(destination, "old"), "utf8"), "old");
+      assert.equal(NodeFS.readFileSync(NodePath.join(source, "new"), "utf8"), "source");
+      assert.isTrue(NodeFS.lstatSync(stage).isSymbolicLink());
+      assert.equal(
+        NodeFS.readFileSync(NodePath.join(home.root, "original-stage", "new"), "utf8"),
+        "source",
+      );
+    } finally {
+      home.remove();
+    }
+  });
+
+  it("preserves changed transaction metadata and backup after publication", () => {
+    const home = disposableHome();
+    try {
+      const source = NodePath.join(home.root, "source");
+      const destination = NodePath.join(home.root, "destination");
+      const id = NodeCrypto.createHash("sha256").update(destination).digest("hex").slice(0, 24);
+      const journal = NodePath.join(home.root, `.invrt-import-${id}`);
+      const metadata = NodePath.join(journal, "transaction.json");
+      writeTree(source, { new: "source" });
+      writeTree(destination, { old: "old" });
+      assert.throws(
+        () =>
+          importLegacyState({
+            sourcePath: source,
+            destinationPath: destination,
+            replace: true,
+            afterPublishingDestination: () => {
+              NodeFS.writeFileSync(metadata, "foreign sentinel");
+            },
+          }),
+        /changed|foreign/i,
+      );
+      assert.equal(NodeFS.readFileSync(metadata, "utf8"), "foreign sentinel");
+      assert.equal(NodeFS.readFileSync(NodePath.join(journal, "backup", "old"), "utf8"), "old");
+      assert.equal(NodeFS.readFileSync(NodePath.join(destination, "new"), "utf8"), "source");
+      assert.equal(NodeFS.readFileSync(NodePath.join(source, "new"), "utf8"), "source");
+      assert.throws(
+        () =>
+          importLegacyState({ sourcePath: source, destinationPath: destination, replace: true }),
+        /manual recovery/i,
+      );
+    } finally {
+      home.remove();
+    }
+  });
+
+  it("preserves identical replacement metadata rather than deleting it", () => {
+    const home = disposableHome();
+    try {
+      const source = NodePath.join(home.root, "source"),
+        destination = NodePath.join(home.root, "destination");
+      const id = NodeCrypto.createHash("sha256").update(destination).digest("hex").slice(0, 24);
+      const journal = NodePath.join(home.root, `.invrt-import-${id}`),
+        metadata = NodePath.join(journal, "transaction.json");
+      writeTree(source, { new: "source" });
+      writeTree(destination, { old: "old" });
+      assert.throws(
+        () =>
+          importLegacyState({
+            sourcePath: source,
+            destinationPath: destination,
+            replace: true,
+            afterPublishingDestination: () => {
+              const content = NodeFS.readFileSync(metadata);
+              NodeFS.renameSync(metadata, NodePath.join(home.root, "original-metadata"));
+              NodeFS.writeFileSync(metadata, content);
+            },
+          }),
+        /changed|foreign/i,
+      );
+      assert.equal(
+        NodeFS.readFileSync(metadata, "utf8"),
+        NodeFS.readFileSync(NodePath.join(home.root, "original-metadata"), "utf8"),
+      );
+      assert.equal(NodeFS.readFileSync(NodePath.join(journal, "backup", "old"), "utf8"), "old");
+    } finally {
+      home.remove();
+    }
+  });
+
+  it("preserves changed metadata when publication fails before rename", () => {
+    const home = disposableHome();
+    try {
+      const source = NodePath.join(home.root, "source"),
+        destination = NodePath.join(home.root, "destination");
+      const id = NodeCrypto.createHash("sha256").update(destination).digest("hex").slice(0, 24);
+      const journal = NodePath.join(home.root, `.invrt-import-${id}`),
+        metadata = NodePath.join(journal, "transaction.json");
+      writeTree(source, { new: "source" });
+      writeTree(destination, { old: "old" });
+      assert.throws(
+        () =>
+          importLegacyState({
+            sourcePath: source,
+            destinationPath: destination,
+            replace: true,
+            afterMovingDestination: () => {
+              NodeFS.writeFileSync(metadata, "foreign sentinel");
+              throw new Error("injected failure");
+            },
+          }),
+        /injected failure/,
+      );
+      assert.equal(NodeFS.readFileSync(metadata, "utf8"), "foreign sentinel");
+      assert.equal(NodeFS.readFileSync(NodePath.join(destination, "old"), "utf8"), "old");
+      assert.equal(NodeFS.readFileSync(NodePath.join(journal, "stage", "new"), "utf8"), "source");
+    } finally {
+      home.remove();
+    }
+  });
+
+  it("refuses a substituted stage root during recovery", () => {
+    const home = disposableHome();
+    try {
+      const source = NodePath.join(home.root, "source"),
+        destination = NodePath.join(home.root, "destination");
+      const id = NodeCrypto.createHash("sha256").update(destination).digest("hex").slice(0, 24);
+      const journal = NodePath.join(home.root, `.invrt-import-${id}`),
+        stage = NodePath.join(journal, "stage");
+      writeTree(source, { new: "source" });
+      writeTree(destination, { old: "old" });
+      const child = NodeChildProcess.spawnSync(process.execPath, [
+        "--input-type=module",
+        "-e",
+        `
+        import { importLegacyState } from ${JSON.stringify(new URL("./invrtStateHome.ts", import.meta.url).href)};
+        importLegacyState({ sourcePath: ${JSON.stringify(source)}, destinationPath: ${JSON.stringify(destination)}, replace: true, afterMovingDestination() { process.kill(process.pid, "SIGKILL"); } });
+      `,
+      ]);
+      assert.equal(child.signal, "SIGKILL");
+      NodeFS.renameSync(stage, NodePath.join(home.root, "original-stage"));
+      NodeFS.symlinkSync(source, stage);
+      assert.throws(
+        () =>
+          importLegacyState({ sourcePath: source, destinationPath: destination, replace: true }),
+        /changed|foreign/i,
+      );
+      assert.isTrue(NodeFS.lstatSync(stage).isSymbolicLink());
+      assert.equal(NodeFS.readFileSync(NodePath.join(journal, "backup", "old"), "utf8"), "old");
+      assert.equal(NodeFS.readFileSync(NodePath.join(source, "new"), "utf8"), "source");
+    } finally {
+      home.remove();
+    }
+  });
+
+  it("refuses an identical replacement stage directory during recovery", () => {
+    const home = disposableHome();
+    try {
+      const source = NodePath.join(home.root, "source"),
+        destination = NodePath.join(home.root, "destination");
+      const id = NodeCrypto.createHash("sha256").update(destination).digest("hex").slice(0, 24);
+      const journal = NodePath.join(home.root, `.invrt-import-${id}`),
+        stage = NodePath.join(journal, "stage");
+      writeTree(source, { new: "source" });
+      writeTree(destination, { old: "old" });
+      const child = NodeChildProcess.spawnSync(process.execPath, [
+        "--input-type=module",
+        "-e",
+        `
+        import { importLegacyState } from ${JSON.stringify(new URL("./invrtStateHome.ts", import.meta.url).href)};
+        importLegacyState({ sourcePath: ${JSON.stringify(source)}, destinationPath: ${JSON.stringify(destination)}, replace: true, afterMovingDestination() { process.kill(process.pid, "SIGKILL"); } });
+      `,
+      ]);
+      assert.equal(child.signal, "SIGKILL");
+      NodeFS.renameSync(stage, NodePath.join(home.root, "original-stage"));
+      writeTree(stage, { new: "source" });
+      assert.throws(
+        () =>
+          importLegacyState({ sourcePath: source, destinationPath: destination, replace: true }),
+        /changed|foreign/i,
+      );
+      assert.equal(NodeFS.readFileSync(NodePath.join(journal, "backup", "old"), "utf8"), "old");
+      assert.equal(NodeFS.readFileSync(NodePath.join(stage, "new"), "utf8"), "source");
+    } finally {
+      home.remove();
+    }
+  });
+
+  it("refuses an identical replacement backup during recovery", () => {
+    const home = disposableHome();
+    try {
+      const source = NodePath.join(home.root, "source"),
+        destination = NodePath.join(home.root, "destination");
+      const id = NodeCrypto.createHash("sha256").update(destination).digest("hex").slice(0, 24);
+      const journal = NodePath.join(home.root, `.invrt-import-${id}`),
+        backup = NodePath.join(journal, "backup");
+      writeTree(source, { new: "source" });
+      writeTree(destination, { old: "old" });
+      const child = NodeChildProcess.spawnSync(process.execPath, [
+        "--input-type=module",
+        "-e",
+        `
+        import { importLegacyState } from ${JSON.stringify(new URL("./invrtStateHome.ts", import.meta.url).href)};
+        importLegacyState({ sourcePath: ${JSON.stringify(source)}, destinationPath: ${JSON.stringify(destination)}, replace: true, afterMovingDestination() { process.kill(process.pid, "SIGKILL"); } });
+      `,
+      ]);
+      assert.equal(child.signal, "SIGKILL");
+      NodeFS.renameSync(backup, NodePath.join(home.root, "original-backup"));
+      writeTree(backup, { old: "old" });
+      assert.throws(
+        () =>
+          importLegacyState({ sourcePath: source, destinationPath: destination, replace: true }),
+        /changed|foreign/i,
+      );
+      assert.equal(NodeFS.readFileSync(NodePath.join(backup, "old"), "utf8"), "old");
+      assert.equal(
+        NodeFS.readFileSync(NodePath.join(home.root, "original-backup", "old"), "utf8"),
+        "old",
+      );
+    } finally {
+      home.remove();
+    }
+  });
+
+  it("refuses changed valid metadata during recovery", () => {
+    const home = disposableHome();
+    try {
+      const source = NodePath.join(home.root, "source"),
+        destination = NodePath.join(home.root, "destination");
+      const id = NodeCrypto.createHash("sha256").update(destination).digest("hex").slice(0, 24);
+      const journal = NodePath.join(home.root, `.invrt-import-${id}`),
+        metadata = NodePath.join(journal, "transaction.json");
+      writeTree(source, { new: "source" });
+      writeTree(destination, { old: "old" });
+      const child = NodeChildProcess.spawnSync(process.execPath, [
+        "--input-type=module",
+        "-e",
+        `
+        import { importLegacyState } from ${JSON.stringify(new URL("./invrtStateHome.ts", import.meta.url).href)};
+        importLegacyState({ sourcePath: ${JSON.stringify(source)}, destinationPath: ${JSON.stringify(destination)}, replace: true, afterMovingDestination() { process.kill(process.pid, "SIGKILL"); } });
+      `,
+      ]);
+      assert.equal(child.signal, "SIGKILL");
+      const changed = JSON.parse(NodeFS.readFileSync(metadata, "utf8"));
+      changed.foreign = "sentinel";
+      NodeFS.writeFileSync(metadata, JSON.stringify(changed));
+      assert.throws(
+        () =>
+          importLegacyState({ sourcePath: source, destinationPath: destination, replace: true }),
+        /changed|foreign|manual recovery/i,
+      );
+      assert.equal(JSON.parse(NodeFS.readFileSync(metadata, "utf8")).foreign, "sentinel");
+      assert.equal(NodeFS.readFileSync(NodePath.join(journal, "backup", "old"), "utf8"), "old");
+    } finally {
+      home.remove();
+    }
+  });
+
+  it("preserves a changed journal checksum before publication", () => {
+    const home = disposableHome();
+    try {
+      const source = NodePath.join(home.root, "source"),
+        destination = NodePath.join(home.root, "destination");
+      const id = NodeCrypto.createHash("sha256").update(destination).digest("hex").slice(0, 24);
+      const journal = NodePath.join(home.root, `.invrt-import-${id}`),
+        checksum = NodePath.join(journal, "transaction.sha256");
+      writeTree(source, { new: "source" });
+      writeTree(destination, { old: "old" });
+      assert.throws(
+        () =>
+          importLegacyState({
+            sourcePath: source,
+            destinationPath: destination,
+            replace: true,
+            afterMovingDestination: () => NodeFS.writeFileSync(checksum, "foreign sentinel"),
+          }),
+        /changed|foreign/i,
+      );
+      assert.equal(NodeFS.readFileSync(NodePath.join(destination, "old"), "utf8"), "old");
+      assert.equal(NodeFS.readFileSync(checksum, "utf8"), "foreign sentinel");
+    } finally {
+      home.remove();
+    }
+  });
+
+  it("refuses identical replacement metadata during recovery", () => {
+    const home = disposableHome();
+    try {
+      const source = NodePath.join(home.root, "source"),
+        destination = NodePath.join(home.root, "destination");
+      const id = NodeCrypto.createHash("sha256").update(destination).digest("hex").slice(0, 24);
+      const journal = NodePath.join(home.root, `.invrt-import-${id}`),
+        metadata = NodePath.join(journal, "transaction.json");
+      writeTree(source, { new: "source" });
+      writeTree(destination, { old: "old" });
+      const child = NodeChildProcess.spawnSync(process.execPath, [
+        "--input-type=module",
+        "-e",
+        `
+        import { importLegacyState } from ${JSON.stringify(new URL("./invrtStateHome.ts", import.meta.url).href)};
+        importLegacyState({ sourcePath: ${JSON.stringify(source)}, destinationPath: ${JSON.stringify(destination)}, replace: true, afterMovingDestination() { process.kill(process.pid, "SIGKILL"); } });
+      `,
+      ]);
+      assert.equal(child.signal, "SIGKILL");
+      const content = NodeFS.readFileSync(metadata);
+      NodeFS.renameSync(metadata, NodePath.join(home.root, "original-metadata"));
+      NodeFS.writeFileSync(metadata, content);
+      assert.throws(
+        () =>
+          importLegacyState({ sourcePath: source, destinationPath: destination, replace: true }),
+        /changed|foreign|manual recovery/i,
+      );
+      assert.equal(
+        NodeFS.readFileSync(metadata, "utf8"),
+        NodeFS.readFileSync(NodePath.join(home.root, "original-metadata"), "utf8"),
+      );
+      assert.equal(NodeFS.readFileSync(NodePath.join(journal, "backup", "old"), "utf8"), "old");
+    } finally {
+      home.remove();
+    }
+  });
+
   it("refuses an incomplete journal and preserves its foreign contents", () => {
     const home = disposableHome();
     try {
