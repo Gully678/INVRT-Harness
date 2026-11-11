@@ -1561,7 +1561,19 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       const queuedMessage = projection.messages.find(
         (candidate) => candidate.id === storedQueuedRun.userMessageId,
       );
-      const modelSelection = queuedRunModelSelection(projection, storedQueuedRun);
+      const policyState = yield* eventSink
+        .isManagedMessage({ threadId, messageId: storedQueuedRun.userMessageId })
+        .pipe(Effect.mapError((cause) => new OrchestratorProjectionError({ threadId, cause })));
+      if (policyState === "unverified") {
+        return yield* new OrchestratorProjectionError({
+          threadId,
+          cause: "Queued managed message has no verified native policy binding",
+        });
+      }
+      const modelSelection =
+        policyState === "bound"
+          ? storedQueuedRun.modelSelection
+          : queuedRunModelSelection(projection, storedQueuedRun);
       const queuedRun = {
         ...storedQueuedRun,
         modelSelection,
@@ -4588,6 +4600,16 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
     );
 
     if (steeringPolicy === "active_steering") {
+      const route = yield* ManagedRouteConstraint;
+      if (
+        route !== undefined &&
+        (targetRun.providerInstanceId !== route.providerInstanceRef ||
+          !matchesManagedRoute(route, targetRun.modelSelection))
+      ) {
+        return yield* new OrchestratorManagedRouteRefusedError({
+          commandId: input.command.commandId,
+        });
+      }
       const instanceChanged =
         input.projection.thread.providerInstanceId !== input.modelSelection.instanceId;
       if (
@@ -8423,6 +8445,30 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       });
     }
 
+    const managed = yield* eventSink
+      .isManagedMessage({ threadId: command.threadId, messageId: queuedMessage.id })
+      .pipe(
+        Effect.mapError(
+          (cause) =>
+            new OrchestratorDispatchError({
+              commandId: command.commandId,
+              commandType: command.type,
+              cause,
+            }),
+        ),
+      );
+    const targetRun = projection.runs.find((run) => run.id === command.targetRunId);
+    if (
+      managed === "unverified" ||
+      (managed === "bound" &&
+        (targetRun === undefined ||
+          targetRun.providerInstanceId !== queuedRun.providerInstanceId ||
+          !modelSelectionsEqual(queuedRun.modelSelection, targetRun.modelSelection) ||
+          !modelSelectionsEqual(queuedRun.modelSelection, projection.thread.modelSelection)))
+    ) {
+      return yield* new OrchestratorManagedRouteRefusedError({ commandId: command.commandId });
+    }
+
     const now = yield* DateTime.now;
     const emitEvent = emit(events, command);
     const parsedGoalCommand = parseGoalCommand(queuedMessage);
@@ -8799,6 +8845,20 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         cause: "Automatic completion deliveries cannot be edited.",
       });
     }
+    const managed = yield* eventSink
+      .isManagedMessage({ threadId: command.threadId, messageId: queuedMessage.id })
+      .pipe(
+        Effect.mapError(
+          (cause) =>
+            new OrchestratorDispatchError({
+              commandId: command.commandId,
+              commandType: command.type,
+              cause,
+            }),
+        ),
+      );
+    if (managed !== "ordinary")
+      return yield* new OrchestratorManagedRouteRefusedError({ commandId: command.commandId });
     // The agent text and the shown text of a guest message must stay the guest's words.
     if (queuedMessage.context?.guest !== undefined) {
       return yield* new OrchestratorDispatchError({
@@ -12285,9 +12345,26 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       "orchestration_v2.thread_id": commandThreadId(command),
     });
 
+    if (command.type === "message.dispatch" && (yield* ManagedRouteConstraint) === undefined) {
+      const managed = yield* eventSink.hasManagedCommand(command.commandId).pipe(
+        Effect.mapError(
+          (cause) =>
+            new OrchestratorDispatchError({
+              commandId: command.commandId,
+              commandType: command.type,
+              cause,
+            }),
+        ),
+      );
+      if (managed)
+        return yield* new OrchestratorManagedRouteRefusedError({ commandId: command.commandId });
+    }
     const requestedDigest = commandPayloadDigest(commandReceiptIdentity(command));
     const replay = yield* replayReceipt(command, false);
     if (Option.isSome(replay)) {
+      if (command.type === "message.dispatch" && (yield* ManagedRouteConstraint) !== undefined) {
+        return yield* new OrchestratorManagedRouteRefusedError({ commandId: command.commandId });
+      }
       if (command.type === "queue.resume" || command.type === "queued-run.start") {
         yield* mapDispatchError(command)(
           startNextQueuedRun(
@@ -12419,13 +12496,14 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           : { updateDelegatedCompletionOnlyRunId: plan.updateDelegatedCompletionOnlyRunId }),
       })
       .pipe(
-        Effect.mapError(
-          (cause) =>
-            new OrchestratorDispatchError({
-              commandId: command.commandId,
-              commandType: command.type,
-              cause,
-            }),
+        Effect.mapError((cause) =>
+          cause._tag === "EventSinkManagedCommandConflictError"
+            ? new OrchestratorManagedRouteRefusedError({ commandId: command.commandId })
+            : new OrchestratorDispatchError({
+                commandId: command.commandId,
+                commandType: command.type,
+                cause,
+              }),
         ),
       );
 

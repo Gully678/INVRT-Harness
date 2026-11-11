@@ -20,11 +20,15 @@ import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as Queue from "effect/Queue";
+import * as Layer from "effect/Layer";
+import * as SqlClient from "effect/sql/SqlClient";
+import * as SqlitePersistence from "../persistence/Sqlite.ts";
 import * as Stream from "effect/Stream";
 import { CodexProviderCapabilitiesV2 } from "./Adapters/CodexAdapterV2.ts";
 import * as EffectWorker from "./EffectWorker.ts";
 import * as EventSink from "./EventSink.ts";
 import * as Orchestrator from "./Orchestrator.ts";
+import { ManagedRouteConstraint } from "./ManagedRouteConstraint.ts";
 import * as ProviderAdapterRegistry from "./ProviderAdapterRegistry.ts";
 import * as ProviderReplayHarness from "./testkit/ProviderReplayHarness.ts";
 import { checkpointWorkspace } from "@t3tools/provider-testing/replayWorkspace";
@@ -503,10 +507,14 @@ const nextTurnSelectionHarness = Effect.fn("nextTurnSelectionHarness")(function*
         };
       }),
   };
-  const layer = ProviderReplayHarness.layerWithRegistry(
-    { name },
-    ProviderAdapterRegistry.layerSingle(adapter),
-    { runEffectWorker: false },
+  const database = SqlitePersistence.layerMemory;
+  const layer = Layer.merge(
+    ProviderReplayHarness.layerWithRegistry(
+      { name },
+      ProviderAdapterRegistry.layerSingle(adapter),
+      { databaseLayer: database, runEffectWorker: false },
+    ),
+    database,
   );
   const startFirstTurn = Effect.gen(function* () {
     const orchestrator = yield* Orchestrator.OrchestratorV2;
@@ -1438,6 +1446,413 @@ it.effect.each(["steer_active", "restart_active"] as const)(
           }
           assert.deepEqual(yield* orchestrator.getThreadProjection(threadId), projection);
           assert.equal(yield* orchestrator.getThreadEventSequence(threadId), accepted.sequence);
+        }).pipe(Effect.provide(layer));
+      }),
+    ),
+);
+
+it.effect("FRESH refuses admitted A steering into current B with next-turn transition", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const { started, steered, layer, startFirstTurn } =
+        yield* nextTurnSelectionHarness("fresh-managed-steer");
+      yield* Effect.gen(function* () {
+        const orchestrator = yield* Orchestrator.OrchestratorV2;
+        const worker = yield* EffectWorker.OrchestrationEffectWorkerV2;
+        const threadId = yield* startFirstTurn;
+        const before = yield* orchestrator.getThreadProjection(threadId);
+        const target = before.runs.find((run) => run.status === "running")!;
+        assert.equal(target.modelSelection.model, "test-model");
+        const selectionA = { ...runSelection, model: "admitted-A" };
+        const result = yield* orchestrator
+          .dispatch({
+            type: "message.dispatch",
+            commandId: CommandId.make("fresh-managed-steer"),
+            threadId,
+            messageId: MessageId.make("fresh-managed-steer"),
+            text: "managed content only for A",
+            attachments: [],
+            modelSelection: selectionA,
+            dispatchMode: { type: "steer_active", targetRunId: target.id },
+            createdBy: "user",
+            creationSource: "web",
+          })
+          .pipe(
+            Effect.provideService(ManagedRouteConstraint, {
+              routeId: "A",
+              providerInstanceRef: instanceId,
+              model: "admitted-A",
+              effort: "xhigh",
+            }),
+            Effect.result,
+          );
+        yield* worker.drain();
+        const after = yield* orchestrator.getThreadProjection(threadId);
+        assert.equal(
+          result._tag,
+          "Failure",
+          JSON.stringify({
+            result,
+            started: started.map((input) => input.modelSelection),
+            steered,
+            runSelection: after.runs.find((run) => run.id === target.id)?.modelSelection,
+            threadSelection: after.thread.modelSelection,
+          }),
+        );
+        assert.deepEqual(steered, []);
+      }).pipe(Effect.provide(layer));
+    }),
+  ),
+);
+
+it.effect("FRESH preserves queued managed A when promotion would steer current B", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const { started, steered, layer, startFirstTurn } =
+        yield* nextTurnSelectionHarness("fresh-managed-queue");
+      yield* Effect.gen(function* () {
+        const orchestrator = yield* Orchestrator.OrchestratorV2;
+        const worker = yield* EffectWorker.OrchestrationEffectWorkerV2;
+        const threadId = yield* startFirstTurn;
+        const sql = yield* SqlClient.SqlClient;
+        // Model the durable admission row created before managed intake dispatch.
+        yield* sql`INSERT INTO orchestration_command_policy_receipts
+        (command_id, policy_id, policy_revision, policy_digest, route_id, payload_digest, decision)
+        VALUES ('fresh-managed-queued-A', 'policy-A', 1, 'digest-A', 'A', 'payload-A', 'admitted')`;
+        const first = yield* orchestrator.getThreadProjection(threadId);
+        const target = first.runs.find((run) => run.status === "running")!;
+        yield* orchestrator
+          .dispatch({
+            type: "message.dispatch",
+            commandId: CommandId.make("fresh-managed-queued-A"),
+            threadId,
+            messageId: MessageId.make("fresh-managed-queued-A"),
+            text: "queued content only for A",
+            attachments: [],
+            modelSelection: { ...runSelection, model: "admitted-A" },
+            dispatchMode: { type: "queue_after_active" },
+            createdBy: "user",
+            creationSource: "web",
+          })
+          .pipe(
+            Effect.provideService(ManagedRouteConstraint, {
+              routeId: "A",
+              providerInstanceRef: instanceId,
+              model: "admitted-A",
+              effort: "xhigh",
+            }),
+          );
+        const queued = yield* orchestrator.getThreadProjection(threadId);
+        const queuedRun = queued.runs.find((run) => run.status === "queued")!;
+        assert.equal(queuedRun.modelSelection.model, "admitted-A");
+        assert.equal(queued.thread.modelSelection.model, "test-model");
+        const result = yield* orchestrator
+          .dispatch({
+            type: "queued-message.promote-to-steer",
+            commandId: CommandId.make("fresh-managed-promotion"),
+            threadId,
+            queuedRunId: queuedRun.id,
+            targetRunId: target.id,
+          })
+          .pipe(Effect.result);
+        yield* worker.drain();
+        const after = yield* orchestrator.getThreadProjection(threadId);
+        assert.equal(
+          result._tag,
+          "Failure",
+          JSON.stringify({
+            result,
+            originalQueuedSelection: queuedRun.modelSelection,
+            originalThreadSelection: queued.thread.modelSelection,
+            started: started.map((input) => input.modelSelection),
+            steered,
+            queuedAfter: after.runs.find((run) => run.id === queuedRun.id)?.status,
+            targetAfter: after.runs.find((run) => run.id === target.id)?.modelSelection,
+          }),
+        );
+        assert.deepEqual(steered, []);
+        assert.equal(after.runs.find((run) => run.id === queuedRun.id)?.status, "queued");
+        const edit = yield* orchestrator
+          .dispatch({
+            type: "queued-run.edit",
+            commandId: CommandId.make("fresh-managed-edit"),
+            threadId,
+            runId: queuedRun.id,
+            text: "changed without admission",
+          })
+          .pipe(Effect.result);
+        assert.equal(edit._tag, "Failure");
+        const afterEdit = yield* orchestrator.getThreadProjection(threadId);
+        assert.equal(
+          afterEdit.messages.find((message) => message.id === queuedRun.userMessageId)?.text,
+          "queued content only for A",
+        );
+      }).pipe(Effect.provide(layer));
+    }),
+  ),
+);
+
+it.effect("FRESH prevents ordinary dispatch from consuming a failed managed reservation", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const { layer, startFirstTurn } = yield* nextTurnSelectionHarness(
+        "fresh-managed-reservation",
+      );
+      yield* Effect.gen(function* () {
+        const orchestrator = yield* Orchestrator.OrchestratorV2;
+        const threadId = yield* startFirstTurn;
+        const sql = yield* SqlClient.SqlClient;
+        const commandId = CommandId.make("fresh-managed-reservation");
+        yield* sql`INSERT INTO orchestration_command_policy_receipts
+        (command_id, policy_id, policy_revision, policy_digest, route_id, payload_digest, decision)
+        VALUES (${commandId}, 'policy-A', 1, 'digest-A', 'A', 'payload-A', 'failed')`;
+        const before = yield* orchestrator.getThreadEventSequence(threadId);
+        const result = yield* orchestrator
+          .dispatch({
+            type: "message.dispatch",
+            commandId,
+            threadId,
+            messageId: MessageId.make("fresh-managed-reservation"),
+            text: "same semantic request",
+            attachments: [],
+            dispatchMode: { type: "start_immediately" },
+            createdBy: "user",
+            creationSource: "web",
+          })
+          .pipe(Effect.result);
+        assert.equal(result._tag, "Failure", JSON.stringify(result));
+        assert.equal(yield* orchestrator.getThreadEventSequence(threadId), before);
+      }).pipe(Effect.provide(layer));
+    }),
+  ),
+);
+
+it.effect("rolls back the native binding when its receipt transaction fails", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const { layer, startFirstTurn } = yield* nextTurnSelectionHarness("binding-rollback");
+      yield* Effect.gen(function* () {
+        const threadId = yield* startFirstTurn;
+        const sql = yield* SqlClient.SqlClient;
+        const sink = yield* EventSink.EventSinkV2;
+        const commandId = CommandId.make("binding-rollback");
+        yield* sql`INSERT INTO orchestration_command_policy_receipts
+        (command_id, policy_id, policy_revision, policy_digest, route_id, payload_digest, decision)
+        VALUES (${commandId}, 'policy-A', 1, 'digest-A', 'A', 'payload-A', 'admitted')`;
+        const failed = yield* Effect.exit(
+          sink
+            .commitCommand({
+              commandId,
+              threadId,
+              commandType: "message.dispatch",
+              acceptedAt: yield* DateTime.now,
+              events: [],
+              effects: [],
+              payloadDigest: "payload-A",
+            })
+            .pipe(
+              Effect.provideService(ManagedRouteConstraint, {
+                routeId: "A",
+                providerInstanceRef: instanceId,
+                model: runSelection.model,
+                effort: "xhigh",
+              }),
+            ),
+        );
+        assert.equal(failed._tag, "Failure");
+        const policy = yield* sql<{ readonly native_bound: number }>`
+        SELECT native_bound FROM orchestration_command_policy_receipts WHERE command_id = ${commandId}`;
+        const receipt = yield* sql<{ readonly n: number }>`
+        SELECT COUNT(*) AS n FROM orchestration_command_receipts WHERE command_id = ${commandId}`;
+        assert.deepEqual(policy, [{ native_bound: 0 }]);
+        assert.deepEqual(receipt, [{ n: 0 }]);
+      }).pipe(Effect.provide(layer));
+    }),
+  ),
+);
+
+it.effect("rejects an ordinary native commit while a managed reservation exists", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const { layer, startFirstTurn } = yield* nextTurnSelectionHarness("ordinary-commit-guard");
+      yield* Effect.gen(function* () {
+        const threadId = yield* startFirstTurn;
+        const sql = yield* SqlClient.SqlClient;
+        const sink = yield* EventSink.EventSinkV2;
+        const commandId = CommandId.make("ordinary-commit-guard");
+        yield* sql`INSERT INTO orchestration_command_policy_receipts
+        (command_id, policy_id, policy_revision, policy_digest, route_id, payload_digest, decision)
+        VALUES (${commandId}, 'policy-A', 1, 'digest-A', 'A', 'payload-A', 'failed')`;
+        const result = yield* sink
+          .commitCommand({
+            commandId,
+            threadId,
+            commandType: "message.dispatch",
+            acceptedAt: yield* DateTime.now,
+            events: [],
+            effects: [],
+            payloadDigest: "payload-A",
+          })
+          .pipe(Effect.result);
+        assert.equal(result._tag, "Failure");
+        if (result._tag === "Failure")
+          assert.equal(result.failure._tag, "EventSinkManagedCommandConflictError");
+        const receipt = yield* sql<{ readonly n: number }>`
+        SELECT COUNT(*) AS n FROM orchestration_command_receipts WHERE command_id = ${commandId}`;
+        assert.deepEqual(receipt, [{ n: 0 }]);
+      }).pipe(Effect.provide(layer));
+    }),
+  ),
+);
+
+it.effect("allows an active steer when its executing turn matches the managed route", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const { layer, startFirstTurn, steered } =
+        yield* nextTurnSelectionHarness("managed-matching-steer");
+      yield* Effect.gen(function* () {
+        const orchestrator = yield* Orchestrator.OrchestratorV2;
+        const worker = yield* EffectWorker.OrchestrationEffectWorkerV2;
+        const sql = yield* SqlClient.SqlClient;
+        const threadId = yield* startFirstTurn;
+        const target = (yield* orchestrator.getThreadProjection(threadId)).runs.find(
+          (run) => run.status === "running",
+        )!;
+        const commandId = CommandId.make("managed-matching-steer");
+        yield* sql`INSERT INTO orchestration_command_policy_receipts
+        (command_id, policy_id, policy_revision, policy_digest, route_id, payload_digest, decision)
+        VALUES (${commandId}, 'policy-B', 1, 'digest-B', 'B', 'payload-B', 'admitted')`;
+        yield* orchestrator
+          .dispatch({
+            type: "message.dispatch",
+            commandId,
+            threadId,
+            messageId: MessageId.make("managed-matching-steer"),
+            text: "allowed steer",
+            attachments: [],
+            modelSelection: runSelection,
+            dispatchMode: { type: "steer_active", targetRunId: target.id },
+            createdBy: "user",
+            creationSource: "web",
+          })
+          .pipe(
+            Effect.provideService(ManagedRouteConstraint, {
+              routeId: "B",
+              providerInstanceRef: instanceId,
+              model: runSelection.model,
+              effort: "xhigh",
+            }),
+          );
+        yield* worker.drain();
+        assert.deepEqual(steered, ["allowed steer"]);
+        const policy = yield* sql<{ readonly native_bound: number }>`
+        SELECT native_bound FROM orchestration_command_policy_receipts WHERE command_id = ${commandId}`;
+        assert.deepEqual(policy, [{ native_bound: 1 }]);
+      }).pipe(Effect.provide(layer));
+    }),
+  ),
+);
+
+it.effect("keeps ordinary queued messages editable", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const { layer, startFirstTurn } = yield* nextTurnSelectionHarness("ordinary-queued-edit");
+      yield* Effect.gen(function* () {
+        const orchestrator = yield* Orchestrator.OrchestratorV2;
+        const threadId = yield* startFirstTurn;
+        yield* orchestrator.dispatch({
+          type: "message.dispatch",
+          commandId: CommandId.make("ordinary-queued-edit-create"),
+          threadId,
+          messageId: MessageId.make("ordinary-queued-edit-message"),
+          text: "before",
+          attachments: [],
+          modelSelection: runSelection,
+          dispatchMode: { type: "queue_after_active" },
+          createdBy: "user",
+          creationSource: "web",
+        });
+        const projection = yield* orchestrator.getThreadProjection(threadId);
+        const run = projection.runs.find((candidate) => candidate.status === "queued")!;
+        yield* orchestrator.dispatch({
+          type: "queued-run.edit",
+          commandId: CommandId.make("ordinary-queued-edit-update"),
+          threadId,
+          runId: run.id,
+          text: "after",
+        });
+        const after = yield* orchestrator.getThreadProjection(threadId);
+        assert.equal(
+          after.messages.find((message) => message.id === run.userMessageId)?.text,
+          "after",
+        );
+      }).pipe(Effect.provide(layer));
+    }),
+  ),
+);
+
+it.effect(
+  "refuses promotion of an unverified legacy managed queue even when selections match",
+  () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const { layer, startFirstTurn, steered } =
+          yield* nextTurnSelectionHarness("unverified-queued-route");
+        yield* Effect.gen(function* () {
+          const orchestrator = yield* Orchestrator.OrchestratorV2;
+          const worker = yield* EffectWorker.OrchestrationEffectWorkerV2;
+          const sql = yield* SqlClient.SqlClient;
+          const threadId = yield* startFirstTurn;
+          const active = (yield* orchestrator.getThreadProjection(threadId)).runs.find(
+            (run) => run.status === "running",
+          )!;
+          const commandId = CommandId.make("unverified-queued-route");
+          yield* sql`INSERT INTO orchestration_command_policy_receipts
+        (command_id, policy_id, policy_revision, policy_digest, route_id, payload_digest, decision)
+        VALUES (${commandId}, 'policy', 1, 'digest', 'route', 'payload', 'admitted')`;
+          yield* orchestrator
+            .dispatch({
+              type: "message.dispatch",
+              commandId,
+              threadId,
+              messageId: MessageId.make("unverified-queued-route"),
+              text: "managed queue",
+              attachments: [],
+              modelSelection: runSelection,
+              dispatchMode: { type: "queue_after_active" },
+              createdBy: "user",
+              creationSource: "web",
+            })
+            .pipe(
+              Effect.provideService(ManagedRouteConstraint, {
+                routeId: "route",
+                providerInstanceRef: instanceId,
+                model: runSelection.model,
+                effort: "xhigh",
+              }),
+            );
+          const queued = (yield* orchestrator.getThreadProjection(threadId)).runs.find(
+            (run) => run.status === "queued",
+          )!;
+          yield* sql`UPDATE orchestration_command_policy_receipts SET native_bound = 0 WHERE command_id = ${commandId}`;
+          const result = yield* orchestrator
+            .dispatch({
+              type: "queued-message.promote-to-steer",
+              commandId: CommandId.make("unverified-queue-promotion"),
+              threadId,
+              queuedRunId: queued.id,
+              targetRunId: active.id,
+            })
+            .pipe(Effect.result);
+          yield* worker.drain();
+          assert.equal(result._tag, "Failure");
+          assert.deepEqual(steered, []);
+          assert.equal(
+            (yield* orchestrator.getThreadProjection(threadId)).runs.find(
+              (run) => run.id === queued.id,
+            )?.status,
+            "queued",
+          );
         }).pipe(Effect.provide(layer));
       }),
     ),

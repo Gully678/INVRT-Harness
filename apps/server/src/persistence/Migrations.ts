@@ -75,6 +75,7 @@ import Migration0069 from "./Migrations/069_ThreadMessageSearch.ts";
 import Migration0070 from "./Migrations/070_CommandReceiptPayloadDigest.ts";
 import Migration0071 from "./Migrations/071_CommandPolicyReceipt.ts";
 import Migration0072 from "./Migrations/072_CommandPolicyReceiptPayloadDigest.ts";
+import Migration0073 from "./Migrations/073_CommandPolicyNativeBinding.ts";
 
 const migrationEntries = [
   [1, "OrchestrationEvents", Migration0001],
@@ -150,6 +151,7 @@ const migrationEntries = [
   [70, "CommandReceiptPayloadDigest", Migration0070],
   [71, "CommandPolicyReceipt", Migration0071],
   [72, "CommandPolicyReceiptPayloadDigest", Migration0072],
+  [73, "CommandPolicyNativeBinding", Migration0073],
 ] as const;
 
 export const migrationManifest = migrationEntries.map(([id, name]) => [id, name] as const);

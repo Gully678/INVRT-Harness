@@ -2,6 +2,8 @@ import type { OrchestrationV2Command } from "@t3tools/contracts";
 import {
   CommandId,
   resolveManagedRoute,
+  type OrchestrationV2StoredEvent,
+  type PolicyRoute,
   type ResolveManagedRouteInput,
   type RoutingAuthorityPort,
 } from "@t3tools/contracts";
@@ -89,42 +91,46 @@ type MessageDispatchCommand = Extract<
   { readonly type: "message.dispatch" }
 >;
 
-interface StoredDecision extends ManagedCommandDecision {}
+interface StoredDecision extends ManagedCommandDecision {
+  readonly nativeBound: boolean;
+}
 
 const decodeDecision = Schema.decodeUnknownSync(Decision);
 
-const readRow = (commandId: CommandId) =>
-  Effect.gen(function* () {
-    const sql = yield* SqlClient.SqlClient;
-    const rows = yield* sql<{
-      readonly policyId: string | null;
-      readonly policyRevision: number | null;
-      readonly policyDigest: string | null;
-      readonly routeId: string | null;
-      readonly payloadDigest: string | null;
-      readonly decision: string;
-    }>`
+const readRow = Effect.fn("ManagedMessageAdmission.readRow")(function* (commandId: CommandId) {
+  const sql = yield* SqlClient.SqlClient;
+  const rows = yield* sql<{
+    readonly policyId: string | null;
+    readonly policyRevision: number | null;
+    readonly policyDigest: string | null;
+    readonly routeId: string | null;
+    readonly payloadDigest: string | null;
+    readonly decision: string;
+    readonly nativeBound: number;
+  }>`
       SELECT
         policy_id AS "policyId",
         policy_revision AS "policyRevision",
         policy_digest AS "policyDigest",
         route_id AS "routeId",
         payload_digest AS "payloadDigest",
+        native_bound AS "nativeBound",
         decision
       FROM orchestration_command_policy_receipts
       WHERE command_id = ${commandId}
     `.pipe(NodeSqliteClient.readOnly);
-    const row = rows[0];
-    if (row === undefined) return null;
-    return {
-      policyId: row.policyId,
-      policyRevision: row.policyRevision,
-      policyDigest: row.policyDigest,
-      routeId: row.routeId,
-      payloadDigest: row.payloadDigest,
-      decision: decodeDecision(row.decision),
-    } satisfies StoredDecision;
-  });
+  const row = rows[0];
+  if (row === undefined) return null;
+  return {
+    policyId: row.policyId,
+    policyRevision: row.policyRevision,
+    policyDigest: row.policyDigest,
+    routeId: row.routeId,
+    payloadDigest: row.payloadDigest,
+    decision: decodeDecision(row.decision),
+    nativeBound: row.nativeBound === 1,
+  } satisfies StoredDecision;
+});
 
 /** Local read of the policy decision stored for one command id. No network. */
 export const readManagedCommandDecision = Effect.fn(
@@ -132,7 +138,8 @@ export const readManagedCommandDecision = Effect.fn(
 )(function* (commandId: CommandId) {
   const stored = yield* readRow(commandId);
   if (stored === null) return yield* new ManagedCommandDecisionNotFoundError({ commandId });
-  return stored;
+  const { nativeBound: _nativeBound, ...decision } = stored;
+  return decision;
 });
 
 const resolveAdmission = (admission: ManagedMessageAdmissionShape) => {
@@ -177,7 +184,7 @@ const sameDecision = (
   );
 };
 
-const insertReceipt = (input: {
+const insertReceipt = Effect.fn("ManagedMessageAdmission.insertReceipt")(function* (input: {
   readonly commandId: CommandId;
   readonly policyId: string | null;
   readonly policyRevision: number | null;
@@ -185,13 +192,12 @@ const insertReceipt = (input: {
   readonly routeId: string | null;
   readonly payloadDigest: string | null;
   readonly decision: Decision;
-}) =>
-  Effect.gen(function* () {
-    const sql = yield* SqlClient.SqlClient;
-    yield* sql`
+}) {
+  const sql = yield* SqlClient.SqlClient;
+  const rows = yield* sql<{ readonly command_id: string }>`
       INSERT INTO orchestration_command_policy_receipts (
         command_id, policy_id, policy_revision, policy_digest, route_id, payload_digest, decision
-      ) VALUES (
+      ) SELECT
         ${input.commandId},
         ${input.policyId},
         ${input.policyRevision},
@@ -199,19 +205,48 @@ const insertReceipt = (input: {
         ${input.routeId},
         ${input.payloadDigest},
         ${input.decision}
+      WHERE NOT EXISTS (
+        SELECT 1 FROM orchestration_command_receipts WHERE command_id = ${input.commandId}
       )
+      RETURNING command_id
     `;
-  });
+  if (rows.length === 0) {
+    return yield* new ManagedCommandPolicyConflictError({ commandId: input.commandId });
+  }
+});
 
-const setDecision = (commandId: CommandId, decision: Decision) =>
-  Effect.gen(function* () {
-    const sql = yield* SqlClient.SqlClient;
-    yield* sql`
+const setDecision = Effect.fn("ManagedMessageAdmission.setDecision")(function* (
+  commandId: CommandId,
+  decision: Decision,
+) {
+  const sql = yield* SqlClient.SqlClient;
+  yield* sql`
       UPDATE orchestration_command_policy_receipts
       SET decision = ${decision}
       WHERE command_id = ${commandId}
     `;
-  });
+});
+
+// Legacy rows lack atomic binding. Only a native event for the same message and
+// run can prove which model actually received it; steer-only receipts cannot.
+const hasVerifiedLegacyRoute = (
+  events: ReadonlyArray<OrchestrationV2StoredEvent>,
+  route: PolicyRoute,
+) =>
+  events.some(
+    ({ event }) =>
+      event.type === "run.created" &&
+      event.payload.status === "starting" &&
+      event.payload.providerInstanceId === route.providerInstanceRef &&
+      matchesManagedRoute(route, event.payload.modelSelection) &&
+      events.some(
+        ({ event: message }) =>
+          message.type === "message.updated" &&
+          message.payload.role === "user" &&
+          message.payload.id === event.payload.userMessageId &&
+          message.payload.runId === event.payload.id,
+      ),
+  );
 
 export const dispatchManagedMessage = Effect.fn("ManagedMessageAdmission.dispatchManagedMessage")(
   function* <E, R>(
@@ -226,10 +261,24 @@ export const dispatchManagedMessage = Effect.fn("ManagedMessageAdmission.dispatc
     if (stored !== null && !sameDecision(stored, resolved)) {
       return yield* new ManagedCommandPolicyConflictError({ commandId: command.commandId });
     }
+    if (
+      stored?.payloadDigest != null &&
+      stored.payloadDigest !== payloadDigest &&
+      stored.payloadDigest !== commandPayloadDigest(command)
+    ) {
+      return yield* new ManagedCommandPolicyConflictError({ commandId: command.commandId });
+    }
     if (stored !== null && stored.decision !== "refused") {
       const orchestrator = yield* OrchestratorV2;
       const replay = yield* orchestrator.replayManagedMessage(command);
       if (Option.isSome(replay)) {
+        if (
+          resolved.kind !== "allowed" ||
+          (!stored.nativeBound &&
+            !hasVerifiedLegacyRoute(replay.value.storedEvents, resolved.route))
+        ) {
+          return yield* new ManagedCommandPolicyConflictError({ commandId: command.commandId });
+        }
         if (stored.decision !== "accepted") yield* setDecision(command.commandId, "accepted");
         return replay.value;
       }
@@ -275,6 +324,11 @@ export const dispatchManagedMessage = Effect.fn("ManagedMessageAdmission.dispatc
       });
     }
     if (stored === null) {
+      const orchestrator = yield* OrchestratorV2;
+      const native = yield* orchestrator.replayManagedMessage(command);
+      if (Option.isSome(native)) {
+        return yield* new ManagedCommandPolicyConflictError({ commandId: command.commandId });
+      }
       yield* insertReceipt({
         commandId: command.commandId,
         policyId: resolved.policyId,

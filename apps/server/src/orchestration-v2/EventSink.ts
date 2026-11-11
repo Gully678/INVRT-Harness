@@ -22,6 +22,8 @@ import * as Semaphore from "effect/Semaphore";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import * as SqlClient from "effect/sql/SqlClient";
+import * as NodeSqliteClient from "@t3tools/shared/nodeSqliteClient";
+import { ManagedRouteConstraint } from "./ManagedRouteConstraint.ts";
 
 import { replayAndBufferProjectedLiveEvents } from "./LiveStreamBudget.ts";
 import type { UnsequencedProjectEvent } from "../persistence/OrchestrationEventStore.ts";
@@ -63,7 +65,13 @@ export class EventSinkStreamError extends Schema.TaggedError<EventSinkStreamErro
   }
 }
 
+export class EventSinkManagedCommandConflictError extends Schema.TaggedError<EventSinkManagedCommandConflictError>()(
+  "EventSinkManagedCommandConflictError",
+  { commandId: CommandId },
+) {}
+
 export const EventSinkV2Error = Schema.Union([
+  EventSinkManagedCommandConflictError,
   EventSinkWriteError,
   EventSinkStreamError,
   CommandReceiptStore.CommandReceiptPayloadConflictError,
@@ -71,6 +79,7 @@ export const EventSinkV2Error = Schema.Union([
 export type EventSinkV2Error = typeof EventSinkV2Error.Type;
 
 const isPayloadConflict = Schema.is(CommandReceiptStore.CommandReceiptPayloadConflictError);
+const isManagedConflict = Schema.is(EventSinkManagedCommandConflictError);
 
 export interface EventSinkV2Shape {
   readonly write: (input: {
@@ -215,6 +224,11 @@ export interface EventSinkV2Shape {
   readonly readByCommandId: (input: {
     readonly commandId: CommandId;
   }) => Stream.Stream<OrchestrationV2StoredEvent, EventSinkV2Error>;
+  readonly hasManagedCommand: (commandId: CommandId) => Effect.Effect<boolean, EventSinkV2Error>;
+  readonly isManagedMessage: (input: {
+    readonly threadId: ThreadId;
+    readonly messageId: string;
+  }) => Effect.Effect<"ordinary" | "bound" | "unverified", EventSinkV2Error>;
 }
 
 export class EventSinkV2 extends Context.Service<EventSinkV2, EventSinkV2Shape>()(
@@ -653,11 +667,78 @@ const layerBase: Layer.Layer<
         return { receipt: existing.value, storedEvents };
       });
 
+    const hasManagedCommand = Effect.fn("EventSink.hasManagedCommand")(function* (
+      commandId: CommandId,
+    ) {
+      const rows = yield* sql<{ readonly found: number }>`
+        SELECT EXISTS(SELECT 1 FROM orchestration_command_policy_receipts WHERE command_id = ${commandId}) AS found
+      `.pipe(
+        NodeSqliteClient.readOnly,
+        Effect.mapError((cause) => new EventSinkStreamError({ cause })),
+      );
+      return rows[0]?.found === 1;
+    });
+
+    const isManagedMessage = Effect.fn("EventSink.isManagedMessage")(function* (input: {
+      readonly threadId: ThreadId;
+      readonly messageId: string;
+    }) {
+      const rows = yield* sql<{ readonly state: "ordinary" | "bound" | "unverified" }>`
+        SELECT CASE WHEN policy.command_id IS NULL THEN 'ordinary'
+          WHEN policy.native_bound = 1 AND policy.decision <> 'refused' THEN 'bound'
+          ELSE 'unverified' END AS state
+        FROM orchestration_events AS event
+        LEFT JOIN orchestration_command_policy_receipts AS policy ON policy.command_id = event.command_id
+        WHERE event.aggregate_kind = 'thread' AND event.stream_id = ${input.threadId}
+          AND event.application_event_version = 2 AND event.event_type = 'message.updated'
+          AND json_extract(event.payload_json, '$.id') = ${input.messageId}
+        ORDER BY event.sequence ASC LIMIT 1
+      `.pipe(
+        NodeSqliteClient.readOnly,
+        Effect.mapError((cause) => new EventSinkStreamError({ threadId: input.threadId, cause })),
+      );
+      if (rows[0] === undefined) {
+        return yield* new EventSinkStreamError({
+          threadId: input.threadId,
+          cause: "Queued message origin is unavailable",
+        });
+      }
+      return rows[0].state;
+    });
+
+    const refuseOrdinaryManagedCommand = Effect.fn("EventSink.refuseOrdinaryManagedCommand")(
+      function* (commandId: CommandId, commandType: string) {
+        if (
+          commandType === "message.dispatch" &&
+          (yield* ManagedRouteConstraint) === undefined &&
+          (yield* hasManagedCommand(commandId))
+        ) {
+          return yield* new EventSinkManagedCommandConflictError({ commandId });
+        }
+      },
+    );
+
     const commitCommandEffect = Effect.fn("orchestrationV2.EventSink.commitCommand")(function* (
       input: Parameters<EventSinkV2Shape["commitCommand"]>[0],
     ) {
       const result = yield* commitThenPublish(
         Effect.gen(function* () {
+          yield* refuseOrdinaryManagedCommand(input.commandId, input.commandType);
+          const managed =
+            input.commandType === "message.dispatch" &&
+            (yield* ManagedRouteConstraint) !== undefined;
+          if (managed) {
+            const bound = yield* sql<{ readonly command_id: string }>`
+              UPDATE orchestration_command_policy_receipts SET native_bound = 1
+              WHERE command_id = ${input.commandId} AND native_bound = 0
+                AND decision IN ('admitted', 'failed')
+              RETURNING command_id
+            `;
+            if (bound.length !== 1)
+              return yield* new EventSinkManagedCommandConflictError({
+                commandId: input.commandId,
+              });
+          }
           const reserved = yield* commandReceipts.insertIfAbsent({
             commandId: input.commandId,
             threadId: input.threadId,
@@ -669,6 +750,10 @@ const layerBase: Layer.Layer<
             ...(input.payloadDigest === undefined ? {} : { payloadDigest: input.payloadDigest }),
           });
           if (!reserved) {
+            if (managed)
+              return yield* new EventSinkManagedCommandConflictError({
+                commandId: input.commandId,
+              });
             const existing = yield* existingCommandResult(input.commandId);
             return { ...existing, committed: false as const, cancelledEffectIds: [] };
           }
@@ -738,6 +823,7 @@ const layerBase: Layer.Layer<
     )(function* (input: Parameters<EventSinkV2Shape["commitRejectedCommand"]>[0]) {
       return yield* sql.withTransaction(
         Effect.gen(function* () {
+          yield* refuseOrdinaryManagedCommand(input.commandId, input.commandType);
           const sequence = yield* eventStore.latestSequence({ threadId: input.threadId });
           const receipt: CommandReceiptStore.CommandReceiptV2 = {
             commandId: input.commandId,
@@ -991,24 +1077,26 @@ const layerBase: Layer.Layer<
         ),
       commitCommand: (input) =>
         commitCommandEffect(input).pipe(
-          Effect.mapError(
-            (cause) =>
-              new EventSinkWriteError({
-                commandId: input.commandId,
-                eventCount: input.events.length,
-                cause,
-              }),
+          Effect.mapError((cause) =>
+            isManagedConflict(cause)
+              ? cause
+              : new EventSinkWriteError({
+                  commandId: input.commandId,
+                  eventCount: input.events.length,
+                  cause,
+                }),
           ),
         ),
       commitRejectedCommand: (input) =>
         commitRejectedCommandEffect(input).pipe(
-          Effect.mapError(
-            (cause) =>
-              new EventSinkWriteError({
-                commandId: input.commandId,
-                eventCount: 0,
-                cause,
-              }),
+          Effect.mapError((cause) =>
+            isManagedConflict(cause)
+              ? cause
+              : new EventSinkWriteError({
+                  commandId: input.commandId,
+                  eventCount: 0,
+                  cause,
+                }),
           ),
         ),
       reserveProjectCommand: (input) =>
@@ -1076,6 +1164,8 @@ const layerBase: Layer.Layer<
               }),
           ),
         ),
+      hasManagedCommand,
+      isManagedMessage,
       readByCommandId: (input) =>
         eventStore.readByCommandId(input).pipe(
           Stream.mapError(

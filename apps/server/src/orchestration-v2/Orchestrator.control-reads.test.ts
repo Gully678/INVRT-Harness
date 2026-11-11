@@ -1600,6 +1600,10 @@ it.effect("checks the inherited model against the managed route inside dispatch"
     if (refused._tag === "Failure") {
       assert.equal(refused.failure._tag, "OrchestratorManagedRouteRefusedError");
     }
+    const sql = yield* SqlClient.SqlClient;
+    yield* sql`INSERT INTO orchestration_command_policy_receipts
+      (command_id, policy_id, policy_revision, policy_digest, route_id, payload_digest, decision)
+      VALUES (${command.commandId}, 'policy', 1, 'digest', 'matching', 'payload', 'admitted')`;
     const accepted = yield* orchestrator.dispatch(command).pipe(
       Effect.provideService(ManagedRouteConstraint, {
         routeId: "matching",
@@ -1610,6 +1614,9 @@ it.effect("checks the inherited model against the managed route inside dispatch"
     );
     assert.isAbove(accepted.sequence, 0);
     assert.notEqual(accepted.replayed, true);
+    const binding = yield* sql<{ readonly native_bound: number }>`
+      SELECT native_bound FROM orchestration_command_policy_receipts WHERE command_id = ${command.commandId}`;
+    assert.deepEqual(binding, [{ native_bound: 1 }]);
     const replay = yield* orchestrator.replayManagedMessage({
       ...command,
       messageId: MessageId.make("message:managed-route-reallocated"),

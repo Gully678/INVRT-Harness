@@ -39,6 +39,7 @@ import {
   commandReceiptIdentity,
 } from "./orchestration-v2/Orchestrator.ts";
 import { commandPayloadDigest } from "./orchestration-v2/CommandReceiptStore.ts";
+import { ManagedRouteConstraint } from "./orchestration-v2/ManagedRouteConstraint.ts";
 import * as Orchestrator from "./orchestration-v2/Orchestrator.ts";
 import * as ProviderReplayHarness from "./orchestration-v2/testkit/ProviderReplayHarness.ts";
 import * as ProviderAdapterRegistry from "./orchestration-v2/ProviderAdapterRegistry.ts";
@@ -81,7 +82,12 @@ const routeA = {
 
 const digestOf = (policy: RoutingPolicy) => {
   const encoded = encodePolicy(policy);
-  if (encoded === null || typeof encoded !== "object" || Array.isArray(encoded)) {
+  if (
+    encoded === null ||
+    typeof encoded !== "object" ||
+    Array.isArray(encoded) ||
+    !("digest" in encoded)
+  ) {
     throw new Error("Expected encoded policy");
   }
   const { digest: _digest, ...content } = encoded;
@@ -232,6 +238,9 @@ const providerLayer = (effects: { count: number; throwNext: boolean }, marker: s
             ${commandPayloadDigest(commandReceiptIdentity(command))}
           )
         `;
+            if ((yield* ManagedRouteConstraint) !== undefined) {
+              yield* sql`UPDATE orchestration_command_policy_receipts SET native_bound = 1 WHERE command_id = ${command.commandId}`;
+            }
             NodeFS.mkdirSync(NodePath.dirname(marker), { recursive: true });
             NodeFS.writeFileSync(marker, command.commandId);
             return { sequence: effects.count, storedEvents: [] };
@@ -259,10 +268,17 @@ const tempCase = (name: string) => {
   };
 };
 
+const isManagedCommandRefusedError = Schema.is(ManagedCommandRefusedError);
+const isOrchestratorDispatchError = Schema.is(OrchestratorDispatchError);
+const isManagedCommandAuthorityUnavailableError = Schema.is(
+  ManagedCommandAuthorityUnavailableError,
+);
+const isManagedCommandDecisionNotFoundError = Schema.is(ManagedCommandDecisionNotFoundError);
+
 const squash = (exit: Exit.Exit<unknown, unknown>) =>
   Exit.isFailure(exit) ? Cause.squash(exit.cause) : undefined;
 
-const throughWebsocket = <A, E>(
+const throughWebsocket = (
   dbPath: string,
   marker: string,
   effects: { count: number; throwNext: boolean },
@@ -334,8 +350,8 @@ it.effect("refuses a denied websocket task without a provider effect", () => {
     const retry = yield* Effect.exit(
       throughWebsocket(files.dbPath, files.marker, effects, denied, command),
     );
-    assert.isTrue(Schema.is(ManagedCommandRefusedError)(squash(first)));
-    assert.isTrue(Schema.is(ManagedCommandRefusedError)(squash(retry)));
+    assert.isTrue(isManagedCommandRefusedError(squash(first)));
+    assert.isTrue(isManagedCommandRefusedError(squash(retry)));
     assert.equal(effects.count, 0);
     assert.equal(NodeFS.existsSync(files.marker), false);
     assert.equal(decision.decision, "refused");
@@ -355,7 +371,7 @@ it.effect("does not record a failed websocket attempt as a completed receipt", (
     );
     const failedDecision = yield* readDecision(files.dbPath, command.commandId);
     assert.equal(failed._tag, "Failure");
-    assert.isTrue(Schema.is(OrchestratorDispatchError)(squash(failed)));
+    assert.isTrue(isOrchestratorDispatchError(squash(failed)));
     assert.equal(failedDecision.decision, "failed");
     assert.notEqual(failedDecision.decision, "accepted");
     assert.notEqual(failedDecision.decision, "completed");
@@ -389,8 +405,8 @@ it.effect("fails a managed websocket task closed when the local port is absent",
       throughWebsocket(files.dbPath, files.marker, effects, { task: authority.task }, command),
     );
     const decision = yield* Effect.exit(readDecision(files.dbPath, command.commandId));
-    assert.isTrue(Schema.is(ManagedCommandAuthorityUnavailableError)(squash(closed)));
-    assert.isTrue(Schema.is(ManagedCommandDecisionNotFoundError)(squash(decision)));
+    assert.isTrue(isManagedCommandAuthorityUnavailableError(squash(closed)));
+    assert.isTrue(isManagedCommandDecisionNotFoundError(squash(decision)));
     assert.equal(effects.count, 0);
     assert.equal(NodeFS.existsSync(files.marker), false);
   }).pipe(Effect.ensuring(Effect.sync(files.remove)));
@@ -410,7 +426,7 @@ it.effect(
       assert.equal(sent._tag, "Success");
       assert.equal(effects.count, 1);
       assert.equal(NodeFS.existsSync(files.marker), true);
-      assert.isTrue(Schema.is(ManagedCommandDecisionNotFoundError)(squash(decision)));
+      assert.isTrue(isManagedCommandDecisionNotFoundError(squash(decision)));
     }).pipe(Effect.ensuring(Effect.sync(files.remove)));
   },
 );
@@ -434,7 +450,7 @@ it.effect("refuses a managed task when native receipt services are unavailable",
         ),
       ),
     );
-    assert.isTrue(Schema.is(ManagedCommandAuthorityUnavailableError)(squash(result)));
+    assert.isTrue(isManagedCommandAuthorityUnavailableError(squash(result)));
     assert.equal(calls, 0);
   }).pipe(
     Effect.provide(
