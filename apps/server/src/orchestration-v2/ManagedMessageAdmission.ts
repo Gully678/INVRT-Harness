@@ -59,6 +59,16 @@ export class ManagedCommandDecisionNotFoundError extends Schema.TaggedError<Mana
   }
 }
 
+/** A managed task reached intake with no caller-supplied local port. No provider effect and no receipt. */
+export class ManagedCommandAuthorityUnavailableError extends Schema.TaggedError<ManagedCommandAuthorityUnavailableError>()(
+  "ManagedCommandAuthorityUnavailableError",
+  { commandId: CommandId },
+) {
+  override get message(): string {
+    return `Command ${this.commandId} was not sent because no local routing authority is available.`;
+  }
+}
+
 export interface ManagedCommandDecision {
   readonly policyId: string | null;
   readonly policyRevision: number | null;

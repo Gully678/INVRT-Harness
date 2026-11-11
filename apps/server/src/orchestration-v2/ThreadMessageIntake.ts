@@ -9,7 +9,12 @@ import * as ServerConfig from "../config.ts";
 import * as Orchestrator from "./Orchestrator.ts";
 
 import * as AttachmentClaims from "./AttachmentClaims.ts";
-import { dispatchManagedMessage, ManagedMessageAdmission } from "./ManagedMessageAdmission.ts";
+import { LocalRoutingAuthority } from "./LocalRoutingAuthority.ts";
+import {
+  dispatchManagedMessage,
+  ManagedCommandAuthorityUnavailableError,
+  ManagedMessageAdmission,
+} from "./ManagedMessageAdmission.ts";
 import * as ThreadLaunch from "./ThreadLaunchService.ts";
 import * as ThreadManagement from "./ThreadManagementService.ts";
 
@@ -128,8 +133,23 @@ export const dispatchCommand = Effect.fn("ThreadMessageIntake.dispatchCommand")(
 ) {
   // Policy refusal and an identical accepted replay happen before guest reads or attachment claims.
   // An allowed managed send still prepares the message before the provider. No live FORGE port is read.
+  // The websocket intake context supplies the local port. A managed task without that port fails closed.
   if (incoming.type === "message.dispatch") {
     const prepared = dispatchMessage(incoming);
+    const local = yield* LocalRoutingAuthority;
+    if (local.task !== undefined) {
+      if (local.port === undefined) {
+        return yield* new ManagedCommandAuthorityUnavailableError({
+          commandId: incoming.commandId,
+        });
+      }
+      return yield* dispatchManagedMessage(incoming, prepared).pipe(
+        Effect.provideService(ManagedMessageAdmission, {
+          request: local.task,
+          port: local.port,
+        }),
+      );
+    }
     const admission = yield* Effect.serviceOption(ManagedMessageAdmission);
     if (Option.isSome(admission)) return yield* dispatchManagedMessage(incoming, prepared);
     return yield* prepared;
