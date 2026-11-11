@@ -32,6 +32,7 @@ import {
 } from "../observability/Metrics.ts";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
 import { CodexProviderCapabilitiesV2 } from "./Adapters/CodexAdapterV2.ts";
+import { commandPayloadDigest } from "./CommandReceiptStore.ts";
 import * as DelegatedTaskQuestionReactor from "./DelegatedTaskQuestionReactor.ts";
 import * as EffectOutbox from "./EffectOutbox.ts";
 import * as EventSink from "./EventSink.ts";
@@ -1475,4 +1476,72 @@ it.effect("dispatch records the command outcome and its duration", () =>
     assert.strictEqual((yield* successes).count - successesBefore, 1);
     assert.strictEqual((yield* durations).count - durationsBefore, 1);
   }).pipe(Effect.provide(layerTest)),
+);
+
+it.effect.each(["steer_active", "restart_active"] as const)(
+  "conflicts when a rejected %s retry selects another run",
+  (type) =>
+    Effect.gen(function* () {
+      const orchestrator = yield* Orchestrator.OrchestratorV2;
+      const threadId = ThreadId.make(`thread:rejected-target:${type}`);
+      yield* orchestrator.dispatch({
+        type: "thread.create",
+        commandId: CommandId.make(`create:rejected-target:${type}`),
+        threadId,
+        projectId: ProjectId.make("project:rejected-target"),
+        title: "Target identity",
+        modelSelection,
+        runtimeMode: "full-access",
+        interactionMode: "default",
+        branch: null,
+        worktreePath: null,
+        createdBy: "user",
+        creationSource: "web",
+      });
+      const command = {
+        type: "message.dispatch" as const,
+        commandId: CommandId.make(`rejected-target:${type}`),
+        threadId,
+        messageId: MessageId.make("message:rejected-target"),
+        text: "Steer the selected run",
+        attachments: [],
+        dispatchMode: { type, targetRunId: RunId.make("run:private-original-target") },
+        createdBy: "user" as const,
+        creationSource: "web" as const,
+      };
+      const first = yield* orchestrator.dispatch(command).pipe(Effect.flip);
+      assert.equal(first._tag, "OrchestratorDispatchError");
+      const replay = yield* orchestrator.dispatch(command).pipe(Effect.flip);
+      assert.equal(replay._tag, "OrchestratorCommandPreviouslyRejectedError");
+      const sequence = yield* orchestrator.getThreadEventSequence(threadId);
+      const changed = yield* orchestrator
+        .dispatch({
+          ...command,
+          dispatchMode: { type, targetRunId: RunId.make("run:another-target") },
+        })
+        .pipe(Effect.flip);
+      assert.equal(changed._tag, "OrchestratorCommandIdConflictError");
+      assert.notInclude(JSON.stringify(changed), command.dispatchMode.targetRunId);
+      assert.equal(yield* orchestrator.getThreadEventSequence(threadId), sequence);
+
+      const sql = yield* SqlClient.SqlClient;
+      const { messageId: _messageId, ...targetless } = command;
+      const oldDigest = commandPayloadDigest({ ...targetless, dispatchMode: { type } });
+      yield* sql`UPDATE orchestration_command_receipts SET payload_digest = ${oldDigest}
+        WHERE command_id = ${command.commandId}`;
+      for (const targetRunId of [
+        command.dispatchMode.targetRunId,
+        RunId.make("run:another-target"),
+      ]) {
+        const error = yield* orchestrator
+          .dispatch({
+            ...command,
+            dispatchMode: { type, targetRunId },
+          })
+          .pipe(Effect.flip);
+        assert.equal(error._tag, "OrchestratorCommandIdConflictError");
+        assert.notInclude(JSON.stringify(error), command.dispatchMode.targetRunId);
+      }
+      assert.equal(yield* orchestrator.getThreadEventSequence(threadId), sequence);
+    }).pipe(Effect.provide(layerTest)),
 );

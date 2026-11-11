@@ -319,7 +319,10 @@ function commandReceiptIdentity(command: OrchestrationV2ServerCommand): unknown 
   const { messageId: _messageId, context, ...withoutMessageId } = command;
   return {
     ...withoutMessageId,
-    dispatchMode: { type: command.dispatchMode.type },
+    dispatchMode:
+      command.dispatchMode.type === "defer_start"
+        ? { type: command.dispatchMode.type }
+        : command.dispatchMode,
     attachments: attachmentsWithoutIds(command.attachments),
     ...(context === undefined
       ? {}

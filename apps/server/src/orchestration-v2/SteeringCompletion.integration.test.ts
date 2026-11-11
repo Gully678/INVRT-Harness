@@ -9,6 +9,7 @@ import {
   ProviderInstanceId,
   ProviderThreadId,
   ProviderTurnId,
+  RunId,
   ThreadId,
   TurnItemId,
   type ModelSelection,
@@ -1354,4 +1355,90 @@ it.effect("stops the running turn when a goal clear ends the goal driving it", (
       }).pipe(Effect.provide(layer));
     }),
   ),
+);
+
+it.effect.each(["steer_active", "restart_active"] as const)(
+  "binds an accepted %s receipt to its selected run and message payload",
+  (type) =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const { layer, startFirstTurn } = yield* nextTurnSelectionHarness(
+          `receipt-target-${type}`,
+          true,
+        );
+        yield* Effect.gen(function* () {
+          const orchestrator = yield* Orchestrator.OrchestratorV2;
+          const threadId = yield* startFirstTurn;
+          const otherThreadId = ThreadId.make("thread:another-target");
+          yield* orchestrator.dispatch({
+            type: "thread.create",
+            commandId: CommandId.make("create:another-target"),
+            threadId: otherThreadId,
+            projectId: ProjectId.make("project:another-target"),
+            title: "Another thread",
+            modelSelection: runSelection,
+            runtimeMode: "full-access",
+            interactionMode: "default",
+            branch: null,
+            worktreePath: null,
+            createdBy: "user",
+            creationSource: "web",
+          });
+          const before = yield* orchestrator.getThreadProjection(threadId);
+          const command = {
+            type: "message.dispatch" as const,
+            commandId: CommandId.make(`accepted-target:${type}`),
+            threadId,
+            messageId: MessageId.make("message:accepted-target"),
+            text: "Steer the selected run",
+            modelSelection: runSelection,
+            attachments: [
+              {
+                type: "image" as const,
+                id: "claimed-image",
+                name: "image.png",
+                mimeType: "image/png",
+                sizeBytes: 10,
+              },
+            ],
+            dispatchMode: { type, targetRunId: before.runs[0]!.id },
+            createdBy: "user" as const,
+            creationSource: "web" as const,
+          };
+          const accepted = yield* orchestrator.dispatch(command);
+          assert.isNotEmpty(accepted.storedEvents);
+          const projection = yield* orchestrator.getThreadProjection(threadId);
+          const replay = yield* orchestrator.dispatch(command);
+          assert.deepEqual(replay, { ...accepted, replayed: true });
+          const reallocated = yield* orchestrator.dispatch({
+            ...command,
+            messageId: MessageId.make("message:reallocated"),
+            attachments: [{ ...command.attachments[0]!, id: "reclaimed-image" }],
+          });
+          assert.deepEqual(reallocated, replay);
+          const changes = [
+            { ...command, dispatchMode: { type, targetRunId: RunId.make("run:another-target") } },
+            { ...command, text: "A different request" },
+            { ...command, threadId: otherThreadId },
+            { ...command, modelSelection: { ...runSelection, model: "another-model" } },
+            ...[{ name: "another.png" }, { mimeType: "image/jpeg" }, { sizeBytes: 20 }].map(
+              (change) => ({
+                ...command,
+                attachments: [{ ...command.attachments[0]!, ...change }],
+              }),
+            ),
+          ];
+          for (const changed of changes) {
+            const result = yield* orchestrator.dispatch(changed).pipe(Effect.result);
+            assert.equal(result._tag, "Failure");
+            if (result._tag === "Failure") {
+              assert.equal(result.failure._tag, "OrchestratorCommandIdConflictError");
+              assert.notInclude(JSON.stringify(result.failure), command.dispatchMode.targetRunId);
+            }
+          }
+          assert.deepEqual(yield* orchestrator.getThreadProjection(threadId), projection);
+          assert.equal(yield* orchestrator.getThreadEventSequence(threadId), accepted.sequence);
+        }).pipe(Effect.provide(layer));
+      }),
+    ),
 );
