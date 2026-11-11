@@ -43,10 +43,13 @@ function mockHandle(result: { stdout: string; stderr: string; code: number }) {
   });
 }
 
-const layerVersionSpawner = Layer.succeed(
-  ChildProcessSpawner.ChildProcessSpawner,
-  ChildProcessSpawner.make(() =>
-    Effect.succeed(mockHandle({ stdout: "1.0.0\n", stderr: "", code: 0 })),
+const layerClaudeStatus = Layer.merge(
+  NodeServices.layer,
+  Layer.succeed(
+    ChildProcessSpawner.ChildProcessSpawner,
+    ChildProcessSpawner.make(() =>
+      Effect.succeed(mockHandle({ stdout: "1.0.0\n", stderr: "", code: 0 })),
+    ),
   ),
 );
 
@@ -173,7 +176,7 @@ it.effect("refuses to label a Claude subscription as an API key when the quota i
     assert.notStrictEqual(status.auth.type, "apiKey");
     assert.ok(status.message?.includes("Refused automatic paid fallback"));
     assert.strictEqual(status.usageLimits?.windows[0]?.usedPercent, 100);
-  }).pipe(Effect.provide(layerVersionSpawner), Effect.provide(NodeServices.layer)),
+  }).pipe(Effect.provide(layerClaudeStatus)),
 );
 
 it.effect("records a refusal when a Claude subscription is present beside an API key", () =>
@@ -190,7 +193,7 @@ it.effect("records a refusal when a Claude subscription is present beside an API
     assert.strictEqual(status.auth.type, "pro");
     assert.notStrictEqual(status.auth.type, "apiKey");
     assert.ok(status.message?.includes("Refused automatic paid fallback"));
-  }).pipe(Effect.provide(layerVersionSpawner), Effect.provide(NodeServices.layer)),
+  }).pipe(Effect.provide(layerClaudeStatus)),
 );
 
 it.effect(
@@ -211,7 +214,7 @@ it.effect(
         status.message?.includes("Refused automatic paid fallback") ?? false,
         false,
       );
-    }).pipe(Effect.provide(layerVersionSpawner), Effect.provide(NodeServices.layer)),
+    }).pipe(Effect.provide(layerClaudeStatus)),
 );
 
 it.effect("leaves a missing Claude account response unknown", () =>
@@ -222,7 +225,7 @@ it.effect("leaves a missing Claude account response unknown", () =>
     assert.strictEqual(status.auth.status, "unknown");
     assert.strictEqual(status.auth.type, undefined);
     assert.strictEqual(status.usageLimits, undefined);
-  }).pipe(Effect.provide(layerVersionSpawner), Effect.provide(NodeServices.layer)),
+  }).pipe(Effect.provide(layerClaudeStatus)),
 );
 
 it.effect("leaves a successful empty Claude account response unknown", () =>
@@ -232,7 +235,7 @@ it.effect("leaves a successful empty Claude account response unknown", () =>
     assert.strictEqual(status.status, "warning");
     assert.strictEqual(status.auth.type, undefined);
     assert.strictEqual(status.usageLimits, undefined);
-  }).pipe(Effect.provide(layerVersionSpawner), Effect.provide(NodeServices.layer)),
+  }).pipe(Effect.provide(layerClaudeStatus)),
 );
 
 it.effect("leaves a missing Claude usage response unknown", () =>
@@ -244,7 +247,7 @@ it.effect("leaves a missing Claude usage response unknown", () =>
     assert.strictEqual(status.auth.type, "pro");
     assert.deepStrictEqual(status.usageLimits?.windows, []);
     assert.strictEqual(status.usageLimits?.unavailable?.reason, "probeFailed");
-  }).pipe(Effect.provide(layerVersionSpawner), Effect.provide(NodeServices.layer)),
+  }).pipe(Effect.provide(layerClaudeStatus)),
 );
 
 it.effect("revoking one provider instance leaves a different instance usable", () =>
