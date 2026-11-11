@@ -41,6 +41,7 @@ export interface ProjectMetaUpdateCommand {
 }
 
 export interface ProjectDeleteCommand {
+  readonly force?: boolean;
   readonly type: "project.delete";
   readonly commandId: CommandId;
   readonly projectId: ProjectId;
@@ -84,7 +85,13 @@ export class ProjectWorkspaceConflictError extends Schema.TaggedError<ProjectWor
   }
 }
 
+export class ProjectCommandNotEmptyError extends Schema.TaggedError<ProjectCommandNotEmptyError>()(
+  "ProjectCommandNotEmptyError",
+  { projectId: ProjectId },
+) {}
+
 export const ProjectCommandRejection = Schema.Union([
+  ProjectCommandNotEmptyError,
   ProjectCommandInvariantError,
   ProjectCommandMissingProjectError,
   ProjectWorkspaceConflictError,

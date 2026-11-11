@@ -17,6 +17,10 @@ import { TestClock } from "effect/testing";
 import * as SqlClient from "effect/sql/SqlClient";
 
 import * as ServerConfig from "../config.ts";
+import {
+  commandPayloadDigest,
+  CommandReceiptPayloadConflictError,
+} from "../orchestration-v2/CommandReceiptStore.ts";
 import { OrchestrationEffectRequestV2 } from "../orchestration-v2/EffectOutbox.ts";
 import * as EventSink from "../orchestration-v2/EventSink.ts";
 import * as EventStore from "../orchestration-v2/EventStore.ts";
@@ -71,6 +75,7 @@ const layerDatabase = SqlitePersistence.layerMemory.pipe(
   Layer.provideMerge(ServerConfig.layerTest(process.cwd(), { prefix: "project-deletion-test-" })),
   Layer.provideMerge(NodeServices.layer),
 );
+const isPayloadConflict = Schema.is(CommandReceiptPayloadConflictError);
 const decodeEffectRequest = Schema.decodeUnknownEffect(
   Schema.fromJsonString(OrchestrationEffectRequestV2),
 );
@@ -558,6 +563,110 @@ it.effect("refuses a delete that reuses the create command before any child effe
       assert.equal(childEvents[0]?.n, 0);
       assert.equal(effects[0]?.n, 0);
       assert.isTrue(Option.isSome(yield* service.getById(projectId)));
+    }).pipe(Effect.provide(layerServices));
+  }).pipe(Effect.provide(layerDatabase)),
+);
+
+it.effect("binds force intent and durably rejects a non-force deletion", () =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    const projectId = ProjectId.make("project:force-intent");
+    const threadId = ThreadId.make("thread:force-intent");
+    const commandId = CommandId.make("command:force-intent:refused");
+    yield* seedProject(projectId);
+    yield* Effect.gen(function* () {
+      const service = yield* ProjectService.make;
+      const eventSink = yield* EventSink.EventSinkV2;
+      yield* eventSink.write({ events: [nativeThreadCreated(projectId, threadId)] });
+      const before = yield* sql`SELECT sequence FROM orchestration_events`;
+      const refused = { commandId, projectId, force: false };
+      assert.instanceOf(
+        yield* service.delete(refused).pipe(Effect.flip),
+        ProjectService.ProjectNotEmptyError,
+      );
+      const receipt =
+        yield* sql`SELECT status FROM orchestration_command_receipts WHERE command_id = ${commandId}`;
+      assert.deepEqual(receipt, [{ status: "rejected" }]);
+      const changed = yield* service.delete({ ...refused, force: true }).pipe(Effect.flip);
+      assert.instanceOf(changed, ProjectService.ProjectOperationError);
+      if (changed._tag !== "ProjectOperationError")
+        return assert.fail("Expected a payload conflict");
+      assert.equal(isPayloadConflict(changed.cause), true);
+      assert.instanceOf(
+        yield* service.delete(refused).pipe(Effect.flip),
+        ProjectService.ProjectNotEmptyError,
+      );
+      assert.deepEqual(yield* sql`SELECT sequence FROM orchestration_events`, before);
+      assert.deepEqual(yield* sql`SELECT effect_id FROM orchestration_v2_effect_outbox`, []);
+      assert.isNull(Option.getOrThrow(yield* service.getById(projectId)).deletedAt);
+      const child =
+        yield* sql`SELECT deleted_at FROM orchestration_v2_projection_threads WHERE thread_id = ${threadId}`;
+      assert.deepEqual(child, [{ deleted_at: null }]);
+
+      const lawful = {
+        commandId: CommandId.make("command:force-intent:lawful"),
+        projectId,
+        force: true,
+      };
+      const deleted = yield* service.delete(lawful);
+      assert.isNotNull(deleted.deletedAt);
+      const events = yield* sql`SELECT sequence FROM orchestration_events`;
+      const effects = yield* sql`SELECT effect_id FROM orchestration_v2_effect_outbox`;
+      assert.lengthOf(effects, 3);
+      yield* service.delete(lawful);
+      // A completed cascade must not turn the old terminal refusal into success.
+      assert.instanceOf(
+        yield* service.delete(refused).pipe(Effect.flip),
+        ProjectService.ProjectNotEmptyError,
+      );
+      assert.deepEqual(yield* sql`SELECT sequence FROM orchestration_events`, events);
+      assert.deepEqual(yield* sql`SELECT effect_id FROM orchestration_v2_effect_outbox`, effects);
+    }).pipe(Effect.provide(layerServices));
+  }).pipe(Effect.provide(layerDatabase)),
+);
+
+it.effect("fails closed on legacy unknown force and safely replays completed legacy deletion", () =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    const projectId = ProjectId.make("project:legacy-force");
+    const threadId = ThreadId.make("thread:legacy-force");
+    const commandId = CommandId.make("command:legacy-force");
+    yield* seedProject(projectId);
+    yield* Effect.gen(function* () {
+      const service = yield* ProjectService.make;
+      const eventSink = yield* EventSink.EventSinkV2;
+      yield* eventSink.write({ events: [nativeThreadCreated(projectId, threadId)] });
+      const legacy = { type: "project.delete" as const, commandId, projectId };
+      yield* eventSink.reserveProjectCommand({
+        ...legacy,
+        commandType: legacy.type,
+        payloadDigest: commandPayloadDigest(legacy),
+      });
+      const conflict = yield* service
+        .delete({ commandId, projectId, force: true })
+        .pipe(Effect.flip);
+      assert.instanceOf(conflict, ProjectService.ProjectOperationError);
+      if (conflict._tag !== "ProjectOperationError")
+        return assert.fail("Expected unknown-force conflict");
+      assert.equal(isPayloadConflict(conflict.cause), true);
+      assert.deepEqual(yield* sql`SELECT effect_id FROM orchestration_v2_effect_outbox`, []);
+      // A fresh explicit force id can recover a historical claim without guessing its intent.
+      const fresh = {
+        commandId: CommandId.make("command:legacy-force:fresh"),
+        projectId,
+        force: true,
+      };
+      yield* service.delete(fresh);
+      const before = yield* sql`SELECT effect_id FROM orchestration_v2_effect_outbox`;
+      const oldCompleted = {
+        type: "project.delete" as const,
+        commandId: fresh.commandId,
+        projectId,
+      };
+      yield* sql`UPDATE orchestration_command_receipts SET payload_digest = ${commandPayloadDigest(oldCompleted)} WHERE command_id = ${fresh.commandId}`;
+      const replay = yield* service.delete({ commandId: fresh.commandId, projectId });
+      assert.isNotNull(replay.deletedAt);
+      assert.deepEqual(yield* sql`SELECT effect_id FROM orchestration_v2_effect_outbox`, before);
     }).pipe(Effect.provide(layerServices));
   }).pipe(Effect.provide(layerDatabase)),
 );

@@ -33,6 +33,7 @@ import {
   decodeProjectCommandRejection,
   encodeProjectCommandRejection,
   planProjectCommand,
+  ProjectCommandNotEmptyError,
   type ProjectCommand,
 } from "../orchestration-v2/ProjectCommands.ts";
 import * as ProjectStore from "../orchestration-v2/ProjectStore.ts";
@@ -147,6 +148,8 @@ export class ProjectService extends Context.Service<
     }) => Effect.Effect<ReadonlyArray<OrchestrationProjectShell>, ProjectOperationError>;
   }
 >()("t3/project/ProjectService") {}
+
+const isProjectOperationError = Schema.is(ProjectOperationError);
 
 const MKDIR_CLAIM_PREFIX = "mkdir:";
 
@@ -265,7 +268,10 @@ export const make = Effect.gen(function* () {
         ),
       );
 
-  const commit = Effect.fn("ProjectService.commit")(function* (command: ProjectCommand) {
+  const commit = Effect.fn("ProjectService.commit")(function* (
+    command: ProjectCommand,
+    beforeCommit?: Effect.Effect<void, ProjectServiceError>,
+  ) {
     const { projectId } = command;
     const dispatchError = (cause: unknown) =>
       new ProjectOperationError({ operation: "dispatch-project-command", projectId, cause });
@@ -295,6 +301,7 @@ export const make = Effect.gen(function* () {
           now,
         });
         if (Result.isSuccess(planned)) {
+          if (beforeCommit !== undefined) yield* beforeCommit;
           const { receipt } = yield* eventSink.commitProjectCommand({
             commandId: prepared.commandId,
             projectId,
@@ -362,6 +369,8 @@ export const make = Effect.gen(function* () {
           workspaceRoot: rejection.workspaceRoot,
           conflictingProjectId: rejection.conflictingProjectId,
         });
+      case "ProjectCommandNotEmptyError":
+        return yield* new ProjectNotEmptyError({ projectId });
       case "ProjectCommandMissingProjectError":
         return yield* new ProjectNotFoundError({ projectId });
       default:
@@ -567,12 +576,15 @@ export const make = Effect.gen(function* () {
               Effect.gen(function* () {
                 if (yield* ownsDirectoryCreate(command.commandId, input.projectId)) {
                   owned = true;
-                  yield* normalizeWorkspaceRoot({
-                    projectId: input.projectId,
-                    workspaceRoot,
-                    createIfMissing: true,
-                  });
-                  yield* commit(command);
+                  // Plan under this write transaction before any filesystem effect.
+                  yield* commit(
+                    command,
+                    normalizeWorkspaceRoot({
+                      projectId: input.projectId,
+                      workspaceRoot,
+                      createIfMissing: true,
+                    }).pipe(Effect.asVoid),
+                  );
                   return "done" as const;
                 }
                 const [row] = yield* sql<{
@@ -598,7 +610,7 @@ export const make = Effect.gen(function* () {
                   : Effect.void,
               ),
               Effect.mapError((cause) =>
-                Schema.is(ProjectOperationError)(cause) ? cause : dispatchError(cause),
+                isProjectOperationError(cause) ? cause : dispatchError(cause),
               ),
             );
           if (outcome === "done") return;
@@ -775,10 +787,37 @@ export const make = Effect.gen(function* () {
         type: "project.delete",
         commandId: input.commandId,
         projectId,
+        ...(input.force === true ? { force: true } : {}),
       };
       const admission = yield* admitCommand(command);
       if (isFirstDelete && admission.phase === "open") {
-        yield* deleteChildThreads(input);
+        yield* deleteChildThreads(input).pipe(
+          Effect.tapError((cause) =>
+            cause._tag === "ProjectNotEmptyError"
+              ? eventSink
+                  .commitRejectedProjectCommand({
+                    commandId: command.commandId,
+                    projectId,
+                    commandType: command.type,
+                    rejectedAt: DateTime.nowUnsafe(),
+                    error: encodeProjectCommandRejection(
+                      new ProjectCommandNotEmptyError({ projectId }),
+                    ),
+                    payloadDigest: commandPayloadDigest(command),
+                  })
+                  .pipe(
+                    Effect.mapError(
+                      (cause) =>
+                        new ProjectOperationError({
+                          operation: "dispatch-project-command",
+                          projectId,
+                          cause,
+                        }),
+                    ),
+                  )
+              : Effect.void,
+          ),
+        );
       }
       yield* commit(command).pipe(
         Effect.tapError(() =>

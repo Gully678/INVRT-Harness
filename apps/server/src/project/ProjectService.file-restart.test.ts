@@ -76,10 +76,10 @@ const layerMetadata = Layer.merge(
   }),
 );
 
-const layerFor = (dbPath: string) =>
+const layerFor = (dbPath: string, workspacePaths = layerWorkspacePaths) =>
   RuntimeLayer.layerProjectService.pipe(
     Layer.provideMerge(ProjectEnrichmentService.layer),
-    Layer.provideMerge(layerWorkspacePaths),
+    Layer.provideMerge(workspacePaths),
     Layer.provideMerge(layerMetadata),
     Layer.provideMerge(SqlitePersistence.layerFromPath(dbPath)),
     Layer.provideMerge(ServerSettings.layerTest()),
@@ -654,5 +654,113 @@ it.effect("a live other mkdir pid does not create a directory", () => {
         NodeFS.rmSync(tempDir, { recursive: true, force: true });
       }),
     ),
+  );
+});
+
+const realWorkspacePaths = (roots: string[]) =>
+  Layer.succeed(WorkspacePaths.WorkspacePaths, {
+    normalizeWorkspaceRoot: (root, options) =>
+      Effect.sync(() => {
+        if (options?.createIfMissing) {
+          roots.push(root);
+          NodeFS.mkdirSync(root, { recursive: true });
+        }
+        return root;
+      }),
+    resolveRelativePathWithinRoot: ({ workspaceRoot, relativePath }) =>
+      Effect.succeed({ absolutePath: `${workspaceRoot}/${relativePath}`, relativePath }),
+  });
+
+it.effect("rejects a duplicate project id before creating another real root", () => {
+  const tempDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "t3-project-refusal-"));
+  const existingRoot = NodePath.join(tempDir, "existing");
+  const refusedRoot = NodePath.join(tempDir, "refused");
+  NodeFS.mkdirSync(existingRoot);
+  const roots: string[] = [];
+  const realPaths = realWorkspacePaths(roots);
+  const projectId = ProjectId.make("project:duplicate-root");
+  const layer = layerFor(NodePath.join(tempDir, "state.sqlite"), realPaths);
+  return Effect.gen(function* () {
+    const service = yield* ProjectService.ProjectService;
+    const sql = yield* SqlClient.SqlClient;
+    const lawful = {
+      commandId: CommandId.make("command:duplicate-root:lawful"),
+      projectId,
+      title: "Existing",
+      workspaceRoot: existingRoot,
+      createWorkspaceRootIfMissing: true,
+    };
+    yield* service.create(lawful);
+    const before = yield* sql`SELECT sequence FROM orchestration_events`;
+    const refused = {
+      ...lawful,
+      commandId: CommandId.make("command:duplicate-root:refused"),
+      workspaceRoot: refusedRoot,
+    };
+    assert.instanceOf(
+      yield* service.create(refused).pipe(Effect.flip),
+      ProjectService.ProjectOperationError,
+    );
+    assert.equal(NodeFS.existsSync(refusedRoot), false);
+    assert.deepEqual(roots, [existingRoot]);
+    assert.deepEqual(yield* sql`SELECT sequence FROM orchestration_events`, before);
+    assert.equal(Option.getOrThrow(yield* service.getById(projectId)).workspaceRoot, existingRoot);
+    yield* service.create(lawful);
+    assert.deepEqual(roots, [existingRoot]);
+    assert.deepEqual(yield* sql`SELECT sequence FROM orchestration_events`, before);
+  }).pipe(
+    Effect.provide(layer),
+    Effect.ensuring(Effect.sync(() => NodeFS.rmSync(tempDir, { recursive: true, force: true }))),
+  );
+});
+
+it.effect("two connections with different keys create only one real root for a project", () => {
+  const tempDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "t3-project-root-race-"));
+  const roots: string[] = [];
+  const dbPath = NodePath.join(tempDir, "state.sqlite");
+  const layer = layerFor(dbPath, realWorkspacePaths(roots));
+  const projectId = ProjectId.make("project:root-race");
+  return Effect.gen(function* () {
+    // Migrate before opening the competing connections.
+    yield* Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      yield* sql`SELECT 1`;
+    }).pipe(Effect.provide(layer));
+    const create = (key: string) =>
+      Effect.gen(function* () {
+        const service = yield* ProjectService.ProjectService;
+        return yield* service
+          .create({
+            commandId: CommandId.make(key),
+            projectId,
+            title: key,
+            workspaceRoot: NodePath.join(tempDir, key),
+            createWorkspaceRootIfMissing: true,
+          })
+          .pipe(Effect.result);
+      }).pipe(Effect.provide(layer));
+    const results = yield* Effect.all([create("first"), create("second")], { concurrency: 2 });
+    assert.lengthOf(
+      results.filter((result) => result._tag === "Success"),
+      1,
+    );
+    assert.lengthOf(
+      results.filter((result) => result._tag === "Failure"),
+      1,
+    );
+    assert.lengthOf(roots, 1);
+    assert.equal(
+      Number(NodeFS.existsSync(NodePath.join(tempDir, "first"))) +
+        Number(NodeFS.existsSync(NodePath.join(tempDir, "second"))),
+      1,
+    );
+    yield* Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      const service = yield* ProjectService.ProjectService;
+      assert.lengthOf(yield* sql`SELECT sequence FROM orchestration_events`, 1);
+      assert.equal(Option.getOrThrow(yield* service.getById(projectId)).workspaceRoot, roots[0]);
+    }).pipe(Effect.provide(layer));
+  }).pipe(
+    Effect.ensuring(Effect.sync(() => NodeFS.rmSync(tempDir, { recursive: true, force: true }))),
   );
 });
