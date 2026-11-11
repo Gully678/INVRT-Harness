@@ -1,3 +1,7 @@
+import * as NodeFS from "node:fs";
+import * as NodeOS from "node:os";
+import * as NodePath from "node:path";
+
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
 import {
@@ -681,3 +685,92 @@ it.effect.each([true, false])(
       }).pipe(Effect.provide(layerServices));
     }).pipe(Effect.provide(layerDatabase)),
 );
+
+const layerCascadeFile = (dbPath: string) =>
+  layerServices.pipe(
+    Layer.provideMerge(SqlitePersistence.layerFromPath(dbPath)),
+    Layer.provide(ServerConfig.layerTest(process.cwd(), { prefix: "project-cascade-restart-" })),
+    Layer.provide(NodeServices.layer),
+  );
+
+it.effect("restarts after a reserved delete and retries the cascade once", () => {
+  const tempDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "t3-project-cascade-restart-"));
+  const dbPath = NodePath.join(tempDir, "state.sqlite");
+  const layer = layerCascadeFile(dbPath);
+  const projectId = ProjectId.make("project:cascade-restart");
+  const threadId = ThreadId.make("thread:cascade-restart");
+  const commandId = CommandId.make("command:cascade-restart");
+  const reserved = {
+    type: "project.delete" as const,
+    commandId,
+    projectId,
+    force: true as const,
+  };
+  const provide = <A, E>(effect: Effect.Effect<A, E, Layer.Layer.Success<typeof layer>>) =>
+    effect.pipe(Effect.provide(layer));
+  return Effect.gen(function* () {
+    yield* provide(
+      Effect.gen(function* () {
+        const sink = yield* EventSink.EventSinkV2;
+        yield* seedProject(projectId);
+        yield* sink.write({ events: [nativeThreadCreated(projectId, threadId)] });
+        const admission = yield* sink.reserveProjectCommand({
+          commandId,
+          projectId,
+          commandType: reserved.type,
+          payloadDigest: commandPayloadDigest(reserved),
+        });
+        assert.equal(admission.phase, "open");
+      }),
+    );
+
+    yield* provide(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient;
+        const service = yield* ProjectService.make;
+        const projections = yield* ProjectionStore.ProjectionStoreV2;
+        const readEvents = sql`SELECT sequence, event_type FROM orchestration_events ORDER BY sequence`;
+        const readEffects = sql`
+          SELECT effect_id FROM orchestration_v2_effect_outbox ORDER BY effect_id
+        `;
+        const eventsBefore = yield* readEvents;
+        const effectsBefore = yield* readEffects;
+        const refused = yield* service.delete({ commandId, projectId }).pipe(Effect.flip);
+        assert.instanceOf(refused, ProjectService.ProjectOperationError);
+        if (refused._tag !== "ProjectOperationError") return assert.fail("Expected a refusal");
+        assert.equal(isPayloadConflict(refused.cause), true);
+        assert.deepEqual(yield* readEvents, eventsBefore);
+        assert.deepEqual(yield* readEffects, effectsBefore);
+        assert.isNull((yield* projections.getThreadProjection(threadId)).thread.deletedAt);
+
+        const deleted = yield* service.delete({ commandId, projectId, force: true });
+        assert.isNotNull(deleted.deletedAt);
+        const [childEvents] = yield* sql<{ readonly n: number }>`
+          SELECT COUNT(*) AS n FROM orchestration_events
+          WHERE event_type = 'thread.deleted' AND stream_id = ${threadId}
+        `;
+        assert.equal(childEvents?.n, 1);
+        const effects = yield* sql<{ readonly effect_type: string }>`
+          SELECT effect_type FROM orchestration_v2_effect_outbox
+          WHERE thread_id = ${threadId}
+          ORDER BY effect_type
+        `;
+        assert.deepEqual(
+          effects.map((row) => row.effect_type),
+          ["preview.cleanup", "scheduled-tasks.cleanup", "terminal.cleanup"],
+        );
+        const effectsAfter = yield* readEffects;
+        const replay = yield* service.delete({ commandId, projectId, force: true });
+        assert.isNotNull(replay.deletedAt);
+        const [childAfter] = yield* sql<{ readonly n: number }>`
+          SELECT COUNT(*) AS n FROM orchestration_events
+          WHERE event_type = 'thread.deleted' AND stream_id = ${threadId}
+        `;
+        assert.equal(childAfter?.n, 1);
+        assert.deepEqual(yield* readEffects, effectsAfter);
+      }),
+    );
+  }).pipe(
+    Effect.ensuring(Effect.sync(() => NodeFS.rmSync(tempDir, { recursive: true, force: true }))),
+  );
+});

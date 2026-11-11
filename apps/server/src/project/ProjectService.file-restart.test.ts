@@ -1,7 +1,9 @@
 // @effect-diagnostics nodeBuiltinImport:off - the sqlite path is created before the layer exists
+import * as NodeChildProcess from "node:child_process";
 import * as NodeFS from "node:fs";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
+import * as NodeURL from "node:url";
 
 import { assert, it } from "@effect/vitest";
 import * as NodeServices from "@effect/platform-node/NodeServices";
@@ -22,6 +24,7 @@ import * as WorkspacePaths from "../workspace/WorkspacePaths.ts";
 import * as ProjectEnrichmentService from "./ProjectEnrichmentService.ts";
 import * as ProjectFaviconResolver from "./ProjectFaviconResolver.ts";
 import * as ProjectService from "./ProjectService.ts";
+import { projectRaceLayer, type ProcessRaceConfig } from "./projectProcessRaceChild.ts";
 import * as RepositoryIdentityResolver from "./RepositoryIdentityResolver.ts";
 
 const createdWorkspaceRoots: Array<string> = [];
@@ -760,6 +763,377 @@ it.effect("two connections with different keys create only one real root for a p
       assert.lengthOf(yield* sql`SELECT sequence FROM orchestration_events`, 1);
       assert.equal(Option.getOrThrow(yield* service.getById(projectId)).workspaceRoot, roots[0]);
     }).pipe(Effect.provide(layer));
+  }).pipe(
+    Effect.ensuring(Effect.sync(() => NodeFS.rmSync(tempDir, { recursive: true, force: true }))),
+  );
+});
+
+const eventSequences = (commandId: CommandId) =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    return yield* sql<{ readonly sequence: number }>`
+      SELECT sequence FROM orchestration_events WHERE command_id = ${commandId} ORDER BY sequence
+    `;
+  });
+
+it.effect(
+  "reopens a file database for an omitted root, a historical no-op, a conflicting root and a real move",
+  () => {
+    const tempDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "t3-project-restore-"));
+    const dbPath = NodePath.join(tempDir, "state.sqlite");
+    const layer = layerFor(dbPath);
+    const projectId = ProjectId.make("project:restore-roots");
+    const root = "/work/ic02-restore";
+    const omittedId = CommandId.make("command:restore:omitted");
+    const explicitId = CommandId.make("command:restore:explicit");
+    const historicalId = CommandId.make("command:restore:historical");
+    const moveId = CommandId.make("command:restore:move");
+    const open = <A, E>(
+      effect: Effect.Effect<A, E, ProjectService.ProjectService | SqlClient.SqlClient>,
+    ) => effect.pipe(Effect.provide(layer));
+    return Effect.gen(function* () {
+      createGate.holding = undefined;
+      createGate.release = undefined;
+      createGate.failCreate = false;
+      yield* open(
+        Effect.gen(function* () {
+          const service = yield* ProjectService.ProjectService;
+          const sql = yield* SqlClient.SqlClient;
+          yield* service.create({
+            commandId: CommandId.make("command:restore:create"),
+            projectId,
+            title: "Restore",
+            workspaceRoot: root,
+          });
+          yield* service.update({ commandId: omittedId, projectId, title: "Omitted" });
+          yield* service.update({ commandId: explicitId, projectId, workspaceRoot: root });
+          yield* service.update({ commandId: historicalId, projectId, workspaceRoot: root });
+          const historicalDigest = commandPayloadDigest({
+            type: "project.meta.update",
+            commandId: historicalId,
+            projectId,
+          });
+          yield* sql`
+            UPDATE orchestration_command_receipts
+            SET payload_digest = ${historicalDigest}
+            WHERE command_id = ${historicalId}
+          `;
+        }),
+      );
+
+      yield* open(
+        Effect.gen(function* () {
+          const service = yield* ProjectService.ProjectService;
+          const omitted = yield* service.update({
+            commandId: omittedId,
+            projectId,
+            title: "Omitted",
+          });
+          assert.equal(omitted.workspaceRoot, root);
+          assert.equal(omitted.title, "Omitted");
+          assert.lengthOf(yield* eventSequences(omittedId), 1);
+          const explicit = yield* service.update({
+            commandId: explicitId,
+            projectId,
+            workspaceRoot: root,
+          });
+          assert.equal(explicit.workspaceRoot, root);
+          assert.lengthOf(yield* eventSequences(explicitId), 1);
+          const historical = yield* service.update({
+            commandId: historicalId,
+            projectId,
+            workspaceRoot: root,
+          });
+          assert.equal(historical.workspaceRoot, root);
+          assert.lengthOf(yield* eventSequences(historicalId), 1);
+          const beforeConflict = yield* eventSequences(historicalId);
+          const allBefore = yield* Effect.gen(function* () {
+            const sql = yield* SqlClient.SqlClient;
+            return yield* sql`SELECT sequence FROM orchestration_events ORDER BY sequence`;
+          });
+          const changed = yield* service
+            .update({
+              commandId: historicalId,
+              projectId,
+              workspaceRoot: "/work/ic02-restore-changed",
+            })
+            .pipe(Effect.flip);
+          assert.instanceOf(changed, ProjectService.ProjectOperationError);
+          assert.deepEqual(yield* eventSequences(historicalId), beforeConflict);
+          assert.deepEqual(
+            yield* Effect.gen(function* () {
+              const sql = yield* SqlClient.SqlClient;
+              return yield* sql`SELECT sequence FROM orchestration_events ORDER BY sequence`;
+            }),
+            allBefore,
+          );
+          assert.equal(Option.getOrThrow(yield* service.getById(projectId)).workspaceRoot, root);
+          const moved = yield* service.update({
+            commandId: moveId,
+            projectId,
+            workspaceRoot: "/work/ic02-restore-moved",
+          });
+          assert.equal(moved.workspaceRoot, "/work/ic02-restore-moved");
+          assert.lengthOf(yield* eventSequences(moveId), 1);
+          assert.equal(
+            Option.getOrThrow(yield* service.getById(projectId)).workspaceRoot,
+            "/work/ic02-restore-moved",
+          );
+        }),
+      );
+    }).pipe(
+      Effect.ensuring(
+        Effect.sync(() => {
+          createGate.holding = undefined;
+          createGate.release = undefined;
+          createGate.failCreate = false;
+          NodeFS.rmSync(tempDir, { recursive: true, force: true });
+        }),
+      ),
+    );
+  },
+);
+
+const raceChildEntry = NodeURL.fileURLToPath(
+  new URL("./projectProcessRaceChild.ts", import.meta.url),
+);
+
+const raceChildEnv = (): NodeJS.ProcessEnv => {
+  const env = { ...process.env };
+  delete env.NODE_OPTIONS;
+  for (const key of Object.keys(env)) {
+    if (key.startsWith("VITEST") || key.startsWith("VP_")) delete env[key];
+  }
+  return env;
+};
+
+const pause = (millis: number) =>
+  Effect.sync(() => {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, millis);
+  });
+
+const waitForPath = (path: string) =>
+  Effect.gen(function* () {
+    for (let attempt = 0; attempt < 400; attempt++) {
+      if (NodeFS.existsSync(path)) return;
+      yield* pause(50);
+    }
+    return yield* Effect.die(`Timed out waiting for ${path}`);
+  });
+
+const spawnRaceChild = (config: ProcessRaceConfig) => {
+  const configPath = NodePath.join(NodePath.dirname(config.dbPath), `${config.role}.json`);
+  NodeFS.writeFileSync(configPath, JSON.stringify(config));
+  const child = NodeChildProcess.spawn(process.execPath, [raceChildEntry, configPath], {
+    env: raceChildEnv(),
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  let stderr = "";
+  child.stderr?.setEncoding("utf8");
+  child.stderr?.on("data", (chunk: string) => {
+    stderr += chunk;
+  });
+  const exited = Effect.callback<{
+    readonly code: number | null;
+    readonly signal: NodeJS.Signals | null;
+    readonly stderr: string;
+  }>((resume) => {
+    const onError = (error: Error) => resume(Effect.fail(error));
+    const onExit = (code: number | null, signal: NodeJS.Signals | null) =>
+      resume(Effect.succeed({ code, signal, stderr }));
+    child.once("error", onError);
+    child.once("exit", onExit);
+    return Effect.sync(() => {
+      child.removeListener("error", onError);
+      child.removeListener("exit", onExit);
+      if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+    });
+  });
+  return {
+    exited,
+    kill: () => {
+      if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+    },
+  };
+};
+
+const migrateRaceDatabase = (dbPath: string) =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    yield* sql`SELECT 1`;
+  }).pipe(Effect.provide(projectRaceLayer(dbPath)));
+
+const createdEventCount = (dbPath: string) =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    const [row] = yield* sql<{ readonly n: number }>`
+      SELECT COUNT(*) AS n FROM orchestration_events WHERE event_type = 'project.created'
+    `;
+    return row?.n;
+  }).pipe(Effect.provide(projectRaceLayer(dbPath)));
+
+it.effect("a second OS process racing another root creates one directory and one event", () => {
+  const tempDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "t3-project-os-race-"));
+  const dbPath = NodePath.join(tempDir, "state.sqlite");
+  const rootA = NodePath.join(tempDir, "root-a");
+  const rootB = NodePath.join(tempDir, "root-b");
+  const projectId = "project:os-race";
+  const layer = projectRaceLayer(dbPath);
+  const childConfig: ProcessRaceConfig = {
+    role: "hold-create",
+    dbPath,
+    resultPath: NodePath.join(tempDir, "child-result.json"),
+    readyPath: NodePath.join(tempDir, "ready"),
+    releasePath: NodePath.join(tempDir, "release"),
+    commandId: "command:os-race:a",
+    projectId,
+    title: "Root A",
+    workspaceRoot: rootA,
+  };
+  return Effect.gen(function* () {
+    yield* migrateRaceDatabase(dbPath);
+    const child = spawnRaceChild(childConfig);
+    yield* waitForPath(childConfig.readyPath);
+    assert.equal(NodeFS.existsSync(rootA), false);
+    assert.equal(NodeFS.existsSync(rootB), false);
+    const parent = yield* Effect.forkChild(
+      Effect.gen(function* () {
+        const service = yield* ProjectService.ProjectService;
+        return yield* service
+          .create({
+            commandId: CommandId.make("command:os-race:b"),
+            projectId: ProjectId.make(projectId),
+            title: "Root B",
+            workspaceRoot: rootB,
+            createWorkspaceRootIfMissing: true,
+          })
+          .pipe(Effect.result);
+      }).pipe(Effect.provide(layer)),
+    );
+    yield* pause(400);
+    assert.equal(NodeFS.existsSync(rootA), false);
+    assert.equal(NodeFS.existsSync(rootB), false);
+    NodeFS.writeFileSync(childConfig.releasePath, "go");
+    const childExit = yield* child.exited;
+    const parentResult = yield* Fiber.join(parent);
+    assert.equal(childExit.code, 0, childExit.stderr);
+    assert.equal(parentResult._tag, "Failure");
+    assert.equal(NodeFS.existsSync(rootA), true);
+    assert.equal(NodeFS.existsSync(rootB), false);
+    assert.equal(yield* createdEventCount(dbPath), 1);
+  }).pipe(
+    Effect.ensuring(Effect.sync(() => NodeFS.rmSync(tempDir, { recursive: true, force: true }))),
+  );
+});
+
+it.effect("a live other process pid does not create a directory and a dead pid can", () => {
+  const tempDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "t3-project-os-pid-"));
+  const dbPath = NodePath.join(tempDir, "state.sqlite");
+  const root = NodePath.join(tempDir, "claimed");
+  const layer = projectRaceLayer(dbPath);
+  const config: ProcessRaceConfig = {
+    role: "hold-live",
+    dbPath,
+    resultPath: NodePath.join(tempDir, "child-result.json"),
+    readyPath: NodePath.join(tempDir, "ready"),
+    releasePath: NodePath.join(tempDir, "release"),
+    commandId: "command:os-pid",
+    projectId: "project:os-pid",
+    title: "Claimed",
+    workspaceRoot: root,
+  };
+  const create = Effect.gen(function* () {
+    const service = yield* ProjectService.ProjectService;
+    return yield* service.create({
+      commandId: CommandId.make(config.commandId),
+      projectId: ProjectId.make(config.projectId),
+      title: config.title,
+      workspaceRoot: root,
+      createWorkspaceRootIfMissing: true,
+    });
+  }).pipe(Effect.provide(layer));
+  return Effect.gen(function* () {
+    yield* migrateRaceDatabase(dbPath);
+    const child = spawnRaceChild(config);
+    yield* waitForPath(config.readyPath);
+    const claim = yield* Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      const [row] = yield* sql<{
+        readonly error: string | null;
+        readonly resultSequence: number;
+        readonly digest: string | null;
+      }>`
+        SELECT error, result_sequence AS "resultSequence", payload_digest AS digest
+        FROM orchestration_command_receipts
+        WHERE command_id = ${config.commandId}
+      `;
+      return row;
+    }).pipe(Effect.provide(layer));
+    assert.ok(claim, "the live process did not leave a sequence-0 claim");
+    assert.match(String(claim.error), /^mkdir:[1-9][0-9]*$/);
+    const claimedPid = Number(String(claim.error).slice("mkdir:".length));
+    let claimedPidIsLive = false;
+    try {
+      process.kill(claimedPid, 0);
+      claimedPidIsLive = true;
+    } catch {
+      claimedPidIsLive = false;
+    }
+    assert.equal(claimedPidIsLive, true);
+    assert.equal(claim.resultSequence, 0);
+    const blocked = yield* create.pipe(Effect.flip);
+    assert.instanceOf(blocked, ProjectService.ProjectOperationError);
+    assert.include(String(blocked.cause), "Directory creation is in progress");
+    assert.equal(NodeFS.existsSync(root), false);
+    child.kill();
+    const exited = yield* child.exited;
+    assert.equal(exited.signal, "SIGKILL");
+    const created = yield* create;
+    assert.equal(created.workspaceRoot, root);
+    assert.equal(NodeFS.existsSync(root), true);
+    assert.equal(yield* createdEventCount(dbPath), 1);
+  }).pipe(
+    Effect.ensuring(Effect.sync(() => NodeFS.rmSync(tempDir, { recursive: true, force: true }))),
+  );
+});
+
+it.effect("a killed reservation is recovered by the parent as one directory", () => {
+  const tempDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "t3-project-os-kill-"));
+  const dbPath = NodePath.join(tempDir, "state.sqlite");
+  const root = NodePath.join(tempDir, "recovered");
+  const layer = projectRaceLayer(dbPath);
+  const config: ProcessRaceConfig = {
+    role: "hold-create",
+    dbPath,
+    resultPath: NodePath.join(tempDir, "child-result.json"),
+    readyPath: NodePath.join(tempDir, "ready"),
+    releasePath: NodePath.join(tempDir, "release"),
+    commandId: "command:os-kill",
+    projectId: "project:os-kill",
+    title: "Recovered",
+    workspaceRoot: root,
+  };
+  return Effect.gen(function* () {
+    yield* migrateRaceDatabase(dbPath);
+    const child = spawnRaceChild(config);
+    yield* waitForPath(config.readyPath);
+    assert.equal(NodeFS.existsSync(root), false);
+    child.kill();
+    const exited = yield* child.exited;
+    assert.equal(exited.signal, "SIGKILL");
+    const created = yield* Effect.gen(function* () {
+      const service = yield* ProjectService.ProjectService;
+      return yield* service.create({
+        commandId: CommandId.make(config.commandId),
+        projectId: ProjectId.make(config.projectId),
+        title: config.title,
+        workspaceRoot: root,
+        createWorkspaceRootIfMissing: true,
+      });
+    }).pipe(Effect.provide(layer));
+    assert.equal(created.workspaceRoot, root);
+    assert.equal(NodeFS.existsSync(root), true);
+    assert.equal(yield* createdEventCount(dbPath), 1);
   }).pipe(
     Effect.ensuring(Effect.sync(() => NodeFS.rmSync(tempDir, { recursive: true, force: true }))),
   );
