@@ -9,6 +9,7 @@ import { SKILL_MENTION_PATTERN } from "@t3tools/shared/composerInlineTokens";
 import { resolveSpawnCommand } from "@t3tools/shared/shell";
 
 import { spawnAndCollect } from "@t3tools/provider-core/server/snapshotProbe";
+import { blankGrokApiKey } from "./acpSupport.ts";
 import { grokProbeEnvironment } from "./probeEnvironment.ts";
 
 const GROK_SKILLS_PROBE_TIMEOUT_MS = 4_000;
@@ -88,9 +89,12 @@ export const discoverGrokSkills = Effect.fn("discoverGrokSkills")(function* (
   grokSettings: Pick<GrokSettings, "binaryPath">,
   environment: NodeJS.ProcessEnv = process.env,
   cwd?: string,
+  allowApiKey = false,
 ) {
   const command = grokSettings.binaryPath || "grok";
-  const probeEnvironment = grokProbeEnvironment(environment);
+  const probeEnvironment = grokProbeEnvironment(
+    allowApiKey ? environment : blankGrokApiKey(environment),
+  );
   const inspectResult = yield* Effect.gen(function* () {
     const spawnCommand = yield* resolveSpawnCommand(command, ["inspect", "--json"], {
       env: probeEnvironment,

@@ -33,6 +33,7 @@ import {
   makeGrokAcpRuntime,
   resolveGrokAcpBaseModelId,
 } from "./acpSupport.ts";
+import { selectGrokProviderRoute } from "./routeQualification.ts";
 import { readGrokSubscriptionLogin } from "./status.ts";
 import {
   extractGrokPlanMarkdownFromToolCallData,
@@ -242,18 +243,28 @@ export function makeGrokAcpAdapterFlavor(
     rewriteUserText: (text, turnInput) => {
       const mention = leadingGrokSkillMention(text);
       if (mention === undefined) return Effect.succeed(text);
-      return discoverGrokSkills(
-        options.settings,
-        options.environment,
-        turnInput.runtimePolicy.cwd ?? undefined,
-      ).pipe(
-        Effect.map((skills) =>
-          skills.some((skill) => skill.enabled && skill.name === mention.name)
-            ? `/${mention.name}${mention.rest}`
-            : text,
-        ),
-        Effect.orElseSucceed(() => text),
-      );
+      return Effect.gen(function* () {
+        const apiKeyPresent = Boolean(options.environment.XAI_API_KEY?.trim());
+        const cliAuthenticated = apiKeyPresent
+          ? yield* readGrokSubscriptionLogin(options.settings, options.environment).pipe(
+              Effect.orElseSucceed(() => null),
+            )
+          : null;
+        const allowApiKey = selectGrokProviderRoute({ cliAuthenticated, apiKeyPresent }).useApiKey;
+        return yield* discoverGrokSkills(
+          options.settings,
+          options.environment,
+          turnInput.runtimePolicy.cwd ?? undefined,
+          allowApiKey,
+        ).pipe(
+          Effect.map((skills) =>
+            skills.some((skill) => skill.enabled && skill.name === mention.name)
+              ? `/${mention.name}${mention.rest}`
+              : text,
+          ),
+          Effect.orElseSucceed(() => text),
+        );
+      });
     },
     resolveModelId: (selection) => resolveGrokAcpBaseModelId(selection.model),
     getModelContextWindow: (selection, session) => {

@@ -530,6 +530,7 @@ export const checkGrokProviderStatus = Effect.fn("checkGrokProviderStatus")(func
     grokSettings,
     route.useApiKey ? environment : subscriptionProbeEnvironment,
     cwd,
+    route.useApiKey,
   ).pipe(
     Effect.tapError((cause) => Effect.logDebug("Grok skill discovery failed.", { cause })),
     Effect.orElseSucceed(() => []),
