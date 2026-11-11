@@ -20,7 +20,7 @@ describe("electron development launcher", () => {
     const environmentScript = makeDevelopmentEnvironmentScript({
       VITE_DEV_SERVER_URL: "http://127.0.0.1:8526",
       T3CODE_PORT: "16566",
-      T3CODE_HOME: "/tmp/t3",
+      INVRT_CODE_HOME: "/tmp/invrt-code",
       T3CODE_OTLP_PROTOCOL: "http/protobuf",
     });
 
@@ -32,6 +32,11 @@ describe("electron development launcher", () => {
       environmentScript,
       "if [ -z \"${T3CODE_OTLP_PROTOCOL:-}\" ]; then export T3CODE_OTLP_PROTOCOL='http/protobuf'; fi",
     );
+    assert.include(
+      environmentScript,
+      "if [ -z \"${INVRT_CODE_HOME:-}\" ]; then export INVRT_CODE_HOME='/tmp/invrt-code'; fi",
+    );
+    assert.notInclude(environmentScript, "T3CODE_HOME");
     assert.notInclude(environmentScript, "\nexport VITE_DEV_SERVER_URL=");
   });
 

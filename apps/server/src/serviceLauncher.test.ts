@@ -155,6 +155,7 @@ it.layer(NodeServices.layer)("service state persistence", (it) => {
             "EMPTY=",
             "PATH=/bad",
             "Path=/bad",
+            "INVRT_CODE_HOME=/bad",
             "T3CODE_HOME=/bad",
             "t3code_home=/bad",
             "T3_BOOT_SERVICE_UNIT=bad",
@@ -316,7 +317,8 @@ if (context.update?.status === "pending") {
       const observationsPath = path.join(root, "environment-observations.jsonl");
       const envPath = path.join(root, SERVICE_ENV_FILE);
       yield* fs.writeFileString(envPath, "T3CODE_TEST_SERVICE_TOKEN=initial\n");
-      vi.stubEnv("T3CODE_HOME", root);
+      vi.stubEnv("INVRT_CODE_HOME", root);
+      vi.stubEnv("T3CODE_HOME", path.join(root, "upstream-t3"));
       vi.stubEnv("T3CODE_TEST_SERVICE_TOKEN", "inherited");
       yield* Effect.addFinalizer(() => Effect.sync(() => vi.unstubAllEnvs()));
       yield* fs.makeDirectory(path.dirname(databasePath), { recursive: true });

@@ -1,3 +1,4 @@
+import { resolveInvrtStateDirectory } from "@t3tools/shared/invrtStateHome";
 import * as Option from "effect/Option";
 
 export type JoinPath = (first: string, ...segments: string[]) => string;
@@ -15,9 +16,11 @@ export function resolveDesktopBaseDir(input: {
   readonly joinPath: JoinPath;
   readonly t3Home: Option.Option<string>;
 }): string {
-  return Option.getOrElse(normalizeConfiguredBaseDir(input.t3Home), () =>
-    input.joinPath(input.homeDirectory, ".t3"),
-  );
+  return resolveInvrtStateDirectory({
+    homeDirectory: input.homeDirectory,
+    joinPath: input.joinPath,
+    explicitDirectory: Option.getOrUndefined(normalizeConfiguredBaseDir(input.t3Home)),
+  });
 }
 
 export function resolveDesktopStateDir(input: {
