@@ -1251,6 +1251,8 @@ export const layerWsRpc = (
       const intakeContext = messageIntakeContext(
         yield* Effect.context<
           | ThreadManagementService.ThreadManagementService
+          | Orchestrator.OrchestratorV2
+          | SqlClient.SqlClient
           | ThreadLaunchService.ThreadLaunchService
           | FileSystem.FileSystem
           | ServerConfig.ServerConfig

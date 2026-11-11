@@ -165,6 +165,7 @@ import {
 import { planThreadDeletion } from "./ThreadDeletion.ts";
 import type * as ProviderAdapter from "@t3tools/provider-core/server/ProviderAdapter";
 import * as ServerSettings from "../serverSettings.ts";
+import { ManagedRouteConstraint, matchesManagedRoute } from "./ManagedRouteConstraint.ts";
 
 export class OrchestratorDispatchError extends Schema.TaggedError<OrchestratorDispatchError>()(
   "OrchestratorDispatchError",
@@ -194,6 +195,15 @@ export class OrchestratorCommandRejectedError extends Schema.TaggedError<Orchest
 ) {
   override get message(): string {
     return `Orchestration command ${this.commandType} (${this.commandId}) was rejected before commit.`;
+  }
+}
+
+export class OrchestratorManagedRouteRefusedError extends Schema.TaggedError<OrchestratorManagedRouteRefusedError>()(
+  "OrchestratorManagedRouteRefusedError",
+  { commandId: CommandId },
+) {
+  override get message(): string {
+    return `Command ${this.commandId} does not match its admitted managed route.`;
   }
 }
 
@@ -309,7 +319,7 @@ function attachmentsWithoutIds<T extends { readonly id: string }>(
 // a newly claimed attachment id, or the workspace strategy the resume would
 // have used. Those are not a second user request. Text, thread, model and
 // attachment name, type and size stay in the hash.
-function commandReceiptIdentity(command: OrchestrationV2ServerCommand): unknown {
+export function commandReceiptIdentity(command: OrchestrationV2ServerCommand): unknown {
   if (command.type === "queued-run.edit") {
     return command.attachments === undefined
       ? command
@@ -343,6 +353,7 @@ export const OrchestratorV2Error = Schema.Union([
   OrchestratorDispatchError,
   OrchestratorThreadAlreadyExistsError,
   OrchestratorCommandRejectedError,
+  OrchestratorManagedRouteRefusedError,
   OrchestratorProjectionError,
   OrchestratorDomainEventStreamError,
   OrchestratorProviderAdapterError,
@@ -374,6 +385,9 @@ export interface OrchestratorV2Shape {
   readonly dispatch: (
     command: OrchestrationV2ServerCommand,
   ) => Effect.Effect<OrchestratorV2DispatchResult, OrchestratorV2Error>;
+  readonly replayManagedMessage: (
+    command: Extract<OrchestrationV2ServerCommand, { readonly type: "message.dispatch" }>,
+  ) => Effect.Effect<Option.Option<OrchestratorV2DispatchResult>, OrchestratorV2Error>;
   readonly autoArmLimitRecovery: (input: {
     readonly commandId: CommandId;
     readonly threadId: ThreadId;
@@ -5462,6 +5476,17 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
             occurredAt,
             payload: { ...sourcePlan, status: "completed" },
           });
+
+    const route = yield* ManagedRouteConstraint;
+    const actualSelection =
+      delegatedCompletion !== undefined &&
+      (dispatchMode.type === "steer_active" || dispatchMode.type === "restart_active")
+        ? (projection.runs.find((run) => run.id === dispatchMode.targetRunId)?.modelSelection ??
+          modelSelection)
+        : modelSelection;
+    if (route !== undefined && !matchesManagedRoute(route, actualSelection)) {
+      return yield* new OrchestratorManagedRouteRefusedError({ commandId: command.commandId });
+    }
 
     if (dispatchMode.type === "steer_active" || dispatchMode.type === "restart_active") {
       yield* dispatchSteerIntoRun({
@@ -12192,15 +12217,10 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
     };
   });
 
-  const dispatchWithReceiptEffect = Effect.fn("orchestrationV2.dispatch.withReceipt")(function* (
+  const replayReceipt = Effect.fn("orchestrationV2.replayReceipt")(function* (
     command: OrchestrationV2ServerCommand,
-  ): Effect.fn.Return<OrchestratorV2DispatchResult, OrchestratorV2Error> {
-    yield* Effect.annotateCurrentSpan({
-      "orchestration_v2.command_id": command.commandId,
-      "orchestration_v2.command_type": command.type,
-      "orchestration_v2.thread_id": commandThreadId(command),
-    });
-
+    requireDigest: boolean,
+  ): Effect.fn.Return<Option.Option<OrchestratorV2DispatchResult>, OrchestratorV2Error> {
     const requestedDigest = commandPayloadDigest(commandReceiptIdentity(command));
     const existingReceipt = yield* commandReceipts.getByCommandId(command.commandId).pipe(
       Effect.mapError(
@@ -12218,6 +12238,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       const dispatchThreadId = commandThreadId(command);
       if (
         !canReplayCommandReceipt(receipt.threadId, dispatchThreadId) ||
+        (requireDigest && receipt.payloadDigest == null) ||
         (receipt.payloadDigest != null && receipt.payloadDigest !== requestedDigest)
       ) {
         return yield* new OrchestratorCommandIdConflictError({
@@ -12246,6 +12267,27 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
             }),
         ),
       );
+      return Option.some({
+        sequence: receipt.resultSequence,
+        storedEvents,
+        replayed: true,
+      } satisfies OrchestratorV2DispatchResult);
+    }
+    return Option.none();
+  });
+
+  const dispatchWithReceiptEffect = Effect.fn("orchestrationV2.dispatch.withReceipt")(function* (
+    command: OrchestrationV2ServerCommand,
+  ): Effect.fn.Return<OrchestratorV2DispatchResult, OrchestratorV2Error> {
+    yield* Effect.annotateCurrentSpan({
+      "orchestration_v2.command_id": command.commandId,
+      "orchestration_v2.command_type": command.type,
+      "orchestration_v2.thread_id": commandThreadId(command),
+    });
+
+    const requestedDigest = commandPayloadDigest(commandReceiptIdentity(command));
+    const replay = yield* replayReceipt(command, false);
+    if (Option.isSome(replay)) {
       if (command.type === "queue.resume" || command.type === "queued-run.start") {
         yield* mapDispatchError(command)(
           startNextQueuedRun(
@@ -12254,11 +12296,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           ),
         );
       }
-      return {
-        sequence: receipt.resultSequence,
-        storedEvents,
-        replayed: true,
-      } satisfies OrchestratorV2DispatchResult;
+      return replay.value;
     }
 
     // Recheck under the lock; the user may have raised modes since sender preflight.
@@ -12290,7 +12328,11 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       ),
       Effect.catch((cause) =>
         Effect.gen(function* () {
-          if (cause._tag === "OrchestratorThreadAboveModeLimitError") return yield* cause;
+          if (
+            cause._tag === "OrchestratorThreadAboveModeLimitError" ||
+            cause._tag === "OrchestratorManagedRouteRefusedError"
+          )
+            return yield* cause;
           const rejectedAt = yield* DateTime.now;
           const receipt = yield* eventSink
             .commitRejectedCommand({
@@ -12705,6 +12747,9 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       return effectOutbox.awaitSettled(`effect:restart-continuation:${run.id}`).pipe(Effect.ignore);
     }),
     dispatch: dispatchWithReceipt,
+    replayManagedMessage: Effect.fn("OrchestratorV2.replayManagedMessage")((command) =>
+      replayReceipt(command, true),
+    ),
     autoArmLimitRecovery: Effect.fn("OrchestratorV2.autoArmLimitRecovery")(function (input) {
       return threadDispatch.withLock(
         input.threadId,

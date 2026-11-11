@@ -1,5 +1,10 @@
+// @effect-diagnostics nodeBuiltinImport:off
+import * as NodeFS from "node:fs";
+import * as NodePath from "node:path";
+import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
 import {
+  ChatAttachmentId,
   CommandId,
   MessageId,
   EventId,
@@ -31,12 +36,19 @@ import {
   orchestrationCommandsTotal,
 } from "../observability/Metrics.ts";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
+import * as ServerConfig from "../config.ts";
+import * as ServerSettings from "../serverSettings.ts";
+import * as DocumentText from "../provider/DocumentText.ts";
+import { createPendingAttachmentId } from "../attachmentStore.ts";
+import * as ThreadManagement from "./ThreadManagementService.ts";
+import { dispatchCommand } from "./ThreadMessageIntake.ts";
 import { CodexProviderCapabilitiesV2 } from "./Adapters/CodexAdapterV2.ts";
 import { commandPayloadDigest } from "./CommandReceiptStore.ts";
 import * as DelegatedTaskQuestionReactor from "./DelegatedTaskQuestionReactor.ts";
 import * as EffectOutbox from "./EffectOutbox.ts";
 import * as EventSink from "./EventSink.ts";
 import * as Orchestrator from "./Orchestrator.ts";
+import { ManagedRouteConstraint } from "./ManagedRouteConstraint.ts";
 import * as ProjectionStore from "./ProjectionStore.ts";
 import * as ProviderAdapterRegistry from "./ProviderAdapterRegistry.ts";
 import * as ProviderReplayHarness from "./testkit/ProviderReplayHarness.ts";
@@ -1544,4 +1556,151 @@ it.effect.each(["steer_active", "restart_active"] as const)(
       }
       assert.equal(yield* orchestrator.getThreadEventSequence(threadId), sequence);
     }).pipe(Effect.provide(layerTest)),
+);
+
+it.effect("checks the inherited model against the managed route inside dispatch", () =>
+  Effect.gen(function* () {
+    const orchestrator = yield* Orchestrator.OrchestratorV2;
+    const threadId = ThreadId.make("thread:managed-route-check");
+    yield* orchestrator.dispatch({
+      type: "thread.create",
+      commandId: CommandId.make("create-managed-route-check"),
+      threadId,
+      projectId: ProjectId.make("project:managed-route-check"),
+      title: "Managed route",
+      modelSelection,
+      runtimeMode: "full-access",
+      interactionMode: "default",
+      branch: null,
+      worktreePath: null,
+      createdBy: "user",
+      creationSource: "web",
+    });
+    const command = {
+      type: "message.dispatch" as const,
+      commandId: CommandId.make("managed-route-check"),
+      threadId,
+      messageId: MessageId.make("message:managed-route-check"),
+      text: "hello",
+      attachments: [],
+      dispatchMode: { type: "start_immediately" as const },
+      createdBy: "user" as const,
+      creationSource: "web" as const,
+    };
+    const refused = yield* orchestrator.dispatch(command).pipe(
+      Effect.provideService(ManagedRouteConstraint, {
+        routeId: "wrong",
+        providerInstanceRef: "other",
+        model: "other",
+        effort: null,
+      }),
+      Effect.result,
+    );
+    assert.equal(refused._tag, "Failure");
+    if (refused._tag === "Failure") {
+      assert.equal(refused.failure._tag, "OrchestratorManagedRouteRefusedError");
+    }
+    const accepted = yield* orchestrator.dispatch(command).pipe(
+      Effect.provideService(ManagedRouteConstraint, {
+        routeId: "matching",
+        providerInstanceRef: instanceId,
+        model: modelSelection.model,
+        effort: null,
+      }),
+    );
+    assert.isAbove(accepted.sequence, 0);
+    assert.notEqual(accepted.replayed, true);
+    const replay = yield* orchestrator.replayManagedMessage({
+      ...command,
+      messageId: MessageId.make("message:managed-route-reallocated"),
+    });
+    assert.equal(replay._tag, "Some");
+    if (replay._tag === "Some") {
+      assert.equal(replay.value.sequence, accepted.sequence);
+      assert.deepEqual(replay.value.storedEvents, accepted.storedEvents);
+      assert.isAbove(replay.value.storedEvents.length, 0);
+    }
+  }).pipe(Effect.provide(layerTest)),
+);
+
+it.effect("rolls back a claimed attachment when the serialised route check refuses", () =>
+  Effect.gen(function* () {
+    const orchestrator = yield* Orchestrator.OrchestratorV2;
+    const config = yield* ServerConfig.ServerConfig;
+    const threadId = ThreadId.make("thread:managed-route-attachment");
+    yield* orchestrator.dispatch({
+      type: "thread.create",
+      commandId: CommandId.make("create-managed-route-attachment"),
+      threadId,
+      projectId: ProjectId.make("project:managed-route-attachment"),
+      title: "Managed route",
+      modelSelection,
+      runtimeMode: "full-access",
+      interactionMode: "default",
+      branch: null,
+      worktreePath: null,
+      createdBy: "user",
+      creationSource: "web",
+    });
+    const pendingId = ChatAttachmentId.make(createPendingAttachmentId()!);
+    const pendingPath = NodePath.join(config.attachmentsDir, `${pendingId}.png`);
+    NodeFS.writeFileSync(pendingPath, new Uint8Array([1, 2, 3]));
+    const commandId = CommandId.make("managed-route-attachment");
+    const result = yield* dispatchCommand({
+      type: "message.dispatch",
+      commandId,
+      threadId,
+      messageId: MessageId.make("message:managed-route-attachment"),
+      text: "hello",
+      attachments: [
+        { type: "image", id: pendingId, name: "screen.png", mimeType: "image/png", sizeBytes: 3 },
+      ],
+      dispatchMode: { type: "start_immediately" },
+      createdBy: "user",
+      creationSource: "web",
+    }).pipe(
+      Effect.provide(
+        Layer.mock(ThreadManagement.ThreadManagementService)({ dispatch: orchestrator.dispatch }),
+      ),
+      Effect.provideService(ManagedRouteConstraint, {
+        routeId: "wrong",
+        providerInstanceRef: "other",
+        model: "other",
+        effort: null,
+      }),
+      Effect.result,
+    );
+    assert.equal(result._tag, "Failure");
+    if (result._tag === "Failure")
+      assert.equal(result.failure._tag, "OrchestratorManagedRouteRefusedError");
+    assert.isTrue(NodeFS.existsSync(pendingPath));
+    assert.deepEqual(
+      NodeFS.readdirSync(config.attachmentsDir).filter((entry) =>
+        entry.startsWith("thread-managed-route-attachment-"),
+      ),
+      [],
+    );
+    const receipt = yield* orchestrator.replayManagedMessage({
+      type: "message.dispatch",
+      commandId,
+      threadId,
+      messageId: MessageId.make("message:managed-route-attachment"),
+      text: "hello",
+      attachments: [
+        { type: "image", id: pendingId, name: "screen.png", mimeType: "image/png", sizeBytes: 3 },
+      ],
+      dispatchMode: { type: "start_immediately" },
+      createdBy: "user",
+      creationSource: "web",
+    });
+    assert.equal(receipt._tag, "None");
+  }).pipe(
+    Effect.provide(
+      ServerConfig.layerTest(process.cwd(), { prefix: "managed-route-rollback-" }).pipe(
+        Layer.provideMerge(DocumentText.layer.pipe(Layer.provideMerge(NodeServices.layer))),
+        Layer.provideMerge(ServerSettings.layerTest()),
+      ),
+    ),
+    Effect.provide(layerTest),
+  ),
 );

@@ -32,7 +32,16 @@ import * as Schema from "effect/Schema";
 import * as SqlClient from "effect/sql/SqlClient";
 
 import * as SqlitePersistence from "./persistence/Sqlite.ts";
-import { OrchestratorDispatchError } from "./orchestration-v2/Orchestrator.ts";
+import * as ServerConfig from "./config.ts";
+import * as DocumentText from "./provider/DocumentText.ts";
+import {
+  OrchestratorDispatchError,
+  commandReceiptIdentity,
+} from "./orchestration-v2/Orchestrator.ts";
+import { commandPayloadDigest } from "./orchestration-v2/CommandReceiptStore.ts";
+import * as Orchestrator from "./orchestration-v2/Orchestrator.ts";
+import * as ProviderReplayHarness from "./orchestration-v2/testkit/ProviderReplayHarness.ts";
+import * as ProviderAdapterRegistry from "./orchestration-v2/ProviderAdapterRegistry.ts";
 import * as ThreadManagement from "./orchestration-v2/ThreadManagementService.ts";
 import { dispatchCommand } from "./orchestration-v2/ThreadMessageIntake.ts";
 import {
@@ -42,6 +51,7 @@ import {
   readManagedCommandDecision,
 } from "./orchestration-v2/ManagedMessageAdmission.ts";
 import { messageIntakeContext } from "./ws.ts";
+import { LocalRoutingAuthority } from "./orchestration-v2/LocalRoutingAuthority.ts";
 
 const decodeWire = <S extends Schema.Top>(schema: S) =>
   Schema.decodeUnknownSync(Schema.toCodecJson(schema) as never) as (value: unknown) => S["Type"];
@@ -197,27 +207,47 @@ const message = (commandId: string, text = "run the managed task") => ({
 const persistence = (dbPath: string) =>
   SqlitePersistence.layerFromPath(dbPath).pipe(Layer.provide(NodeServices.layer));
 
-const providerLayer = (
-  effects: { count: number; throwNext: boolean },
-  marker: string,
-) =>
-  Layer.mock(ThreadManagement.ThreadManagementService)({
-    dispatch: (command) =>
-      Effect.gen(function* () {
-        effects.count += 1;
-        if (effects.throwNext) {
-          effects.throwNext = false;
-          return yield* new OrchestratorDispatchError({
-            commandId: command.commandId,
-            commandType: command.type,
-            cause: "provider failed after admission",
-          });
-        }
-        NodeFS.mkdirSync(NodePath.dirname(marker), { recursive: true });
-        NodeFS.writeFileSync(marker, command.commandId);
-        return { sequence: effects.count, storedEvents: [] };
+const providerLayer = (effects: { count: number; throwNext: boolean }, marker: string) =>
+  Layer.unwrap(
+    Effect.map(SqlClient.SqlClient, (sql) =>
+      Layer.mock(ThreadManagement.ThreadManagementService)({
+        dispatch: (command) =>
+          Effect.gen(function* () {
+            effects.count += 1;
+            if (effects.throwNext) {
+              effects.throwNext = false;
+              return yield* new OrchestratorDispatchError({
+                commandId: command.commandId,
+                commandType: command.type,
+                cause: "provider failed after admission",
+              });
+            }
+            yield* sql`
+          INSERT INTO orchestration_command_receipts (
+            command_id, aggregate_kind, aggregate_id, command_type, accepted_at,
+            result_sequence, status, error, payload_digest
+          ) VALUES (
+            ${command.commandId}, 'thread', ${"threadId" in command ? command.threadId : "thread-ic03-ws"},
+            ${command.type}, '2026-10-28T12:00:00.000Z', ${effects.count}, 'accepted', NULL,
+            ${commandPayloadDigest(commandReceiptIdentity(command))}
+          )
+        `;
+            NodeFS.mkdirSync(NodePath.dirname(marker), { recursive: true });
+            NodeFS.writeFileSync(marker, command.commandId);
+            return { sequence: effects.count, storedEvents: [] };
+          }).pipe(
+            Effect.mapError(
+              (cause) =>
+                new OrchestratorDispatchError({
+                  commandId: command.commandId,
+                  commandType: command.type,
+                  cause,
+                }),
+            ),
+          ),
       }),
-  });
+    ),
+  );
 
 const tempCase = (name: string) => {
   const directory = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), `ic03-ws-${name}-`));
@@ -236,18 +266,26 @@ const throughWebsocket = <A, E>(
   dbPath: string,
   marker: string,
   effects: { count: number; throwNext: boolean },
-  local: { readonly port?: RoutingAuthorityPort; readonly task?: Omit<ResolveManagedRouteInput, "port"> },
+  local: {
+    readonly port?: RoutingAuthorityPort;
+    readonly task?: Omit<ResolveManagedRouteInput, "port">;
+  },
   command: ReturnType<typeof message>,
 ) =>
   Effect.gen(function* () {
     const base = yield* Effect.context<
-      SqlClient.SqlClient | ThreadManagement.ThreadManagementService
+      SqlClient.SqlClient | ThreadManagement.ThreadManagementService | Orchestrator.OrchestratorV2
     >();
-    return yield* dispatchCommand(command).pipe(
-      Effect.provide(messageIntakeContext(base, local)),
-    );
+    return yield* dispatchCommand(command).pipe(Effect.provide(messageIntakeContext(base, local)));
   }).pipe(
     Effect.provide(providerLayer(effects, marker)),
+    Effect.provide(
+      ProviderReplayHarness.layerWithRegistry(
+        { name: "managed-ws-receipt" },
+        ProviderAdapterRegistry.layerFromAdapters([]),
+        { databaseLayer: persistence(dbPath), runEffectWorker: false, recoverOnStartup: false },
+      ),
+    ),
     Effect.provide(persistence(dbPath)),
   );
 
@@ -348,13 +386,7 @@ it.effect("fails a managed websocket task closed when the local port is absent",
   const command = message("cmd-ic03-ws-closed");
   return Effect.gen(function* () {
     const closed = yield* Effect.exit(
-      throughWebsocket(
-        files.dbPath,
-        files.marker,
-        effects,
-        { task: authority.task },
-        command,
-      ),
+      throughWebsocket(files.dbPath, files.marker, effects, { task: authority.task }, command),
     );
     const decision = yield* Effect.exit(readDecision(files.dbPath, command.commandId));
     assert.isTrue(Schema.is(ManagedCommandAuthorityUnavailableError)(squash(closed)));
@@ -364,18 +396,51 @@ it.effect("fails a managed websocket task closed when the local port is absent",
   }).pipe(Effect.ensuring(Effect.sync(files.remove)));
 });
 
-it.effect("keeps an ordinary message.dispatch on today's path when no local port is supplied", () => {
-  const files = tempCase("ordinary");
-  const effects = { count: 0, throwNext: false };
-  const command = message("cmd-ic03-ws-ordinary", "ordinary chat");
+it.effect(
+  "keeps an ordinary message.dispatch on today's path when no local port is supplied",
+  () => {
+    const files = tempCase("ordinary");
+    const effects = { count: 0, throwNext: false };
+    const command = message("cmd-ic03-ws-ordinary", "ordinary chat");
+    return Effect.gen(function* () {
+      const sent = yield* Effect.exit(
+        throughWebsocket(files.dbPath, files.marker, effects, {}, command),
+      );
+      const decision = yield* Effect.exit(readDecision(files.dbPath, command.commandId));
+      assert.equal(sent._tag, "Success");
+      assert.equal(effects.count, 1);
+      assert.equal(NodeFS.existsSync(files.marker), true);
+      assert.isTrue(Schema.is(ManagedCommandDecisionNotFoundError)(squash(decision)));
+    }).pipe(Effect.ensuring(Effect.sync(files.remove)));
+  },
+);
+
+it.effect("refuses a managed task when native receipt services are unavailable", () => {
+  const authority = localAuthority();
+  const command = message("cmd-ic03-ws-missing-receipts");
+  let calls = 0;
   return Effect.gen(function* () {
-    const sent = yield* Effect.exit(
-      throughWebsocket(files.dbPath, files.marker, effects, {}, command),
+    const result = yield* Effect.exit(
+      dispatchCommand(command).pipe(
+        Effect.provideService(LocalRoutingAuthority, authority),
+        Effect.provide(
+          Layer.mock(ThreadManagement.ThreadManagementService)({
+            dispatch: () =>
+              Effect.sync(() => {
+                calls += 1;
+                return { sequence: 1, storedEvents: [] };
+              }),
+          }),
+        ),
+      ),
     );
-    const decision = yield* Effect.exit(readDecision(files.dbPath, command.commandId));
-    assert.equal(sent._tag, "Success");
-    assert.equal(effects.count, 1);
-    assert.equal(NodeFS.existsSync(files.marker), true);
-    assert.isTrue(Schema.is(ManagedCommandDecisionNotFoundError)(squash(decision)));
-  }).pipe(Effect.ensuring(Effect.sync(files.remove)));
+    assert.isTrue(Schema.is(ManagedCommandAuthorityUnavailableError)(squash(result)));
+    assert.equal(calls, 0);
+  }).pipe(
+    Effect.provide(
+      ServerConfig.layerTest(process.cwd(), { prefix: "managed-no-receipts-" }).pipe(
+        Layer.provideMerge(DocumentText.layer.pipe(Layer.provideMerge(NodeServices.layer))),
+      ),
+    ),
+  );
 });

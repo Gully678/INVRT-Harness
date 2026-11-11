@@ -8,12 +8,18 @@ import {
 import * as NodeSqliteClient from "@t3tools/shared/nodeSqliteClient";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as SqlClient from "effect/sql/SqlClient";
 
 import { commandPayloadDigest } from "./CommandReceiptStore.ts";
-import type { OrchestratorV2DispatchResult } from "./Orchestrator.ts";
+import {
+  OrchestratorV2,
+  commandReceiptIdentity,
+  type OrchestratorV2DispatchResult,
+} from "./Orchestrator.ts";
 import * as ThreadManagement from "./ThreadManagementService.ts";
+import { ManagedRouteConstraint, matchesManagedRoute } from "./ManagedRouteConstraint.ts";
 
 export interface ManagedMessageAdmissionShape {
   /** Trusted route request. The port is supplied beside it and is not read from the installed pack. */
@@ -138,6 +144,7 @@ const resolveAdmission = (admission: ManagedMessageAdmissionShape) => {
       policyRevision: resolved.policyRef.revision,
       policyDigest: resolved.policyRef.digest,
       routeId: resolved.route.routeId,
+      route: resolved.route,
     };
   } catch (cause) {
     const detail =
@@ -206,35 +213,38 @@ const setDecision = (commandId: CommandId, decision: Decision) =>
     `;
   });
 
-const replayResult: OrchestratorV2DispatchResult = {
-  sequence: 0,
-  storedEvents: [],
-  replayed: true,
-};
-
-/**
- * Decides message.dispatch with resolveManagedRoute before any provider effect.
- * The same command id replays a stored decision. A changed payload conflicts only
- * when the stored digest is present and different. runDispatch is yielded only when the provider may run.
- */
 export const dispatchManagedMessage = Effect.fn("ManagedMessageAdmission.dispatchManagedMessage")(
-  function* (
+  function* <E, R>(
     command: MessageDispatchCommand,
-    runDispatch?: Effect.Effect<OrchestratorV2DispatchResult, unknown>,
+    runDispatch?: Effect.Effect<OrchestratorV2DispatchResult, E, R>,
   ) {
     const admission = yield* ManagedMessageAdmission;
     const stored = yield* readRow(command.commandId);
     const resolved = resolveAdmission(admission);
-    const payloadDigest = commandPayloadDigest(command);
+    const payloadDigest = commandPayloadDigest(commandReceiptIdentity(command));
 
-    // A NULL digest is a pre-072 row. It cannot prove the payload, so it stays replayable.
-    // Two stored digests conflict only when both are present and different.
-    const payloadConflicts =
-      stored?.payloadDigest != null && stored.payloadDigest !== payloadDigest;
-    if (stored !== null && (payloadConflicts || !sameDecision(stored, resolved))) {
+    if (stored !== null && !sameDecision(stored, resolved)) {
       return yield* new ManagedCommandPolicyConflictError({ commandId: command.commandId });
     }
-    if (stored?.decision === "accepted") return replayResult;
+    if (stored !== null && stored.decision !== "refused") {
+      const orchestrator = yield* OrchestratorV2;
+      const replay = yield* orchestrator.replayManagedMessage(command);
+      if (Option.isSome(replay)) {
+        if (stored.decision !== "accepted") yield* setDecision(command.commandId, "accepted");
+        return replay.value;
+      }
+      if (stored.decision === "accepted") {
+        return yield* new ManagedCommandPolicyConflictError({ commandId: command.commandId });
+      }
+    }
+    if (
+      stored !== null &&
+      (stored.payloadDigest == null ||
+        (stored.payloadDigest !== payloadDigest &&
+          stored.payloadDigest !== commandPayloadDigest(command)))
+    ) {
+      return yield* new ManagedCommandPolicyConflictError({ commandId: command.commandId });
+    }
     if (stored?.decision === "refused" || (stored === null && resolved.kind === "refused")) {
       if (stored === null) {
         yield* insertReceipt({
@@ -255,6 +265,15 @@ export const dispatchManagedMessage = Effect.fn("ManagedMessageAdmission.dispatc
     if (resolved.kind !== "allowed") {
       return yield* new ManagedCommandPolicyConflictError({ commandId: command.commandId });
     }
+    if (
+      command.modelSelection !== undefined &&
+      !matchesManagedRoute(resolved.route, command.modelSelection)
+    ) {
+      return yield* new ManagedCommandRefusedError({
+        commandId: command.commandId,
+        detail: "Selection does not match the admitted route",
+      });
+    }
     if (stored === null) {
       yield* insertReceipt({
         commandId: command.commandId,
@@ -268,9 +287,15 @@ export const dispatchManagedMessage = Effect.fn("ManagedMessageAdmission.dispatc
     }
 
     const threads = yield* ThreadManagement.ThreadManagementService;
-    return yield* (runDispatch ?? threads.dispatch(command)).pipe(
-      Effect.tap(() => setDecision(command.commandId, "accepted")),
-      Effect.tapError(() => setDecision(command.commandId, "failed")),
-    );
+    const recordDispatch = <DispatchError, Services>(
+      dispatch: Effect.Effect<OrchestratorV2DispatchResult, DispatchError, Services>,
+    ) =>
+      dispatch.pipe(
+        Effect.provideService(ManagedRouteConstraint, resolved.route),
+        Effect.tap(() => setDecision(command.commandId, "accepted")),
+        Effect.tapError(() => setDecision(command.commandId, "failed")),
+      );
+    if (runDispatch !== undefined) return yield* recordDispatch(runDispatch);
+    return yield* recordDispatch(threads.dispatch(command));
   },
 );

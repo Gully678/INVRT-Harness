@@ -4,6 +4,7 @@ import type { ChatAttachment, OrchestrationV2Command } from "@t3tools/contracts"
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
+import * as SqlClient from "effect/sql/SqlClient";
 import { resolveAttachmentPath } from "../attachmentStore.ts";
 import * as ServerConfig from "../config.ts";
 import * as Orchestrator from "./Orchestrator.ts";
@@ -24,6 +25,7 @@ function dispatchWasNotAccepted(
 ) {
   switch (error._tag) {
     case "OrchestratorCommandRejectedError":
+    case "OrchestratorManagedRouteRefusedError":
     case "OrchestratorThreadAlreadyExistsError":
     case "OrchestratorProjectionError":
     case "OrchestratorProviderAdapterError":
@@ -137,21 +139,32 @@ export const dispatchCommand = Effect.fn("ThreadMessageIntake.dispatchCommand")(
   if (incoming.type === "message.dispatch") {
     const prepared = dispatchMessage(incoming);
     const local = yield* LocalRoutingAuthority;
+    let managed: ManagedMessageAdmission["Service"] | undefined;
     if (local.task !== undefined) {
       if (local.port === undefined) {
         return yield* new ManagedCommandAuthorityUnavailableError({
           commandId: incoming.commandId,
         });
       }
+      managed = { request: local.task, port: local.port };
+    } else {
+      const admission = yield* Effect.serviceOption(ManagedMessageAdmission);
+      managed = Option.getOrUndefined(admission);
+    }
+    if (managed !== undefined) {
+      const sql = yield* Effect.serviceOption(SqlClient.SqlClient);
+      const orchestrator = yield* Effect.serviceOption(Orchestrator.OrchestratorV2);
+      if (Option.isNone(sql) || Option.isNone(orchestrator)) {
+        return yield* new ManagedCommandAuthorityUnavailableError({
+          commandId: incoming.commandId,
+        });
+      }
       return yield* dispatchManagedMessage(incoming, prepared).pipe(
-        Effect.provideService(ManagedMessageAdmission, {
-          request: local.task,
-          port: local.port,
-        }),
+        Effect.provideService(ManagedMessageAdmission, managed),
+        Effect.provideService(SqlClient.SqlClient, sql.value),
+        Effect.provideService(Orchestrator.OrchestratorV2, orchestrator.value),
       );
     }
-    const admission = yield* Effect.serviceOption(ManagedMessageAdmission);
-    if (Option.isSome(admission)) return yield* dispatchManagedMessage(incoming, prepared);
     return yield* prepared;
   }
   const command = incoming;

@@ -13,6 +13,7 @@ import {
   GuestMessageId,
   Membership,
   MessageId,
+  ModelSelection,
   OrgId,
   PolicyDeviceState,
   Principal,
@@ -28,6 +29,7 @@ import {
 import * as Cause from "effect/Cause";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
+import * as FileSystem from "effect/FileSystem";
 import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
@@ -38,7 +40,15 @@ import * as ServerConfig from "../config.ts";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
 import * as DocumentText from "../provider/DocumentText.ts";
 import * as ServerSettings from "../serverSettings.ts";
-import { OrchestratorDispatchError } from "./Orchestrator.ts";
+import {
+  OrchestratorV2,
+  OrchestratorCommandIdConflictError,
+  OrchestratorDispatchError,
+  commandReceiptIdentity,
+} from "./Orchestrator.ts";
+import { commandPayloadDigest } from "./CommandReceiptStore.ts";
+import * as ProviderReplayHarness from "./testkit/ProviderReplayHarness.ts";
+import * as ProviderAdapterRegistry from "./ProviderAdapterRegistry.ts";
 import * as ThreadManagement from "./ThreadManagementService.ts";
 import { dispatchCommand } from "./ThreadMessageIntake.ts";
 import {
@@ -212,22 +222,23 @@ const providerLayer = (
   effects: { count: number; throwNext: boolean },
   paths: { readonly directory: string; readonly marker: string },
 ) =>
-  Layer.mock(ThreadManagement.ThreadManagementService)({
-    dispatch: (command) =>
-      Effect.gen(function* () {
-        effects.count += 1;
-        if (effects.throwNext) {
-          effects.throwNext = false;
-          return yield* new OrchestratorDispatchError({
-            commandId: command.commandId,
-            commandType: command.type,
-            cause: "provider failed after admission",
-          });
-        }
-        NodeFS.mkdirSync(paths.directory, { recursive: true });
-        const sql = yield* SqlClient.SqlClient;
-        const threadId = "threadId" in command ? command.threadId : "thread-ic03";
-        yield* sql`
+  Layer.unwrap(
+    Effect.map(SqlClient.SqlClient, (sql) =>
+      Layer.mock(ThreadManagement.ThreadManagementService)({
+        dispatch: (command) =>
+          Effect.gen(function* () {
+            effects.count += 1;
+            if (effects.throwNext) {
+              effects.throwNext = false;
+              return yield* new OrchestratorDispatchError({
+                commandId: command.commandId,
+                commandType: command.type,
+                cause: "provider failed after admission",
+              });
+            }
+            NodeFS.mkdirSync(paths.directory, { recursive: true });
+            const threadId = "threadId" in command ? command.threadId : "thread-ic03";
+            yield* sql`
           INSERT INTO orchestration_v2_events (
             event_id, command_id, thread_id, event_type, occurred_at, payload_json
           ) VALUES (
@@ -239,14 +250,45 @@ const providerLayer = (
             '{}'
           )
         `;
-        NodeFS.writeFileSync(paths.marker, command.commandId);
-        return { sequence: effects.count, storedEvents: [] };
+            yield* sql`
+          INSERT INTO orchestration_command_receipts (
+            command_id, aggregate_kind, aggregate_id, command_type, accepted_at,
+            result_sequence, status, error, payload_digest
+          ) VALUES (
+            ${command.commandId}, 'thread', ${threadId}, ${command.type},
+            '2026-10-28T12:00:00.000Z', ${effects.count}, 'accepted', NULL,
+            ${commandPayloadDigest(commandReceiptIdentity(command))}
+          )
+        `;
+            NodeFS.writeFileSync(paths.marker, command.commandId);
+            return { sequence: effects.count, storedEvents: [] };
+          }).pipe(
+            Effect.mapError(
+              (cause) =>
+                new OrchestratorDispatchError({
+                  commandId: command.commandId,
+                  commandType: command.type,
+                  cause,
+                }),
+            ),
+          ),
       }),
-  });
+    ),
+  );
 
 const withFile = <A, E>(
   dbPath: string,
-  effect: Effect.Effect<A, E, SqlClient.SqlClient | ThreadManagement.ThreadManagementService>,
+  effect: Effect.Effect<
+    A,
+    E,
+    | SqlClient.SqlClient
+    | ThreadManagement.ThreadManagementService
+    | ManagedMessageAdmission
+    | OrchestratorV2
+    | DocumentText.DocumentText
+    | FileSystem.FileSystem
+    | ServerConfig.ServerConfig
+  >,
   effects: { count: number; throwNext: boolean },
   paths: { readonly directory: string; readonly marker: string },
   admission: ManagedMessageAdmissionShape,
@@ -254,7 +296,19 @@ const withFile = <A, E>(
   effect.pipe(
     Effect.provideService(ManagedMessageAdmission, admission),
     Effect.provide(providerLayer(effects, paths)),
+    Effect.provide(
+      ProviderReplayHarness.layerWithRegistry(
+        { name: "managed-receipt" },
+        ProviderAdapterRegistry.layerFromAdapters([]),
+        { databaseLayer: persistence(dbPath), runEffectWorker: false, recoverOnStartup: false },
+      ),
+    ),
     Effect.provide(persistence(dbPath)),
+    Effect.provide(
+      ServerConfig.layerTest(process.cwd(), { prefix: "managed-intake-fixture-" }).pipe(
+        Layer.provideMerge(DocumentText.layer.pipe(Layer.provideMerge(NodeServices.layer))),
+      ),
+    ),
   );
 
 const readDecision = (dbPath: string, commandId: CommandId) =>
@@ -463,7 +517,7 @@ it.effect("conflicts when an accepted command id is reused with a different payl
       withFile(files.dbPath, dispatchCommand(changed), effects, paths, admission),
     );
     assert.equal(first._tag, "Success");
-    assert.isTrue(Schema.is(ManagedCommandPolicyConflictError)(squash(second)));
+    assert.isTrue(Schema.is(OrchestratorCommandIdConflictError)(squash(second)));
     assert.equal(effects.count, 1);
     assert.equal(yield* eventCount(files.dbPath), 1);
   }).pipe(Effect.ensuring(Effect.sync(files.remove)));
@@ -502,7 +556,7 @@ it.effect("replays a pre-digest accepted row when the stored payload digest is n
     );
     assert.equal(first._tag, "Success");
     assert.equal(replay._tag, "Success");
-    assert.equal(changed._tag, "Success");
+    assert.equal(changed._tag, "Failure");
     assert.equal(effects.count, 1);
   }).pipe(Effect.ensuring(Effect.sync(files.remove)));
 });
@@ -557,6 +611,7 @@ it.effect("sends a managed guest message with the stored guest files", () => {
         Effect.provideService(ManagedMessageAdmission, admission),
         Effect.provide(layer),
         Effect.provide(persistence(files.dbPath)),
+        Effect.provide(Layer.mock(OrchestratorV2)({})),
       ),
     );
     assert.equal(exit._tag, "Success");
@@ -564,7 +619,14 @@ it.effect("sends a managed guest message with the stored guest files", () => {
     assert.equal(effects.count, 1);
     const decision = yield* readDecision(files.dbPath, command.commandId);
     assert.equal(decision.decision, "accepted");
-  }).pipe(Effect.ensuring(Effect.sync(files.remove)));
+  }).pipe(
+    Effect.provide(
+      ServerConfig.layerTest(files.directory, { prefix: "ic03-guest-" }).pipe(
+        Layer.provideMerge(DocumentText.layer.pipe(Layer.provideMerge(NodeServices.layer))),
+      ),
+    ),
+    Effect.ensuring(Effect.sync(files.remove)),
+  );
 });
 
 it.effect("claims a pending attachment before the managed provider runs", () => {
@@ -606,6 +668,7 @@ it.effect("claims a pending attachment before the managed provider runs", () => 
         Effect.provideService(ManagedMessageAdmission, admission),
         Effect.provide(layer),
         Effect.provide(persistence(files.dbPath)),
+        Effect.provide(Layer.mock(OrchestratorV2)({})),
       ),
     );
     assert.equal(exit._tag, "Success");
@@ -614,4 +677,169 @@ it.effect("claims a pending attachment before the managed provider runs", () => 
     const decision = yield* readDecision(files.dbPath, command.commandId);
     assert.equal(decision.decision, "accepted");
   }).pipe(Effect.provide(runtime), Effect.ensuring(Effect.sync(files.remove)));
+});
+
+it.effect("AUDIT rejects a dispatch selection outside its authorised route", () => {
+  const files = tempCase("audit-route-binding");
+  const admission = buildAdmission();
+  const selection = Schema.decodeSync(ModelSelection)({
+    instanceId: "unapproved-instance",
+    model: "unapproved-model",
+  });
+  const command = { ...message("cmd-audit-route-binding"), modelSelection: selection };
+  let received: unknown;
+  const dispatch = Layer.mock(ThreadManagement.ThreadManagementService)({
+    dispatch: (actual) =>
+      Effect.sync(() => {
+        received = actual;
+        return { sequence: 41, storedEvents: [] };
+      }),
+  });
+  return Effect.gen(function* () {
+    const result = yield* Effect.exit(
+      dispatchCommand(command).pipe(
+        Effect.provideService(ManagedMessageAdmission, admission),
+        Effect.provide(dispatch),
+        Effect.provide(persistence(files.dbPath)),
+        Effect.provide(Layer.mock(OrchestratorV2)({})),
+      ),
+    );
+    assert.equal(result._tag, "Failure", JSON.stringify({ result, received }));
+    assert.isTrue(Schema.is(ManagedCommandRefusedError)(squash(result)));
+    assert.equal(received, undefined);
+  }).pipe(
+    Effect.provide(
+      ServerConfig.layerTest(files.directory, { prefix: "ic03-route-" }).pipe(
+        Layer.provideMerge(DocumentText.layer.pipe(Layer.provideMerge(NodeServices.layer))),
+      ),
+    ),
+    Effect.ensuring(Effect.sync(files.remove)),
+  );
+});
+
+it.effect("AUDIT equivalent newly allocated message id replays successfully", () => {
+  const files = tempCase("audit-id-replay");
+  const effects = { count: 0, throwNext: false };
+  const paths = { directory: files.providerDirectory, marker: files.marker };
+  const admission = buildAdmission();
+  const command = message("cmd-audit-id-replay");
+  return Effect.gen(function* () {
+    yield* withFile(files.dbPath, dispatchCommand(command), effects, paths, admission);
+    const retry = yield* Effect.exit(
+      withFile(
+        files.dbPath,
+        dispatchCommand({ ...command, messageId: MessageId.make("message-reallocated") }),
+        effects,
+        paths,
+        admission,
+      ),
+    );
+    assert.equal(retry._tag, "Success", JSON.stringify(retry));
+    assert.equal(effects.count, 1);
+  }).pipe(Effect.ensuring(Effect.sync(files.remove)));
+});
+
+it.effect("AUDIT legacy unknown payload never grants a changed thread success", () => {
+  const files = tempCase("audit-null-target");
+  const effects = { count: 0, throwNext: false };
+  const paths = { directory: files.providerDirectory, marker: files.marker };
+  const admission = buildAdmission();
+  const command = message("cmd-audit-null-target");
+  return Effect.gen(function* () {
+    yield* withFile(files.dbPath, dispatchCommand(command), effects, paths, admission);
+    yield* Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      yield* sql`UPDATE orchestration_command_policy_receipts
+        SET payload_digest = NULL WHERE command_id = ${command.commandId}`;
+    }).pipe(Effect.provide(persistence(files.dbPath)));
+    const changed = yield* Effect.exit(
+      withFile(
+        files.dbPath,
+        dispatchCommand({ ...command, threadId: ThreadId.make("thread-foreign-target") }),
+        effects,
+        paths,
+        admission,
+      ),
+    );
+    assert.equal(changed._tag, "Failure", JSON.stringify(changed));
+    assert.equal(effects.count, 1);
+  }).pipe(Effect.ensuring(Effect.sync(files.remove)));
+});
+
+it.effect("AUDIT accepted replay returns the original durable sequence", () => {
+  const files = tempCase("audit-sequence");
+  const effects = { count: 0, throwNext: false };
+  const paths = { directory: files.providerDirectory, marker: files.marker };
+  const admission = buildAdmission();
+  const command = message("cmd-audit-sequence");
+  return Effect.gen(function* () {
+    const first = yield* withFile(
+      files.dbPath,
+      dispatchCommand(command),
+      effects,
+      paths,
+      admission,
+    );
+    const replay = yield* withFile(
+      files.dbPath,
+      dispatchCommand(command),
+      effects,
+      paths,
+      admission,
+    );
+    assert.equal(replay.sequence, first.sequence, JSON.stringify({ first, replay }));
+    assert.equal(effects.count, 1);
+  }).pipe(Effect.ensuring(Effect.sync(files.remove)));
+});
+
+it.effect("recovers a native commit when the policy outcome remained failed", () => {
+  const files = tempCase("native-commit-policy-failed");
+  const effects = { count: 0, throwNext: false };
+  const paths = { directory: files.providerDirectory, marker: files.marker };
+  const command = message("cmd-native-commit-policy-failed");
+  const admission = buildAdmission();
+  return Effect.gen(function* () {
+    const first = yield* withFile(
+      files.dbPath,
+      dispatchCommand(command),
+      effects,
+      paths,
+      admission,
+    );
+    yield* Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      yield* sql`UPDATE orchestration_command_policy_receipts SET decision = 'failed' WHERE command_id = ${command.commandId}`;
+    }).pipe(Effect.provide(persistence(files.dbPath)));
+    const replay = yield* withFile(
+      files.dbPath,
+      dispatchCommand(command),
+      effects,
+      paths,
+      admission,
+    );
+    assert.equal(replay.sequence, first.sequence);
+    assert.equal(replay.replayed, true);
+    assert.equal(effects.count, 1);
+  }).pipe(Effect.ensuring(Effect.sync(files.remove)));
+});
+
+it.effect("refuses an accepted legacy policy row without a verifiable native receipt", () => {
+  const files = tempCase("unverifiable-native-receipt");
+  const effects = { count: 0, throwNext: false };
+  const paths = { directory: files.providerDirectory, marker: files.marker };
+  const command = message("cmd-unverifiable-native-receipt");
+  const admission = buildAdmission();
+  return Effect.gen(function* () {
+    yield* withFile(files.dbPath, dispatchCommand(command), effects, paths, admission);
+    yield* Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      yield* sql`UPDATE orchestration_command_policy_receipts SET payload_digest = NULL WHERE command_id = ${command.commandId}`;
+      yield* sql`UPDATE orchestration_command_receipts SET payload_digest = NULL WHERE command_id = ${command.commandId}`;
+    }).pipe(Effect.provide(persistence(files.dbPath)));
+    const replay = yield* Effect.exit(
+      withFile(files.dbPath, dispatchCommand(command), effects, paths, admission),
+    );
+    assert.equal(replay._tag, "Failure");
+    assert.equal(effects.count, 1);
+  }).pipe(Effect.ensuring(Effect.sync(files.remove)));
 });
