@@ -671,6 +671,21 @@ it.effect("17 an executor failure refuses by name, is stored and never reports b
   ),
 );
 
+it.effect("19 a result file beside a brand-new receipt is not replayed", () =>
+  withTempDir((dir) =>
+    Effect.gen(function* () {
+      const e = executorDouble();
+      const deps = depsFor(dir, { executor: e.executor, knowledge: knowledgeDouble() });
+      // Two runs against two empty receipt stores, one shared results directory.
+      const first = yield* runWorkOrder(order(O), deps).pipe(Effect.provide(memoryReceipts()));
+      const second = yield* runWorkOrder(order(O), deps).pipe(Effect.provide(memoryReceipts()));
+      assert.equal(first.receipt.replayed, false);
+      assert.equal(second.receipt.replayed, false);
+      assert.equal(e.state.calls, 2);
+    }),
+  ),
+);
+
 it.effect(
   "18 bin refuses by name when the state home cannot hold a receipt store",
   () =>

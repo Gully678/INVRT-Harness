@@ -296,14 +296,16 @@ export const runWorkOrder = Effect.fn("runWorkOrder")(
           ),
         ),
       );
-    // Read before anything runs: this also proves the receipt store is readable.
+    // Read before anything runs: this also proves the receipt store is readable. A result
+    // file beside a brand-new receipt predates it (the receipt store was lost), so it is
+    // not replayed; this run overwrites it.
     const stored = yield* deps.resultStore
       .read(order)
       .pipe(Effect.mapError((refusal) => notStored(refusal, !inserted)));
-    if (stored !== null) {
+    if (!inserted) {
+      if (stored === null) return yield* Effect.fail(notStored(REFUSALS.inProgress, true));
       return { ...stored, receipt: { ...stored.receipt, replayed: true } };
     }
-    if (!inserted) return yield* Effect.fail(notStored(REFUSALS.inProgress, true));
     return yield* record(order, deps, yield* attempt(order, deps));
   },
   (self, order) =>
