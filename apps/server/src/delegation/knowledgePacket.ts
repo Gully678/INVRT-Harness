@@ -6,7 +6,13 @@ import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
-import type { KnowledgePort, KnowledgeRef, KnowledgeSummary, WorkOrderV1 } from "./workOrder.ts";
+import {
+  REFUSALS,
+  type KnowledgePort,
+  type KnowledgeRef,
+  type KnowledgeSummary,
+  type WorkOrderV1,
+} from "./workOrder.ts";
 
 /**
  * CODE side of seam S3 (PRD-ADDENDUM S3): knowledge comes from Company Brain's packet CLI, called
@@ -17,7 +23,7 @@ import type { KnowledgePort, KnowledgeRef, KnowledgeSummary, WorkOrderV1 } from 
 
 export const KNOWLEDGE_REFUSALS = {
   packetEmpty: "code_knowledge:packet_empty",
-  brainUnavailable: "code_knowledge:brain_unavailable",
+  brainUnavailable: REFUSALS.knowledgeUnavailable,
   contractMismatch: "code_knowledge:contract_mismatch",
 } as const;
 

@@ -28,6 +28,9 @@ export const REFUSALS = {
   executorNotConfigured: "code_executor:not_configured",
   executorFailed: "code_executor:failed",
   knowledgeNotConfigured: "code_knowledge:not_configured",
+  // Transient: Brain could not answer, nothing ran. A stored result with this refusal is not
+  // final; a re-submission of the same order asks Brain again. Every other refusal is final.
+  knowledgeUnavailable: "code_knowledge:brain_unavailable",
 } as const;
 
 // work_order_id and project become the receipt's command id and project id, which the
@@ -323,9 +326,17 @@ export const runWorkOrder = Effect.fn("runWorkOrder")(
       .pipe(Effect.mapError((refusal) => notStored(refusal, !inserted)));
     if (!inserted) {
       if (stored === null) return yield* Effect.fail(notStored(REFUSALS.inProgress, true));
-      return { ...stored, receipt: { ...stored.receipt, replayed: true } };
+      if (stored.refusal !== REFUSALS.knowledgeUnavailable) {
+        return { ...stored, receipt: { ...stored.receipt, replayed: true } };
+      }
+      // Brain was unavailable and nothing ran (knowledge precedes the executor): ask again.
     }
-    return yield* record(order, deps, yield* attempt(order, deps));
+    const outcome = yield* attempt(order, deps);
+    return yield* record(
+      order,
+      deps,
+      inserted ? outcome : { ...outcome, receipt: { ...outcome.receipt, replayed: true } },
+    );
   },
   (self, order) =>
     Effect.catch(self, (failed: NotStored) =>

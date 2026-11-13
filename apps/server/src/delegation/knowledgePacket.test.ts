@@ -569,3 +569,69 @@ it.effect(
     ),
   TEST_TIMEOUT,
 );
+
+// Re-submits the same order id against one home, changing only what the Brain stub answers.
+const resubmission = (
+  stub: { readonly dir: string; readonly cli: string; readonly script: (s: Script) => void },
+  name: string,
+) => {
+  const envFile = NodePath.join(stub.dir, "brain.env");
+  NodeFS.writeFileSync(
+    envFile,
+    "HERMES_HOME=/h\nMONTI_TEAM_STATE_PATH=/t\nMONTI_VM_ID=v\nMONTI_ORG_ID=o\n",
+  );
+  const home = NodePath.join(stub.dir, `home-${name}`);
+  return (script: Script) => {
+    stub.script(script);
+    return runBin(home, O, {
+      INVRT_CODE_BRAIN_PYTHON: process.execPath,
+      INVRT_CODE_BRAIN_CLI: stub.cli,
+      INVRT_CODE_BRAIN_ENV_FILE: envFile,
+    });
+  };
+};
+
+it.effect(
+  "11 an unavailable Brain is not a final result: the same order asks Brain again; built work and every other refusal stay final",
+  () =>
+    withStub((stub) =>
+      Effect.sync(() => {
+        const submit = resubmission(stub, "recover");
+        const first = submit({ exit: 1 });
+        assert.equal(first.refusal, "code_knowledge:brain_unavailable");
+        assert.equal(first.head, null);
+        assert.equal(stub.calls().length, 1);
+        // Brain recovers: the same work_order_id now builds, and the receipt says it was seen before.
+        const second = submit(say(P1));
+        assert.equal(second.state, "built");
+        assert.equal(second.receipt.replayed, true);
+        assert.equal(second.knowledge?.included[0]?.path_id, "path:slice-1");
+        assert.equal(stub.calls().length, 2);
+        // Built work is final: a later outage neither refuses it nor asks Brain again.
+        const third = submit({ exit: 1 });
+        assert.deepStrictEqual(third, second);
+        assert.equal(stub.calls().length, 2);
+
+        // Every other knowledge refusal is final: the stored result is replayed, Brain is not asked.
+        const finals: ReadonlyArray<readonly [string, Script, string]> = [
+          [
+            "named",
+            { exit: 3, stdout: '{"refusal": "kb_code_packet:destination_unqualified"}\n' },
+            "kb_code_packet:destination_unqualified",
+          ],
+          ["empty", say(EMPTY), "code_knowledge:packet_empty"],
+          ["mismatch", say({ ...P1, extra: 1 }), "code_knowledge:contract_mismatch"],
+        ];
+        for (const [label, script, refusal] of finals) {
+          const again = resubmission(stub, label);
+          const before = stub.calls().length;
+          assert.equal(again(script).refusal, refusal, label);
+          const replay = again(say(P1));
+          assert.equal(replay.refusal, refusal, label);
+          assert.equal(replay.receipt.replayed, true, label);
+          assert.equal(stub.calls().length, before + 1, `${label}: Brain was asked again`);
+        }
+      }),
+    ),
+  TEST_TIMEOUT,
+);
