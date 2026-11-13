@@ -331,13 +331,13 @@ it.effect(
             ],
           },
         } as unknown as CodeResultV1;
-        assert.equal(
-          yield* reportToConsole(
-            leaky,
-            stub.config({ exit: 0, stdout: '{"outcome":"delivered"}' }),
-          ),
-          "delivered",
-        );
+        // A variable in this process's environment must not reach the sender (AQ-3).
+        process.env.SL05_PARENT_CANARY = CANARY;
+        const outcome = yield* reportToConsole(
+          leaky,
+          stub.config({ exit: 0, stdout: '{"outcome":"delivered"}' }),
+        ).pipe(Effect.ensuring(Effect.sync(() => delete process.env.SL05_PARENT_CANARY)));
+        assert.equal(outcome, "delivered");
         const call = stub.calls()[0];
         assert.notEqual(call, undefined);
         const stdin = call?.stdin ?? "";
@@ -345,6 +345,15 @@ it.effect(
           assert.equal(stdin.includes(forbidden), false, `stdin leaks ${forbidden}`);
         }
         assert.equal(JSON.stringify(call?.argv).includes(SECRET), false);
+        // macOS adds __CF_USER_TEXT_ENCODING to every process it starts; nothing else may appear.
+        const senderKeys = Object.keys(call?.env ?? {}).filter(
+          (key) => key !== "__CF_USER_TEXT_ENCODING",
+        );
+        assert.deepStrictEqual(senderKeys.toSorted(), [
+          "EC_BASE_URL",
+          "EC_CREDENTIAL_FILE",
+          "EC_STATE_DIR",
+        ]);
         assert.equal(call?.env.EC_CREDENTIAL_FILE, stub.credentialFile);
         assert.equal(Object.values(call?.env ?? {}).includes(SECRET), false);
       }),
