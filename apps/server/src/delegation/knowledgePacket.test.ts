@@ -694,6 +694,13 @@ it.effect(
       const realWrite = process.stderr.write;
       return Effect.gen(function* () {
         const scripts: ReadonlyArray<Script> = [say(P1), { exit: 1 }, { exit: 2 }, say(EMPTY)];
+        const consoleMethods = ["log", "info", "warn", "error", "debug"] as const;
+        const realConsole = consoleMethods.map((name) => console[name]);
+        for (const name of consoleMethods) {
+          console[name] = (...parts: Array<unknown>) => {
+            written.push(parts.map(String).join(" "));
+          };
+        }
         process.stderr.write = ((chunk: string | Uint8Array) => {
           written.push(String(chunk));
           return true;
@@ -705,6 +712,9 @@ it.effect(
           }
         } finally {
           process.stderr.write = realWrite;
+          consoleMethods.forEach((name, index) => {
+            console[name] = realConsole[index] as never;
+          });
         }
         assert.equal(stub.calls().length, scripts.length);
         assert.equal(written.join("").includes(STDERR_CANARY), false);
@@ -716,23 +726,36 @@ it.effect(
           envFile,
           "HERMES_HOME=/h\nMONTI_TEAM_STATE_PATH=/t\nMONTI_VM_ID=v\nMONTI_ORG_ID=o\n",
         );
-        stub.script(say(P1));
-        let binStderr: string | null = null;
-        runBin(
-          NodePath.join(stub.dir, "home"),
-          O,
-          {
-            INVRT_CODE_BRAIN_PYTHON: process.execPath,
-            INVRT_CODE_BRAIN_CLI: stub.cli,
-            INVRT_CODE_BRAIN_ENV_FILE: envFile,
-          },
-          (stderr) => {
-            binStderr = stderr;
-          },
-        );
-        assert.equal(binStderr === null, false, "bin stderr was not captured");
-        assert.equal(String(binStderr).includes(STDERR_CANARY), false);
-        assert.equal(String(binStderr).includes(MEMBER), false);
+        // The child writes the canary on every call; each answer kind must keep it out of bin's stderr.
+        const answers: ReadonlyArray<readonly [string, Script]> = [
+          ["packet", say(P1)],
+          ["fault", { exit: 1 }],
+          ["rejected", { exit: 2, stdout: '{"refusal": "kb_code_packet_cli:invalid_request"}\n' }],
+          [
+            "named refusal",
+            { exit: 3, stdout: '{"refusal": "kb_code_packet:adapter_disabled"}\n' },
+          ],
+          ["empty", say(EMPTY)],
+        ];
+        for (const [label, script] of answers) {
+          stub.script(script);
+          let binStderr: string | null = null;
+          runBin(
+            NodePath.join(stub.dir, `home-${label}`),
+            O,
+            {
+              INVRT_CODE_BRAIN_PYTHON: process.execPath,
+              INVRT_CODE_BRAIN_CLI: stub.cli,
+              INVRT_CODE_BRAIN_ENV_FILE: envFile,
+            },
+            (stderr) => {
+              binStderr = stderr;
+            },
+          );
+          assert.equal(binStderr === null, false, `${label}: bin stderr was not captured`);
+          assert.equal(String(binStderr).includes(STDERR_CANARY), false, label);
+          assert.equal(String(binStderr).includes(MEMBER), false, label);
+        }
       }).pipe(Effect.provide(Logger.layer([logger], { mergeWithExisting: false })));
     }),
   TEST_TIMEOUT,
