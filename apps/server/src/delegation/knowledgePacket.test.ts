@@ -230,6 +230,36 @@ it.effect(
 );
 
 it.effect(
+  "4c a refusal or a fault is asked once and never retried into success",
+  () =>
+    Effect.gen(function* () {
+      const cases: ReadonlyArray<readonly [string, Script]> = [
+        [
+          "invalid request",
+          { exit: 2, stdout: '{"refusal": "kb_code_packet_cli:invalid_request"}\n' },
+        ],
+        ["fault", { exit: 1 }],
+        ["named refusal", { exit: 3, stdout: '{"refusal": "kb_code_packet:adapter_disabled"}\n' }],
+        ["other exit with a packet", { ...say(P1), exit: 4 }],
+        ["malformed", say({ ...P1, extra: 1 })],
+        ["empty", say(EMPTY)],
+      ];
+      for (const [label, script] of cases) {
+        const calls = yield* withStub((stub) =>
+          Effect.gen(function* () {
+            stub.script(script);
+            const first = yield* makeBrainKnowledgePort(stub.config()).fetch(O);
+            assert.equal(first.ok, false, label);
+            return stub.calls().length;
+          }),
+        );
+        assert.equal(calls, 1, `${label}: Brain was asked more than once`);
+      }
+    }),
+  TEST_TIMEOUT,
+);
+
+it.effect(
   "5 a slow Brain is unavailable and its child is killed",
   () =>
     withStub((stub) =>
@@ -250,6 +280,7 @@ it.effect(
         };
         // execFile settles after the killed child has closed, so no waiting is needed here.
         assert.equal(alive(), false, "the Brain child is still running after the timeout");
+        assert.equal(stub.calls().length, 1, "a timed-out Brain call was repeated");
       }),
     ),
   TEST_TIMEOUT,
