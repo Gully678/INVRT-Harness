@@ -839,3 +839,61 @@ it.effect(
     ),
   TEST_TIMEOUT,
 );
+
+it.effect(
+  "13c a resend that loses the claim answers in_progress and neither asks Brain nor runs the executor",
+  () =>
+    withStub((stub) =>
+      Effect.gen(function* () {
+        let brainUp = false;
+        let asked = 0;
+        let ran = 0;
+        const real = makeFileResultStore(NodePath.join(stub.dir, "results"));
+        const deps = {
+          executor: {
+            model: "double",
+            run: () =>
+              Effect.sync(() => {
+                ran += 1;
+                return { base: "1".repeat(40), head: "2".repeat(40) };
+              }),
+          },
+          knowledge: {
+            fetch: () =>
+              Effect.sync(() => {
+                asked += 1;
+                return brainUp
+                  ? ({
+                      ok: true,
+                      summary: { result_revision: "rev", included: [], omitted_count: 0 },
+                    } as const)
+                  : ({ ok: false, refusal: "code_knowledge:brain_unavailable" } as const);
+              }),
+          },
+          report: null,
+          resultStore: real,
+        };
+        const first = yield* runWorkOrder(O, deps);
+        assert.equal(first.refusal, "code_knowledge:brain_unavailable");
+        brainUp = true;
+        // Another caller took the claim between this caller's read and its own claim.
+        const lost = yield* runWorkOrder(O, {
+          ...deps,
+          resultStore: { ...real, claim: () => Effect.succeed(false) },
+        });
+        assert.equal(lost.refusal, "code_work_order:in_progress");
+        assert.equal(lost.receipt.replayed, true);
+        assert.equal(asked, 1);
+        assert.equal(ran, 0);
+        // The stored outage result is untouched, so the winner's retry is still possible.
+        assert.equal((yield* real.read(O))?.refusal, "code_knowledge:brain_unavailable");
+        assert.equal((yield* runWorkOrder(O, deps)).state, "built");
+        assert.equal(ran, 1);
+      }).pipe(
+        Effect.provide(
+          CommandReceiptStore.layer.pipe(Layer.provide(SqlitePersistence.layerMemory)),
+        ),
+      ),
+    ),
+  TEST_TIMEOUT,
+);
