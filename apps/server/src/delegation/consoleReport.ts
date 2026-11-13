@@ -73,6 +73,14 @@ export const toObservations = (result: CodeResultV1): ReadonlyArray<ConsoleObser
 const SenderLine = Schema.Struct({ outcome: Schema.String });
 const decodeSenderLine = Schema.decodeUnknownOption(Schema.fromJsonString(SenderLine));
 
+interface SendResult {
+  readonly outcome: "delivered" | "spooled" | "held";
+  /** Why a send is `held`: names only, never the sender's output (it may carry content). */
+  readonly cause: string | null;
+}
+
+const held = (cause: string): SendResult => ({ outcome: "held", cause });
+
 // Only an exit 0 whose outcome the sender names `delivered` or `spooled` is reported as such.
 // A non-zero exit, a signal, a timeout, unparseable output or any other outcome (blocked,
 // inactive, suppressed, dead-lettered, an unknown string) is `held`: never a delivery claimed
@@ -80,7 +88,7 @@ const decodeSenderLine = Schema.decodeUnknownOption(Schema.fromJsonString(Sender
 const sendOne = (
   observation: ConsoleObservationV1,
   config: ConsoleReportConfig,
-): Promise<"delivered" | "spooled" | "held"> =>
+): Promise<SendResult> =>
   new Promise((resolve) => {
     const child = NodeChildProcess.execFile(
       config.node,
@@ -93,12 +101,27 @@ const sendOne = (
         encoding: "utf8",
       },
       (error, stdout) => {
-        if (error !== null) return resolve("held");
-        const outcome = Option.map(decodeSenderLine(stdout.trim()), (line) => line.outcome);
+        if (error !== null) {
+          // `killed` is set when execFile ended the child for the timeout or the buffer limit.
+          resolve(
+            held(
+              error.killed === true
+                ? "timed out or output too large"
+                : typeof error.code === "number"
+                  ? `exit ${error.code}`
+                  : `sender could not run (${String(error.code ?? error.signal)})`,
+            ),
+          );
+          return;
+        }
+        const line = Option.getOrNull(decodeSenderLine(stdout.trim()));
+        if (line === null) return resolve(held("unparseable"));
+        if (line.outcome === "delivered" || line.outcome === "spooled") {
+          return resolve({ outcome: line.outcome, cause: null });
+        }
+        // The outcome string comes from the sender: name it only when it has the shape of a name.
         resolve(
-          Option.isSome(outcome) && (outcome.value === "delivered" || outcome.value === "spooled")
-            ? outcome.value
-            : "held",
+          held(/^[a-z-]{1,24}$/.test(line.outcome) ? `outcome ${line.outcome}` : "unknown outcome"),
         );
       },
     );
@@ -120,13 +143,16 @@ export function reportToConsole(
   config: ConsoleReportConfig | null,
 ): Effect.Effect<ConsoleReportOutcome> {
   if (config === null) return Effect.succeed("not_configured");
-  return Effect.promise(async () => {
+  return Effect.gen(function* () {
     // toObservations yields one row per result; the loop keeps the worst outcome if that grows.
     let worst: "delivered" | "spooled" | "held" = "delivered";
     for (const observation of toObservations(result)) {
-      const outcome = await sendOne(observation, config);
-      if (outcome === "held" || (outcome === "spooled" && worst === "delivered")) worst = outcome;
-      if (worst === "held") break;
+      const sent = yield* Effect.promise(() => sendOne(observation, config));
+      if (sent.outcome === "held") {
+        yield* Effect.logWarning(`Console report held: ${sent.cause}`);
+        return "held";
+      }
+      if (sent.outcome === "spooled") worst = "spooled";
     }
     return worst;
   });

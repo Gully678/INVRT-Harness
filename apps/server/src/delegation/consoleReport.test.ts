@@ -8,6 +8,7 @@ import * as NodeURL from "node:url";
 import { assert, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Logger from "effect/Logger";
 
 import * as CommandReceiptStore from "../orchestration-v2/CommandReceiptStore.ts";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
@@ -433,5 +434,40 @@ it.effect(
         assert.equal(stub.calls().length, 1);
       }),
     ),
+  TEST_TIMEOUT,
+);
+
+it.effect(
+  "11 a held report logs its cause by name, never the sender's output or the secret",
+  () =>
+    withStub((stub) => {
+      const logs: Array<string> = [];
+      const logger = Logger.make(({ message }) => {
+        logs.push(String(message));
+      });
+      const cases: ReadonlyArray<readonly [StubCase, string]> = [
+        [{ exit: 2, stdout: '{"outcome":"blocked"}' }, "exit 2"],
+        [{ exit: 0, stdout: '{"outcome":"inactive"}' }, "outcome inactive"],
+        [{ exit: 0, stdout: `not json ${SECRET}` }, "unparseable"],
+        [{ exit: 0, stdout: '{"outcome":"delivered","note":"x"}', sleepMs: 8000 }, "timed out"],
+      ];
+      return Effect.gen(function* () {
+        for (const [c, cause] of cases) {
+          logs.length = 0;
+          const timeoutMs = c.sleepMs === undefined ? 10_000 : 1500;
+          assert.equal(yield* reportToConsole(B, stub.config(c, timeoutMs)), "held");
+          assert.equal(logs.length, 1, JSON.stringify(logs));
+          assert.equal(logs[0]?.includes(cause), true, `${cause}: ${logs[0]}`);
+          assert.equal(logs[0]?.includes(SECRET), false);
+          assert.equal(logs[0]?.includes(ORDER_ID), false);
+        }
+        logs.length = 0;
+        assert.equal(
+          yield* reportToConsole(B, stub.config({ exit: 0, stdout: '{"outcome":"delivered"}' })),
+          "delivered",
+        );
+        assert.deepStrictEqual(logs, []);
+      }).pipe(Effect.provide(Logger.layer([logger], { mergeWithExisting: false })));
+    }),
   TEST_TIMEOUT,
 );
