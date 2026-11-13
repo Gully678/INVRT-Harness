@@ -75,6 +75,7 @@ const dir = import.meta.dirname;
 fs.writeFileSync(dir + "/stdin.json", fs.readFileSync(0, "utf8"));
 fs.writeFileSync(dir + "/env.json", JSON.stringify(process.env));
 fs.appendFileSync(dir + "/calls.log", process.pid + "\\n");
+process.stderr.write("[kbread] receipt member=8d3f2b1e-6a4c-4e2f-9b7a-1c5d3e9f0a42 path=path:slice-1 STDERR-CANARY-9\\n");
 // Brain's own switch (agent/kb_code_packet.py): exactly "off" in the child's environment refuses.
 const c = process.env.MONTI_KB_CODE_ADAPTER === "off"
   ? { exit: 3, stdout: '{"refusal": "kb_code_packet:adapter_disabled"}\\n' }
@@ -454,6 +455,7 @@ const runBin = (
   home: string,
   order: WorkOrderV1,
   env: Record<string, string | undefined>,
+  onStderr?: (stderr: string) => void,
 ): CodeResultV1 => {
   const base: Record<string, string | undefined> = { ...process.env };
   for (const key of [
@@ -480,6 +482,7 @@ const runBin = (
     },
   );
   assert.equal(run.status, 0, run.stderr);
+  onStderr?.(run.stderr);
   const lines = run.stdout.trim().split("\n");
   assert.equal(lines.length, 1, `stdout must be exactly one JSON value, got: ${run.stdout}`);
   return JSON.parse(lines[0] ?? "") as CodeResultV1;
@@ -664,5 +667,63 @@ it.effect(
         }
       }),
     ),
+  TEST_TIMEOUT,
+);
+
+const STDERR_CANARY = "STDERR-CANARY-9";
+
+it.effect(
+  "12 the Brain child's stderr (ids, paths, receipts) never reaches CODE's stderr or logs",
+  () =>
+    withStub((stub) => {
+      const logs: Array<string> = [];
+      const logger = Logger.make(({ message }) => {
+        logs.push(String(message));
+      });
+      const written: Array<string> = [];
+      const realWrite = process.stderr.write;
+      return Effect.gen(function* () {
+        const scripts: ReadonlyArray<Script> = [say(P1), { exit: 1 }, { exit: 2 }, say(EMPTY)];
+        process.stderr.write = ((chunk: string | Uint8Array) => {
+          written.push(String(chunk));
+          return true;
+        }) as typeof process.stderr.write;
+        try {
+          for (const script of scripts) {
+            stub.script(script);
+            yield* makeBrainKnowledgePort(stub.config()).fetch(O);
+          }
+        } finally {
+          process.stderr.write = realWrite;
+        }
+        assert.equal(stub.calls().length, scripts.length);
+        assert.equal(written.join("").includes(STDERR_CANARY), false);
+        assert.equal(logs.join("\n").includes(STDERR_CANARY), false);
+
+        // Through the process entry point too: its own stderr carries nothing the Brain printed.
+        const envFile = NodePath.join(stub.dir, "brain.env");
+        NodeFS.writeFileSync(
+          envFile,
+          "HERMES_HOME=/h\nMONTI_TEAM_STATE_PATH=/t\nMONTI_VM_ID=v\nMONTI_ORG_ID=o\n",
+        );
+        stub.script(say(P1));
+        let binStderr: string | null = null;
+        runBin(
+          NodePath.join(stub.dir, "home"),
+          O,
+          {
+            INVRT_CODE_BRAIN_PYTHON: process.execPath,
+            INVRT_CODE_BRAIN_CLI: stub.cli,
+            INVRT_CODE_BRAIN_ENV_FILE: envFile,
+          },
+          (stderr) => {
+            binStderr = stderr;
+          },
+        );
+        assert.equal(binStderr === null, false, "bin stderr was not captured");
+        assert.equal(String(binStderr).includes(STDERR_CANARY), false);
+        assert.equal(String(binStderr).includes(MEMBER), false);
+      }).pipe(Effect.provide(Logger.layer([logger], { mergeWithExisting: false })));
+    }),
   TEST_TIMEOUT,
 );
