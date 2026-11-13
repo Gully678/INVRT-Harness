@@ -417,6 +417,16 @@ it.effect(
         assert.equal(second.console_report, "delivered");
         assert.equal(stub.calls().length, 1);
 
+        // All four variables are required: with any one missing the port is not built (AQ-2).
+        for (const omitted of Object.keys(env)) {
+          const partial = Object.fromEntries(
+            Object.entries(env).filter(([key]) => key !== omitted),
+          );
+          const result = runBin(NodePath.join(stub.dir, `home-without-${omitted}`), partial);
+          assert.equal(result.console_report, "not_configured", `without ${omitted}`);
+        }
+        assert.equal(stub.calls().length, 1);
+
         const unset = runBin(NodePath.join(stub.dir, "home-unset"), {});
         assert.equal(unset.state, "built");
         assert.equal(unset.console_report, "not_configured");
