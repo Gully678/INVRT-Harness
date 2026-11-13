@@ -1,0 +1,30 @@
+{
+  "spec": "monti.code_knowledge_packet.v1",
+  "version": 1,
+  "keys": [
+    "spec",
+    "destination",
+    "requested_by",
+    "budget_chars",
+    "included",
+    "omitted",
+    "result_revision"
+  ],
+  "types": {
+    "spec": "str",
+    "destination": "str",
+    "requested_by": "str",
+    "budget_chars": "int",
+    "included": "list",
+    "omitted": "dict",
+    "result_revision": "str"
+  },
+  "included_item_keys": ["path_id", "revision", "revision_digest", "text"],
+  "included_item_types": {
+    "path_id": "str",
+    "revision": "int",
+    "revision_digest": "str",
+    "text": "str"
+  },
+  "qualified_destinations": ["code_local_device", "code_vm"]
+}

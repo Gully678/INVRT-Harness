@@ -1,4 +1,5 @@
 // @effect-diagnostics nodeBuiltinImport:off - process entry point: stdin in, one JSON value out.
+import * as NodeFS from "node:fs";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 
@@ -14,6 +15,11 @@ import * as Schema from "effect/Schema";
 import * as CommandReceiptStore from "../orchestration-v2/CommandReceiptStore.ts";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
 import { reportToConsole, type ConsoleReportConfig } from "./consoleReport.ts";
+import {
+  makeBrainKnowledgePort,
+  parseBrainEnv,
+  type BrainKnowledgeConfig,
+} from "./knowledgePacket.ts";
 import { makeFileResultStore } from "./resultStore.ts";
 import { makeSliceExecutor } from "./sliceExecutor.ts";
 import {
@@ -46,6 +52,33 @@ const consoleReportConfig = (): ConsoleReportConfig | null => {
     : null;
 };
 
+// Company Brain's packet CLI is called as a process. The Brain environment comes only from the
+// VM's own env file, by name, never from the order or this process's own environment. A missing
+// variable or an unusable file builds no port (the order then refuses `not_configured`), named
+// on stderr without any value.
+const brainKnowledgeConfig = (): BrainKnowledgeConfig | null => {
+  const { INVRT_CODE_BRAIN_PYTHON, INVRT_CODE_BRAIN_CLI, INVRT_CODE_BRAIN_ENV_FILE } = process.env;
+  if (!INVRT_CODE_BRAIN_PYTHON || !INVRT_CODE_BRAIN_CLI || !INVRT_CODE_BRAIN_ENV_FILE) return null;
+  let brainEnv: Record<string, string> | null = null;
+  try {
+    brainEnv = parseBrainEnv(NodeFS.readFileSync(INVRT_CODE_BRAIN_ENV_FILE, "utf8"));
+  } catch {
+    // brainEnv stays null and is reported below.
+  }
+  if (brainEnv === null) {
+    process.stderr.write(
+      "INVRT_CODE_BRAIN_ENV_FILE is unreadable or lacks one of the four Brain names: knowledge is not configured\n",
+    );
+    return null;
+  }
+  return {
+    python: INVRT_CODE_BRAIN_PYTHON,
+    cli: INVRT_CODE_BRAIN_CLI,
+    brainEnv,
+    timeoutMs: 30_000,
+  };
+};
+
 const readStdin = async (): Promise<string> => {
   const chunks: Array<Buffer> = [];
   for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
@@ -67,6 +100,7 @@ const main = async (): Promise<void> => {
     "delegation",
   );
   const consoleReport = consoleReportConfig();
+  const brainConfig = brainKnowledgeConfig();
   const reportPort =
     consoleReport === null
       ? null
@@ -76,7 +110,7 @@ const main = async (): Promise<void> => {
       process.env.INVRT_CODE_EXECUTOR === "slice-fixture"
         ? makeSliceExecutor(NodePath.join(delegationHome, "executor"))
         : null,
-    knowledge: null,
+    knowledge: brainConfig === null ? null : makeBrainKnowledgePort(brainConfig),
     report: reportPort,
     resultStore: makeFileResultStore(NodePath.join(delegationHome, "results")),
   };
