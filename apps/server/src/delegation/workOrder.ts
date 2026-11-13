@@ -329,7 +329,13 @@ export const runWorkOrder = Effect.fn("runWorkOrder")(
       if (stored.refusal !== REFUSALS.knowledgeUnavailable) {
         return { ...stored, receipt: { ...stored.receipt, replayed: true } };
       }
-      // Brain was unavailable and nothing ran (knowledge precedes the executor): ask again.
+      // Brain was unavailable and nothing ran (knowledge precedes the executor): ask again, but
+      // only one caller may: claiming moves the stored result away atomically, and the others
+      // (and any reader meanwhile) get `in_progress`, as for a first submission still running.
+      const claimed = yield* deps.resultStore
+        .claim(order, (result) => result.refusal === REFUSALS.knowledgeUnavailable)
+        .pipe(Effect.mapError((refusal) => notStored(refusal, true)));
+      if (!claimed) return yield* Effect.fail(notStored(REFUSALS.inProgress, true));
     }
     const outcome = yield* attempt(order, deps);
     return yield* record(

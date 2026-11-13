@@ -25,6 +25,15 @@ export interface ResultStore {
     order: WorkOrderV1,
     result: CodeResultV1,
   ) => Effect.Effect<void, ResultStoreRefusal, CommandReceiptStoreV2>;
+  /**
+   * Atomically takes the stored result away when `claimable` accepts it, so exactly one of many
+   * concurrent callers gets `true` and the rest (and any later reader) see no result until the
+   * winner records a new one. A result `claimable` rejects is left in place.
+   */
+  readonly claim: (
+    order: WorkOrderV1,
+    claimable: (result: CodeResultV1) => boolean,
+  ) => Effect.Effect<boolean, ResultStoreRefusal, CommandReceiptStoreV2>;
   /** `null` when no result has been recorded for the order. */
   readonly read: (
     order: WorkOrderV1,
@@ -128,6 +137,54 @@ export const makeFileResultStore = (directory: string): ResultStore => {
       if (!isBound(order, result)) return yield* Effect.fail(unbound);
       const json = yield* encodeResult(result).pipe(Effect.mapError(() => unavailable));
       yield* writeAtomically(fileFor(order), `${json}\n`);
+    }),
+    claim: Effect.fn("ResultStore.claim")(function* (order, claimable) {
+      yield* requireAcceptedReceipt(order);
+      const file = fileFor(order);
+      return yield* Effect.tryPromise({
+        try: async () => {
+          await requireRealDirectory(directory);
+          // rename is atomic: of any number of racing callers exactly one moves the file.
+          const taken = `${file}.${process.pid}.${NodeCrypto.randomUUID()}.claimed`;
+          try {
+            await NodeFSP.rename(file, taken);
+          } catch (error) {
+            if (isMissingFile(error)) return false;
+            throw error;
+          }
+          // A result that is not claimable (a newer one was written since the caller read) goes
+          // back, unless an even newer result already exists (link never overwrites).
+          const putBack = () =>
+            NodeFSP.link(taken, file)
+              .catch((error: unknown) => {
+                if (
+                  !(
+                    typeof error === "object" &&
+                    error !== null &&
+                    "code" in error &&
+                    error.code === "EEXIST"
+                  )
+                )
+                  throw error;
+              })
+              .then(() => NodeFSP.rm(taken, { force: true }));
+          try {
+            const decoded = decodeResult(await NodeFSP.readFile(taken, "utf8"));
+            const mine =
+              Option.isSome(decoded) && isBound(order, decoded.value) && claimable(decoded.value);
+            if (!mine) {
+              await putBack();
+              return false;
+            }
+          } catch (error) {
+            await putBack();
+            throw error;
+          }
+          await NodeFSP.rm(taken, { force: true });
+          return true;
+        },
+        catch: () => unavailable,
+      });
     }),
     read: Effect.fn("ResultStore.read")(function* (order) {
       yield* requireAcceptedReceipt(order);

@@ -8,8 +8,11 @@ import * as NodeURL from "node:url";
 
 import { assert, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
 import * as Logger from "effect/Logger";
 
+import * as CommandReceiptStore from "../orchestration-v2/CommandReceiptStore.ts";
+import * as SqlitePersistence from "../persistence/Sqlite.ts";
 import {
   BRAIN_ENV_NAMES,
   CodePacketV1,
@@ -17,7 +20,8 @@ import {
   makeBrainKnowledgePort,
   parseBrainEnv,
 } from "./knowledgePacket.ts";
-import { decodeWorkOrder, type CodeResultV1, type WorkOrderV1 } from "./workOrder.ts";
+import { makeFileResultStore } from "./resultStore.ts";
+import { decodeWorkOrder, runWorkOrder, type CodeResultV1, type WorkOrderV1 } from "./workOrder.ts";
 
 const FIXTURES = new URL("./fixtures/", import.meta.url);
 const readFixtureText = (name: string): string =>
@@ -725,5 +729,113 @@ it.effect(
         assert.equal(String(binStderr).includes(MEMBER), false);
       }).pipe(Effect.provide(Logger.layer([logger], { mergeWithExisting: false })));
     }),
+  TEST_TIMEOUT,
+);
+
+const launchBin = (
+  home: string,
+  order: WorkOrderV1,
+  env: Record<string, string | undefined>,
+): Promise<CodeResultV1> =>
+  new Promise((resolve, reject) => {
+    const base: Record<string, string | undefined> = { ...process.env };
+    for (const key of ["INVRT_CODE_EXECUTOR", "INVRT_CODE_EC_SENDER_BIN", "EC_BASE_URL"]) {
+      delete base[key];
+    }
+    const child = NodeChildProcess.spawn(
+      process.execPath,
+      [NodeURL.fileURLToPath(new URL("./bin.ts", import.meta.url))],
+      { env: { ...base, INVRT_CODE_HOME: home, INVRT_CODE_EXECUTOR: "slice-fixture", ...env } },
+    );
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk: Buffer) => (stdout += chunk.toString("utf8")));
+    child.stderr.on("data", (chunk: Buffer) => (stderr += chunk.toString("utf8")));
+    child.once("error", reject);
+    child.once("exit", (code) =>
+      code === 0
+        ? resolve(JSON.parse(stdout.trim()) as CodeResultV1)
+        : reject(new Error(`exit ${code}: ${stderr}`)),
+    );
+    child.stdin.end(JSON.stringify(order));
+  });
+
+it.effect(
+  "13 many simultaneous resends after an outage run Brain's re-ask and the executor once",
+  () =>
+    withStub((stub) =>
+      Effect.promise(async () => {
+        const submit = resubmission(stub, "concurrent");
+        const home = NodePath.join(stub.dir, "home-concurrent");
+        const env = {
+          INVRT_CODE_BRAIN_PYTHON: process.execPath,
+          INVRT_CODE_BRAIN_CLI: stub.cli,
+          INVRT_CODE_BRAIN_ENV_FILE: NodePath.join(stub.dir, "brain.env"),
+        };
+        assert.equal(submit({ exit: 1 }).refusal, "code_knowledge:brain_unavailable");
+        // Brain recovers, slowly enough that every resend arrives while the first is still running.
+        stub.script({ ...say(P1), sleepMs: 1500 });
+        const results = await Promise.all(Array.from({ length: 8 }, () => launchBin(home, O, env)));
+        const serialised = JSON.stringify(results);
+        for (const r of results) {
+          assert.equal(
+            r.state === "built" || r.refusal === "code_work_order:in_progress",
+            true,
+            serialised,
+          );
+        }
+        const built = results.filter((r) => r.state === "built");
+        assert.equal(built.length >= 1, true, serialised);
+        assert.equal(new Set(built.map((r) => r.head)).size, 1, serialised);
+        // The outage call plus exactly one re-ask, and one executor run (seed plus rename commit).
+        assert.equal(stub.calls().length, 2, serialised);
+        const executorDir = NodePath.join(home, "delegation", "executor");
+        const repos = NodeFS.readdirSync(executorDir);
+        assert.equal(repos.length, 1);
+        assert.equal(
+          gitOut(NodePath.join(executorDir, repos[0] ?? ""), ["rev-list", "--count", "HEAD"]),
+          "2",
+        );
+      }),
+    ),
+  TEST_TIMEOUT,
+);
+
+it.effect(
+  "13b claiming a stored result is atomic and leaves a result it was not asked to take",
+  () =>
+    withStub((stub) =>
+      Effect.gen(function* () {
+        const store = makeFileResultStore(NodePath.join(stub.dir, "results"));
+        // A refusal that is final (no executor): stored by the ordinary path.
+        const stored = yield* runWorkOrder(O, {
+          executor: null,
+          knowledge: null,
+          report: null,
+          resultStore: store,
+        });
+        assert.equal(stored.refusal, "code_executor:not_configured");
+        const unavailable = (r: CodeResultV1) => r.refusal === "code_knowledge:brain_unavailable";
+        // Not claimable: it stays, readable, for the next caller.
+        assert.equal(yield* store.claim(O, unavailable), false);
+        assert.deepStrictEqual(yield* store.read(O), stored);
+        // Claimable: exactly one of many simultaneous claims wins, and the result is gone.
+        const wins = yield* Effect.all(
+          Array.from({ length: 8 }, () => store.claim(O, () => true)),
+          { concurrency: "unbounded" },
+        );
+        assert.equal(wins.filter(Boolean).length, 1);
+        assert.equal(yield* store.read(O), null);
+        assert.deepStrictEqual(
+          NodeFS.readdirSync(NodePath.join(stub.dir, "results")),
+          [],
+          "no claimed file is left behind",
+        );
+      }).pipe(
+        Effect.provide(
+          CommandReceiptStore.layer.pipe(Layer.provide(SqlitePersistence.layerMemory)),
+        ),
+      ),
+    ),
   TEST_TIMEOUT,
 );

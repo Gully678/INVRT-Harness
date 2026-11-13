@@ -986,6 +986,7 @@ it.effect("27 a failed re-save after a delivered report still returns the built 
       let writes = 0;
       // The first save (`held`, before the report) succeeds; the re-save after the report fails.
       const flaky: ResultStore = {
+        ...inner,
         read: inner.read,
         write: (o, r) => {
           writes += 1;
