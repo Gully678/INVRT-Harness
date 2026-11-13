@@ -8,6 +8,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Logger from "effect/Logger";
 import * as Option from "effect/Option";
+import * as Schedule from "effect/Schedule";
 import * as Schema from "effect/Schema";
 
 import * as CommandReceiptStore from "../orchestration-v2/CommandReceiptStore.ts";
@@ -37,6 +38,8 @@ const readStdin = async (): Promise<string> => {
 };
 
 const main = async (): Promise<void> => {
+  // Receipts, results and executor repositories are private to the user: 0700 directories, 0600 files.
+  process.umask(0o077);
   const decoded = decodeWorkOrder(Option.getOrUndefined(decodeJson(await readStdin())));
   if (!decoded.ok) {
     process.stdout.write(`${JSON.stringify({ refusal: decoded.refusal })}\n`);
@@ -66,7 +69,11 @@ const main = async (): Promise<void> => {
   const result = await Effect.runPromise(
     runWorkOrder(order, deps).pipe(
       Effect.provide(receipts),
-      // Only the receipt store failing to open lands here; runWorkOrder has no error channel.
+      // Only the receipt store failing to open lands here; runWorkOrder has no error channel, so a
+      // retry never repeats an order. Two launches creating the same database at once make the
+      // loser's schema setup fail with "database is locked" (about 1 race in 15 on this machine).
+      Effect.retry({ times: 3, schedule: Schedule.spaced("250 millis") }),
+      Effect.tapError((cause) => Effect.logError("receipt store unavailable", cause)),
       Effect.orElseSucceed(() => refusedResult(order, REFUSALS.storeUnavailable)),
       // stdout carries exactly one JSON value; Effect's logs (migrations, warnings) go to stderr.
       Effect.provideService(Logger.LogToStderr, true),

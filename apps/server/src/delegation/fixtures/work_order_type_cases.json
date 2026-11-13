@@ -1,0 +1,880 @@
+{
+  "description": "One case table for the monti.code.work_order.v1 type table (PRD-ADDENDUM section 3). INVRT CODE decodeWorkOrder (SL-03) and MONTI code_delegation._order_ok (SL-01a/SL-01b) must each give, for every case, accept exactly when expect is accept, otherwise the refusal named. contract: stated = the type table says so; silent-fail-closed = the table is silent and the order is refused until the PRD says otherwise.",
+  "refusal_on_reject": "code_work_order:invalid",
+  "cases": [
+    {
+      "name": "valid slice order",
+      "expect": "accept",
+      "contract": "stated",
+      "order": {
+        "spec": "monti.code.work_order.v1",
+        "work_order_id": "wo:b750f6a2e80a344419371904b87d9b5a",
+        "correlation_id": "slice-run-1",
+        "organization": "org-invrt-slice",
+        "member": "8d3f2b1e-6a4c-4e2f-9b7a-1c5d3e9f0a42",
+        "project": "invrt-slice",
+        "story_id": "SLICE-1",
+        "request_text": "In src/limits.py rename DEFAULT_TIMEOUT to DEFAULT_TIMEOUT_SECONDS and update its one caller.",
+        "knowledge": {
+          "required": false,
+          "brief_text": "rename a constant",
+          "budget_chars": 4000,
+          "destination": "code_local_device"
+        },
+        "allowed_effects": ["local_commit"],
+        "deadline": "2026-11-20T12:00:00Z"
+      }
+    },
+    {
+      "name": "deadline with millis",
+      "expect": "accept",
+      "contract": "stated",
+      "order": {
+        "spec": "monti.code.work_order.v1",
+        "work_order_id": "wo:b750f6a2e80a344419371904b87d9b5a",
+        "correlation_id": "slice-run-1",
+        "organization": "org-invrt-slice",
+        "member": "8d3f2b1e-6a4c-4e2f-9b7a-1c5d3e9f0a42",
+        "project": "invrt-slice",
+        "story_id": "SLICE-1",
+        "request_text": "In src/limits.py rename DEFAULT_TIMEOUT to DEFAULT_TIMEOUT_SECONDS and update its one caller.",
+        "knowledge": {
+          "required": false,
+          "brief_text": "rename a constant",
+          "budget_chars": 4000,
+          "destination": "code_local_device"
+        },
+        "allowed_effects": ["local_commit"],
+        "deadline": "2026-11-20T12:00:00.123Z"
+      }
+    },
+    {
+      "name": "deadline leap day 2028-02-29",
+      "expect": "accept",
+      "contract": "stated",
+      "order": {
+        "spec": "monti.code.work_order.v1",
+        "work_order_id": "wo:b750f6a2e80a344419371904b87d9b5a",
+        "correlation_id": "slice-run-1",
+        "organization": "org-invrt-slice",
+        "member": "8d3f2b1e-6a4c-4e2f-9b7a-1c5d3e9f0a42",
+        "project": "invrt-slice",
+        "story_id": "SLICE-1",
+        "request_text": "In src/limits.py rename DEFAULT_TIMEOUT to DEFAULT_TIMEOUT_SECONDS and update its one caller.",
+        "knowledge": {
+          "required": false,
+          "brief_text": "rename a constant",
+          "budget_chars": 4000,
+          "destination": "code_local_device"
+        },
+        "allowed_effects": ["local_commit"],
+        "deadline": "2028-02-29T12:00:00Z"
+      }
+    },
+    {
+      "name": "deadline no seconds",
+      "expect": "code_work_order:invalid",
+      "contract": "silent-fail-closed",
+      "order": {
+        "spec": "monti.code.work_order.v1",
+        "work_order_id": "wo:b750f6a2e80a344419371904b87d9b5a",
+        "correlation_id": "slice-run-1",
+        "organization": "org-invrt-slice",
+        "member": "8d3f2b1e-6a4c-4e2f-9b7a-1c5d3e9f0a42",
+        "project": "invrt-slice",
+        "story_id": "SLICE-1",
+        "request_text": "In src/limits.py rename DEFAULT_TIMEOUT to DEFAULT_TIMEOUT_SECONDS and update its one caller.",
+        "knowledge": {
+          "required": false,
+          "brief_text": "rename a constant",
+          "budget_chars": 4000,
+          "destination": "code_local_device"
+        },
+        "allowed_effects": ["local_commit"],
+        "deadline": "2026-11-20T12:00Z"
+      }
+    },
+    {
+      "name": "deadline space separator",
+      "expect": "code_work_order:invalid",
+      "contract": "silent-fail-closed",
+      "order": {
+        "spec": "monti.code.work_order.v1",
+        "work_order_id": "wo:b750f6a2e80a344419371904b87d9b5a",
+        "correlation_id": "slice-run-1",
+        "organization": "org-invrt-slice",
+        "member": "8d3f2b1e-6a4c-4e2f-9b7a-1c5d3e9f0a42",
+        "project": "invrt-slice",
+        "story_id": "SLICE-1",
+        "request_text": "In src/limits.py rename DEFAULT_TIMEOUT to DEFAULT_TIMEOUT_SECONDS and update its one caller.",
+        "knowledge": {
+          "required": false,
+          "brief_text": "rename a constant",
+          "budget_chars": 4000,
+          "destination": "code_local_device"
+        },
+        "allowed_effects": ["local_commit"],
+        "deadline": "2026-11-20 12:00:00Z"
+      }
+    },
+    {
+      "name": "deadline basic format",
+      "expect": "code_work_order:invalid",
+      "contract": "silent-fail-closed",
+      "order": {
+        "spec": "monti.code.work_order.v1",
+        "work_order_id": "wo:b750f6a2e80a344419371904b87d9b5a",
+        "correlation_id": "slice-run-1",
+        "organization": "org-invrt-slice",
+        "member": "8d3f2b1e-6a4c-4e2f-9b7a-1c5d3e9f0a42",
+        "project": "invrt-slice",
+        "story_id": "SLICE-1",
+        "request_text": "In src/limits.py rename DEFAULT_TIMEOUT to DEFAULT_TIMEOUT_SECONDS and update its one caller.",
+        "knowledge": {
+          "required": false,
+          "brief_text": "rename a constant",
+          "budget_chars": 4000,
+          "destination": "code_local_device"
+        },
+        "allowed_effects": ["local_commit"],
+        "deadline": "20261120T120000Z"
+      }
+    },
+    {
+      "name": "deadline hour 24",
+      "expect": "code_work_order:invalid",
+      "contract": "stated",
+      "order": {
+        "spec": "monti.code.work_order.v1",
+        "work_order_id": "wo:b750f6a2e80a344419371904b87d9b5a",
+        "correlation_id": "slice-run-1",
+        "organization": "org-invrt-slice",
+        "member": "8d3f2b1e-6a4c-4e2f-9b7a-1c5d3e9f0a42",
+        "project": "invrt-slice",
+        "story_id": "SLICE-1",
+        "request_text": "In src/limits.py rename DEFAULT_TIMEOUT to DEFAULT_TIMEOUT_SECONDS and update its one caller.",
+        "knowledge": {
+          "required": false,
+          "brief_text": "rename a constant",
+          "budget_chars": 4000,
+          "destination": "code_local_device"
+        },
+        "allowed_effects": ["local_commit"],
+        "deadline": "2026-11-20T24:00:00Z"
+      }
+    },
+    {
+      "name": "deadline Feb 30",
+      "expect": "code_work_order:invalid",
+      "contract": "stated",
+      "order": {
+        "spec": "monti.code.work_order.v1",
+        "work_order_id": "wo:b750f6a2e80a344419371904b87d9b5a",
+        "correlation_id": "slice-run-1",
+        "organization": "org-invrt-slice",
+        "member": "8d3f2b1e-6a4c-4e2f-9b7a-1c5d3e9f0a42",
+        "project": "invrt-slice",
+        "story_id": "SLICE-1",
+        "request_text": "In src/limits.py rename DEFAULT_TIMEOUT to DEFAULT_TIMEOUT_SECONDS and update its one caller.",
+        "knowledge": {
+          "required": false,
+          "brief_text": "rename a constant",
+          "budget_chars": 4000,
+          "destination": "code_local_device"
+        },
+        "allowed_effects": ["local_commit"],
+        "deadline": "2026-02-30T12:00:00Z"
+      }
+    },
+    {
+      "name": "deadline Feb 29 in a non-leap year",
+      "expect": "code_work_order:invalid",
+      "contract": "stated",
+      "order": {
+        "spec": "monti.code.work_order.v1",
+        "work_order_id": "wo:b750f6a2e80a344419371904b87d9b5a",
+        "correlation_id": "slice-run-1",
+        "organization": "org-invrt-slice",
+        "member": "8d3f2b1e-6a4c-4e2f-9b7a-1c5d3e9f0a42",
+        "project": "invrt-slice",
+        "story_id": "SLICE-1",
+        "request_text": "In src/limits.py rename DEFAULT_TIMEOUT to DEFAULT_TIMEOUT_SECONDS and update its one caller.",
+        "knowledge": {
+          "required": false,
+          "brief_text": "rename a constant",
+          "budget_chars": 4000,
+          "destination": "code_local_device"
+        },
+        "allowed_effects": ["local_commit"],
+        "deadline": "2027-02-29T12:00:00Z"
+      }
+    },
+    {
+      "name": "deadline minute 60",
+      "expect": "code_work_order:invalid",
+      "contract": "stated",
+      "order": {
+        "spec": "monti.code.work_order.v1",
+        "work_order_id": "wo:b750f6a2e80a344419371904b87d9b5a",
+        "correlation_id": "slice-run-1",
+        "organization": "org-invrt-slice",
+        "member": "8d3f2b1e-6a4c-4e2f-9b7a-1c5d3e9f0a42",
+        "project": "invrt-slice",
+        "story_id": "SLICE-1",
+        "request_text": "In src/limits.py rename DEFAULT_TIMEOUT to DEFAULT_TIMEOUT_SECONDS and update its one caller.",
+        "knowledge": {
+          "required": false,
+          "brief_text": "rename a constant",
+          "budget_chars": 4000,
+          "destination": "code_local_device"
+        },
+        "allowed_effects": ["local_commit"],
+        "deadline": "2026-11-20T12:60:00Z"
+      }
+    },
+    {
+      "name": "deadline +00:00",
+      "expect": "code_work_order:invalid",
+      "contract": "stated",
+      "order": {
+        "spec": "monti.code.work_order.v1",
+        "work_order_id": "wo:b750f6a2e80a344419371904b87d9b5a",
+        "correlation_id": "slice-run-1",
+        "organization": "org-invrt-slice",
+        "member": "8d3f2b1e-6a4c-4e2f-9b7a-1c5d3e9f0a42",
+        "project": "invrt-slice",
+        "story_id": "SLICE-1",
+        "request_text": "In src/limits.py rename DEFAULT_TIMEOUT to DEFAULT_TIMEOUT_SECONDS and update its one caller.",
+        "knowledge": {
+          "required": false,
+          "brief_text": "rename a constant",
+          "budget_chars": 4000,
+          "destination": "code_local_device"
+        },
+        "allowed_effects": ["local_commit"],
+        "deadline": "2026-11-20T12:00:00+00:00"
+      }
+    },
+    {
+      "name": "deadline lower-case z",
+      "expect": "code_work_order:invalid",
+      "contract": "stated",
+      "order": {
+        "spec": "monti.code.work_order.v1",
+        "work_order_id": "wo:b750f6a2e80a344419371904b87d9b5a",
+        "correlation_id": "slice-run-1",
+        "organization": "org-invrt-slice",
+        "member": "8d3f2b1e-6a4c-4e2f-9b7a-1c5d3e9f0a42",
+        "project": "invrt-slice",
+        "story_id": "SLICE-1",
+        "request_text": "In src/limits.py rename DEFAULT_TIMEOUT to DEFAULT_TIMEOUT_SECONDS and update its one caller.",
+        "knowledge": {
+          "required": false,
+          "brief_text": "rename a constant",
+          "budget_chars": 4000,
+          "destination": "code_local_device"
+        },
+        "allowed_effects": ["local_commit"],
+        "deadline": "2026-11-20T12:00:00z"
+      }
+    },
+    {
+      "name": "deadline trailing space",
+      "expect": "code_work_order:invalid",
+      "contract": "stated",
+      "order": {
+        "spec": "monti.code.work_order.v1",
+        "work_order_id": "wo:b750f6a2e80a344419371904b87d9b5a",
+        "correlation_id": "slice-run-1",
+        "organization": "org-invrt-slice",
+        "member": "8d3f2b1e-6a4c-4e2f-9b7a-1c5d3e9f0a42",
+        "project": "invrt-slice",
+        "story_id": "SLICE-1",
+        "request_text": "In src/limits.py rename DEFAULT_TIMEOUT to DEFAULT_TIMEOUT_SECONDS and update its one caller.",
+        "knowledge": {
+          "required": false,
+          "brief_text": "rename a constant",
+          "budget_chars": 4000,
+          "destination": "code_local_device"
+        },
+        "allowed_effects": ["local_commit"],
+        "deadline": "2026-11-20T12:00:00Z "
+      }
+    },
+    {
+      "name": "deadline missing",
+      "expect": "code_work_order:invalid",
+      "contract": "stated",
+      "order": {
+        "spec": "monti.code.work_order.v1",
+        "work_order_id": "wo:b750f6a2e80a344419371904b87d9b5a",
+        "correlation_id": "slice-run-1",
+        "organization": "org-invrt-slice",
+        "member": "8d3f2b1e-6a4c-4e2f-9b7a-1c5d3e9f0a42",
+        "project": "invrt-slice",
+        "story_id": "SLICE-1",
+        "request_text": "In src/limits.py rename DEFAULT_TIMEOUT to DEFAULT_TIMEOUT_SECONDS and update its one caller.",
+        "knowledge": {
+          "required": false,
+          "brief_text": "rename a constant",
+          "budget_chars": 4000,
+          "destination": "code_local_device"
+        },
+        "allowed_effects": ["local_commit"]
+      }
+    },
+    {
+      "name": "padded project",
+      "expect": "code_work_order:invalid",
+      "contract": "silent-fail-closed",
+      "order": {
+        "spec": "monti.code.work_order.v1",
+        "work_order_id": "wo:b750f6a2e80a344419371904b87d9b5a",
+        "correlation_id": "slice-run-1",
+        "organization": "org-invrt-slice",
+        "member": "8d3f2b1e-6a4c-4e2f-9b7a-1c5d3e9f0a42",
+        "project": " invrt-slice ",
+        "story_id": "SLICE-1",
+        "request_text": "In src/limits.py rename DEFAULT_TIMEOUT to DEFAULT_TIMEOUT_SECONDS and update its one caller.",
+        "knowledge": {
+          "required": false,
+          "brief_text": "rename a constant",
+          "budget_chars": 4000,
+          "destination": "code_local_device"
+        },
+        "allowed_effects": ["local_commit"],
+        "deadline": "2026-11-20T12:00:00Z"
+      }
+    },
+    {
+      "name": "padded work_order_id",
+      "expect": "code_work_order:invalid",
+      "contract": "silent-fail-closed",
+      "order": {
+        "spec": "monti.code.work_order.v1",
+        "work_order_id": " wo:b750f6a2e80a344419371904b87d9b5a ",
+        "correlation_id": "slice-run-1",
+        "organization": "org-invrt-slice",
+        "member": "8d3f2b1e-6a4c-4e2f-9b7a-1c5d3e9f0a42",
+        "project": "invrt-slice",
+        "story_id": "SLICE-1",
+        "request_text": "In src/limits.py rename DEFAULT_TIMEOUT to DEFAULT_TIMEOUT_SECONDS and update its one caller.",
+        "knowledge": {
+          "required": false,
+          "brief_text": "rename a constant",
+          "budget_chars": 4000,
+          "destination": "code_local_device"
+        },
+        "allowed_effects": ["local_commit"],
+        "deadline": "2026-11-20T12:00:00Z"
+      }
+    },
+    {
+      "name": "empty project",
+      "expect": "code_work_order:invalid",
+      "contract": "stated",
+      "order": {
+        "spec": "monti.code.work_order.v1",
+        "work_order_id": "wo:b750f6a2e80a344419371904b87d9b5a",
+        "correlation_id": "slice-run-1",
+        "organization": "org-invrt-slice",
+        "member": "8d3f2b1e-6a4c-4e2f-9b7a-1c5d3e9f0a42",
+        "project": "",
+        "story_id": "SLICE-1",
+        "request_text": "In src/limits.py rename DEFAULT_TIMEOUT to DEFAULT_TIMEOUT_SECONDS and update its one caller.",
+        "knowledge": {
+          "required": false,
+          "brief_text": "rename a constant",
+          "budget_chars": 4000,
+          "destination": "code_local_device"
+        },
+        "allowed_effects": ["local_commit"],
+        "deadline": "2026-11-20T12:00:00Z"
+      }
+    },
+    {
+      "name": "whitespace story_id",
+      "expect": "code_work_order:invalid",
+      "contract": "stated",
+      "order": {
+        "spec": "monti.code.work_order.v1",
+        "work_order_id": "wo:b750f6a2e80a344419371904b87d9b5a",
+        "correlation_id": "slice-run-1",
+        "organization": "org-invrt-slice",
+        "member": "8d3f2b1e-6a4c-4e2f-9b7a-1c5d3e9f0a42",
+        "project": "invrt-slice",
+        "story_id": "   ",
+        "request_text": "In src/limits.py rename DEFAULT_TIMEOUT to DEFAULT_TIMEOUT_SECONDS and update its one caller.",
+        "knowledge": {
+          "required": false,
+          "brief_text": "rename a constant",
+          "budget_chars": 4000,
+          "destination": "code_local_device"
+        },
+        "allowed_effects": ["local_commit"],
+        "deadline": "2026-11-20T12:00:00Z"
+      }
+    },
+    {
+      "name": "whitespace organization",
+      "expect": "code_work_order:invalid",
+      "contract": "stated",
+      "order": {
+        "spec": "monti.code.work_order.v1",
+        "work_order_id": "wo:b750f6a2e80a344419371904b87d9b5a",
+        "correlation_id": "slice-run-1",
+        "organization": "  ",
+        "member": "8d3f2b1e-6a4c-4e2f-9b7a-1c5d3e9f0a42",
+        "project": "invrt-slice",
+        "story_id": "SLICE-1",
+        "request_text": "In src/limits.py rename DEFAULT_TIMEOUT to DEFAULT_TIMEOUT_SECONDS and update its one caller.",
+        "knowledge": {
+          "required": false,
+          "brief_text": "rename a constant",
+          "budget_chars": 4000,
+          "destination": "code_local_device"
+        },
+        "allowed_effects": ["local_commit"],
+        "deadline": "2026-11-20T12:00:00Z"
+      }
+    },
+    {
+      "name": "whitespace member",
+      "expect": "code_work_order:invalid",
+      "contract": "stated",
+      "order": {
+        "spec": "monti.code.work_order.v1",
+        "work_order_id": "wo:b750f6a2e80a344419371904b87d9b5a",
+        "correlation_id": "slice-run-1",
+        "organization": "org-invrt-slice",
+        "member": " ",
+        "project": "invrt-slice",
+        "story_id": "SLICE-1",
+        "request_text": "In src/limits.py rename DEFAULT_TIMEOUT to DEFAULT_TIMEOUT_SECONDS and update its one caller.",
+        "knowledge": {
+          "required": false,
+          "brief_text": "rename a constant",
+          "budget_chars": 4000,
+          "destination": "code_local_device"
+        },
+        "allowed_effects": ["local_commit"],
+        "deadline": "2026-11-20T12:00:00Z"
+      }
+    },
+    {
+      "name": "whitespace correlation_id",
+      "expect": "code_work_order:invalid",
+      "contract": "stated",
+      "order": {
+        "spec": "monti.code.work_order.v1",
+        "work_order_id": "wo:b750f6a2e80a344419371904b87d9b5a",
+        "correlation_id": "\t",
+        "organization": "org-invrt-slice",
+        "member": "8d3f2b1e-6a4c-4e2f-9b7a-1c5d3e9f0a42",
+        "project": "invrt-slice",
+        "story_id": "SLICE-1",
+        "request_text": "In src/limits.py rename DEFAULT_TIMEOUT to DEFAULT_TIMEOUT_SECONDS and update its one caller.",
+        "knowledge": {
+          "required": false,
+          "brief_text": "rename a constant",
+          "budget_chars": 4000,
+          "destination": "code_local_device"
+        },
+        "allowed_effects": ["local_commit"],
+        "deadline": "2026-11-20T12:00:00Z"
+      }
+    },
+    {
+      "name": "whitespace request_text",
+      "expect": "code_work_order:invalid",
+      "contract": "stated",
+      "order": {
+        "spec": "monti.code.work_order.v1",
+        "work_order_id": "wo:b750f6a2e80a344419371904b87d9b5a",
+        "correlation_id": "slice-run-1",
+        "organization": "org-invrt-slice",
+        "member": "8d3f2b1e-6a4c-4e2f-9b7a-1c5d3e9f0a42",
+        "project": "invrt-slice",
+        "story_id": "SLICE-1",
+        "request_text": "  \n ",
+        "knowledge": {
+          "required": false,
+          "brief_text": "rename a constant",
+          "budget_chars": 4000,
+          "destination": "code_local_device"
+        },
+        "allowed_effects": ["local_commit"],
+        "deadline": "2026-11-20T12:00:00Z"
+      }
+    },
+    {
+      "name": "whitespace brief_text",
+      "expect": "code_work_order:invalid",
+      "contract": "stated",
+      "order": {
+        "spec": "monti.code.work_order.v1",
+        "work_order_id": "wo:b750f6a2e80a344419371904b87d9b5a",
+        "correlation_id": "slice-run-1",
+        "organization": "org-invrt-slice",
+        "member": "8d3f2b1e-6a4c-4e2f-9b7a-1c5d3e9f0a42",
+        "project": "invrt-slice",
+        "story_id": "SLICE-1",
+        "request_text": "In src/limits.py rename DEFAULT_TIMEOUT to DEFAULT_TIMEOUT_SECONDS and update its one caller.",
+        "knowledge": {
+          "required": false,
+          "brief_text": "  ",
+          "budget_chars": 4000,
+          "destination": "code_local_device"
+        },
+        "allowed_effects": ["local_commit"],
+        "deadline": "2026-11-20T12:00:00Z"
+      }
+    },
+    {
+      "name": "non-string story_id",
+      "expect": "code_work_order:invalid",
+      "contract": "stated",
+      "order": {
+        "spec": "monti.code.work_order.v1",
+        "work_order_id": "wo:b750f6a2e80a344419371904b87d9b5a",
+        "correlation_id": "slice-run-1",
+        "organization": "org-invrt-slice",
+        "member": "8d3f2b1e-6a4c-4e2f-9b7a-1c5d3e9f0a42",
+        "project": "invrt-slice",
+        "story_id": 1,
+        "request_text": "In src/limits.py rename DEFAULT_TIMEOUT to DEFAULT_TIMEOUT_SECONDS and update its one caller.",
+        "knowledge": {
+          "required": false,
+          "brief_text": "rename a constant",
+          "budget_chars": 4000,
+          "destination": "code_local_device"
+        },
+        "allowed_effects": ["local_commit"],
+        "deadline": "2026-11-20T12:00:00Z"
+      }
+    },
+    {
+      "name": "budget_chars 0",
+      "expect": "code_work_order:invalid",
+      "contract": "stated",
+      "order": {
+        "spec": "monti.code.work_order.v1",
+        "work_order_id": "wo:b750f6a2e80a344419371904b87d9b5a",
+        "correlation_id": "slice-run-1",
+        "organization": "org-invrt-slice",
+        "member": "8d3f2b1e-6a4c-4e2f-9b7a-1c5d3e9f0a42",
+        "project": "invrt-slice",
+        "story_id": "SLICE-1",
+        "request_text": "In src/limits.py rename DEFAULT_TIMEOUT to DEFAULT_TIMEOUT_SECONDS and update its one caller.",
+        "knowledge": {
+          "required": false,
+          "brief_text": "rename a constant",
+          "budget_chars": 0,
+          "destination": "code_local_device"
+        },
+        "allowed_effects": ["local_commit"],
+        "deadline": "2026-11-20T12:00:00Z"
+      }
+    },
+    {
+      "name": "budget_chars float 1.5",
+      "expect": "code_work_order:invalid",
+      "contract": "stated",
+      "order": {
+        "spec": "monti.code.work_order.v1",
+        "work_order_id": "wo:b750f6a2e80a344419371904b87d9b5a",
+        "correlation_id": "slice-run-1",
+        "organization": "org-invrt-slice",
+        "member": "8d3f2b1e-6a4c-4e2f-9b7a-1c5d3e9f0a42",
+        "project": "invrt-slice",
+        "story_id": "SLICE-1",
+        "request_text": "In src/limits.py rename DEFAULT_TIMEOUT to DEFAULT_TIMEOUT_SECONDS and update its one caller.",
+        "knowledge": {
+          "required": false,
+          "brief_text": "rename a constant",
+          "budget_chars": 1.5,
+          "destination": "code_local_device"
+        },
+        "allowed_effects": ["local_commit"],
+        "deadline": "2026-11-20T12:00:00Z"
+      }
+    },
+    {
+      "name": "budget_chars true",
+      "expect": "code_work_order:invalid",
+      "contract": "stated",
+      "order": {
+        "spec": "monti.code.work_order.v1",
+        "work_order_id": "wo:b750f6a2e80a344419371904b87d9b5a",
+        "correlation_id": "slice-run-1",
+        "organization": "org-invrt-slice",
+        "member": "8d3f2b1e-6a4c-4e2f-9b7a-1c5d3e9f0a42",
+        "project": "invrt-slice",
+        "story_id": "SLICE-1",
+        "request_text": "In src/limits.py rename DEFAULT_TIMEOUT to DEFAULT_TIMEOUT_SECONDS and update its one caller.",
+        "knowledge": {
+          "required": false,
+          "brief_text": "rename a constant",
+          "budget_chars": true,
+          "destination": "code_local_device"
+        },
+        "allowed_effects": ["local_commit"],
+        "deadline": "2026-11-20T12:00:00Z"
+      }
+    },
+    {
+      "name": "destination code_vm",
+      "expect": "accept",
+      "contract": "stated",
+      "order": {
+        "spec": "monti.code.work_order.v1",
+        "work_order_id": "wo:b750f6a2e80a344419371904b87d9b5a",
+        "correlation_id": "slice-run-1",
+        "organization": "org-invrt-slice",
+        "member": "8d3f2b1e-6a4c-4e2f-9b7a-1c5d3e9f0a42",
+        "project": "invrt-slice",
+        "story_id": "SLICE-1",
+        "request_text": "In src/limits.py rename DEFAULT_TIMEOUT to DEFAULT_TIMEOUT_SECONDS and update its one caller.",
+        "knowledge": {
+          "required": false,
+          "brief_text": "rename a constant",
+          "budget_chars": 4000,
+          "destination": "code_vm"
+        },
+        "allowed_effects": ["local_commit"],
+        "deadline": "2026-11-20T12:00:00Z"
+      }
+    },
+    {
+      "name": "destination other",
+      "expect": "code_work_order:invalid",
+      "contract": "stated",
+      "order": {
+        "spec": "monti.code.work_order.v1",
+        "work_order_id": "wo:b750f6a2e80a344419371904b87d9b5a",
+        "correlation_id": "slice-run-1",
+        "organization": "org-invrt-slice",
+        "member": "8d3f2b1e-6a4c-4e2f-9b7a-1c5d3e9f0a42",
+        "project": "invrt-slice",
+        "story_id": "SLICE-1",
+        "request_text": "In src/limits.py rename DEFAULT_TIMEOUT to DEFAULT_TIMEOUT_SECONDS and update its one caller.",
+        "knowledge": {
+          "required": false,
+          "brief_text": "rename a constant",
+          "budget_chars": 4000,
+          "destination": "cloud"
+        },
+        "allowed_effects": ["local_commit"],
+        "deadline": "2026-11-20T12:00:00Z"
+      }
+    },
+    {
+      "name": "required true",
+      "expect": "accept",
+      "contract": "stated",
+      "order": {
+        "spec": "monti.code.work_order.v1",
+        "work_order_id": "wo:b750f6a2e80a344419371904b87d9b5a",
+        "correlation_id": "slice-run-1",
+        "organization": "org-invrt-slice",
+        "member": "8d3f2b1e-6a4c-4e2f-9b7a-1c5d3e9f0a42",
+        "project": "invrt-slice",
+        "story_id": "SLICE-1",
+        "request_text": "In src/limits.py rename DEFAULT_TIMEOUT to DEFAULT_TIMEOUT_SECONDS and update its one caller.",
+        "knowledge": {
+          "required": true,
+          "brief_text": "rename a constant",
+          "budget_chars": 4000,
+          "destination": "code_local_device"
+        },
+        "allowed_effects": ["local_commit"],
+        "deadline": "2026-11-20T12:00:00Z"
+      }
+    },
+    {
+      "name": "required as string",
+      "expect": "code_work_order:invalid",
+      "contract": "stated",
+      "order": {
+        "spec": "monti.code.work_order.v1",
+        "work_order_id": "wo:b750f6a2e80a344419371904b87d9b5a",
+        "correlation_id": "slice-run-1",
+        "organization": "org-invrt-slice",
+        "member": "8d3f2b1e-6a4c-4e2f-9b7a-1c5d3e9f0a42",
+        "project": "invrt-slice",
+        "story_id": "SLICE-1",
+        "request_text": "In src/limits.py rename DEFAULT_TIMEOUT to DEFAULT_TIMEOUT_SECONDS and update its one caller.",
+        "knowledge": {
+          "required": "false",
+          "brief_text": "rename a constant",
+          "budget_chars": 4000,
+          "destination": "code_local_device"
+        },
+        "allowed_effects": ["local_commit"],
+        "deadline": "2026-11-20T12:00:00Z"
+      }
+    },
+    {
+      "name": "knowledge extra key",
+      "expect": "code_work_order:invalid",
+      "contract": "stated",
+      "order": {
+        "spec": "monti.code.work_order.v1",
+        "work_order_id": "wo:b750f6a2e80a344419371904b87d9b5a",
+        "correlation_id": "slice-run-1",
+        "organization": "org-invrt-slice",
+        "member": "8d3f2b1e-6a4c-4e2f-9b7a-1c5d3e9f0a42",
+        "project": "invrt-slice",
+        "story_id": "SLICE-1",
+        "request_text": "In src/limits.py rename DEFAULT_TIMEOUT to DEFAULT_TIMEOUT_SECONDS and update its one caller.",
+        "knowledge": {
+          "required": false,
+          "brief_text": "rename a constant",
+          "budget_chars": 4000,
+          "destination": "code_local_device",
+          "extra": 1
+        },
+        "allowed_effects": ["local_commit"],
+        "deadline": "2026-11-20T12:00:00Z"
+      }
+    },
+    {
+      "name": "allowed_effects empty",
+      "expect": "code_work_order:invalid",
+      "contract": "stated",
+      "order": {
+        "spec": "monti.code.work_order.v1",
+        "work_order_id": "wo:b750f6a2e80a344419371904b87d9b5a",
+        "correlation_id": "slice-run-1",
+        "organization": "org-invrt-slice",
+        "member": "8d3f2b1e-6a4c-4e2f-9b7a-1c5d3e9f0a42",
+        "project": "invrt-slice",
+        "story_id": "SLICE-1",
+        "request_text": "In src/limits.py rename DEFAULT_TIMEOUT to DEFAULT_TIMEOUT_SECONDS and update its one caller.",
+        "knowledge": {
+          "required": false,
+          "brief_text": "rename a constant",
+          "budget_chars": 4000,
+          "destination": "code_local_device"
+        },
+        "allowed_effects": [],
+        "deadline": "2026-11-20T12:00:00Z"
+      }
+    },
+    {
+      "name": "allowed_effects doubled",
+      "expect": "code_work_order:invalid",
+      "contract": "stated",
+      "order": {
+        "spec": "monti.code.work_order.v1",
+        "work_order_id": "wo:b750f6a2e80a344419371904b87d9b5a",
+        "correlation_id": "slice-run-1",
+        "organization": "org-invrt-slice",
+        "member": "8d3f2b1e-6a4c-4e2f-9b7a-1c5d3e9f0a42",
+        "project": "invrt-slice",
+        "story_id": "SLICE-1",
+        "request_text": "In src/limits.py rename DEFAULT_TIMEOUT to DEFAULT_TIMEOUT_SECONDS and update its one caller.",
+        "knowledge": {
+          "required": false,
+          "brief_text": "rename a constant",
+          "budget_chars": 4000,
+          "destination": "code_local_device"
+        },
+        "allowed_effects": ["local_commit", "local_commit"],
+        "deadline": "2026-11-20T12:00:00Z"
+      }
+    },
+    {
+      "name": "allowed_effects push",
+      "expect": "code_work_order:invalid",
+      "contract": "stated",
+      "order": {
+        "spec": "monti.code.work_order.v1",
+        "work_order_id": "wo:b750f6a2e80a344419371904b87d9b5a",
+        "correlation_id": "slice-run-1",
+        "organization": "org-invrt-slice",
+        "member": "8d3f2b1e-6a4c-4e2f-9b7a-1c5d3e9f0a42",
+        "project": "invrt-slice",
+        "story_id": "SLICE-1",
+        "request_text": "In src/limits.py rename DEFAULT_TIMEOUT to DEFAULT_TIMEOUT_SECONDS and update its one caller.",
+        "knowledge": {
+          "required": false,
+          "brief_text": "rename a constant",
+          "budget_chars": 4000,
+          "destination": "code_local_device"
+        },
+        "allowed_effects": ["push"],
+        "deadline": "2026-11-20T12:00:00Z"
+      }
+    },
+    {
+      "name": "spec v2",
+      "expect": "code_work_order:invalid",
+      "contract": "stated",
+      "order": {
+        "spec": "monti.code.work_order.v2",
+        "work_order_id": "wo:b750f6a2e80a344419371904b87d9b5a",
+        "correlation_id": "slice-run-1",
+        "organization": "org-invrt-slice",
+        "member": "8d3f2b1e-6a4c-4e2f-9b7a-1c5d3e9f0a42",
+        "project": "invrt-slice",
+        "story_id": "SLICE-1",
+        "request_text": "In src/limits.py rename DEFAULT_TIMEOUT to DEFAULT_TIMEOUT_SECONDS and update its one caller.",
+        "knowledge": {
+          "required": false,
+          "brief_text": "rename a constant",
+          "budget_chars": 4000,
+          "destination": "code_local_device"
+        },
+        "allowed_effects": ["local_commit"],
+        "deadline": "2026-11-20T12:00:00Z"
+      }
+    },
+    {
+      "name": "extra top-level key",
+      "expect": "code_work_order:invalid",
+      "contract": "stated",
+      "order": {
+        "spec": "monti.code.work_order.v1",
+        "work_order_id": "wo:b750f6a2e80a344419371904b87d9b5a",
+        "correlation_id": "slice-run-1",
+        "organization": "org-invrt-slice",
+        "member": "8d3f2b1e-6a4c-4e2f-9b7a-1c5d3e9f0a42",
+        "project": "invrt-slice",
+        "story_id": "SLICE-1",
+        "request_text": "In src/limits.py rename DEFAULT_TIMEOUT to DEFAULT_TIMEOUT_SECONDS and update its one caller.",
+        "knowledge": {
+          "required": false,
+          "brief_text": "rename a constant",
+          "budget_chars": 4000,
+          "destination": "code_local_device"
+        },
+        "allowed_effects": ["local_commit"],
+        "deadline": "2026-11-20T12:00:00Z",
+        "push": true
+      }
+    },
+    {
+      "name": "missing story_id",
+      "expect": "code_work_order:invalid",
+      "contract": "stated",
+      "order": {
+        "spec": "monti.code.work_order.v1",
+        "work_order_id": "wo:b750f6a2e80a344419371904b87d9b5a",
+        "correlation_id": "slice-run-1",
+        "organization": "org-invrt-slice",
+        "member": "8d3f2b1e-6a4c-4e2f-9b7a-1c5d3e9f0a42",
+        "project": "invrt-slice",
+        "request_text": "In src/limits.py rename DEFAULT_TIMEOUT to DEFAULT_TIMEOUT_SECONDS and update its one caller.",
+        "knowledge": {
+          "required": false,
+          "brief_text": "rename a constant",
+          "budget_chars": 4000,
+          "destination": "code_local_device"
+        },
+        "allowed_effects": ["local_commit"],
+        "deadline": "2026-11-20T12:00:00Z"
+      }
+    }
+  ]
+}

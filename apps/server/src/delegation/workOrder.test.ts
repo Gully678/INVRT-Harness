@@ -19,6 +19,7 @@ import * as Option from "effect/Option";
 import * as CommandReceiptStore from "../orchestration-v2/CommandReceiptStore.ts";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
 import { makeFileResultStore } from "./resultStore.ts";
+import { makeSliceExecutor } from "./sliceExecutor.ts";
 import {
   ExecutorFailed,
   decodeWorkOrder,
@@ -704,6 +705,270 @@ it.effect(
         assert.equal(result.head, null);
       } finally {
         NodeFS.rmSync(home, { recursive: true, force: true });
+      }
+    }),
+  TEST_TIMEOUT,
+);
+
+const TYPE_CASES_FILE = "work_order_type_cases.json";
+// The same file is run through MONTI's `_order_ok` (SL-01b): one table, both validators.
+const typeCases = JSON.parse(readFixture(TYPE_CASES_FILE).toString("utf8")) as {
+  readonly refusal_on_reject: string;
+  readonly cases: ReadonlyArray<{
+    readonly name: string;
+    readonly expect: string;
+    readonly contract: string;
+    readonly order: unknown;
+  }>;
+};
+
+it.effect("20 the work-order type table is one shared case table", () =>
+  Effect.sync(() => {
+    assert.equal(
+      sha256(readFixture(TYPE_CASES_FILE)),
+      "811f7991e53adf429a39aa0348f1b2a4f49a34c7ec9c2816a9f5a89a94f52862",
+      "the shared case table changed: update the MONTI-side pin too",
+    );
+    assert.isAtLeast(typeCases.cases.length, 20);
+    assert.equal(typeCases.refusal_on_reject, "code_work_order:invalid");
+    for (const { name, expect, order: input } of typeCases.cases) {
+      const decoded = decodeWorkOrder(input);
+      assert.equal(decoded.ok ? "accept" : decoded.refusal, expect, name);
+    }
+  }),
+);
+
+it.effect("21 an executor that returns a malformed commit refuses, stored, never built", () =>
+  withTempDir((dir) =>
+    Effect.gen(function* () {
+      const state = { calls: 0 };
+      const malformed: WorkOrderExecutor = {
+        model: "slice-fixture-executor",
+        run: () =>
+          Effect.sync(() => {
+            state.calls += 1;
+            return { base: "abc", head: "def" };
+          }),
+      };
+      const deps = depsFor(dir, { executor: malformed });
+      const first = yield* runWorkOrder(order(O_NO_KNOWLEDGE), deps);
+      assert.equal(first.state, "refused");
+      assert.equal(first.refusal, "code_executor:failed");
+      assert.equal(first.head, null);
+      const repeat = yield* runWorkOrder(order(O_NO_KNOWLEDGE), deps);
+      assert.equal(repeat.refusal, "code_executor:failed");
+      assert.equal(repeat.receipt.replayed, true);
+      assert.equal(state.calls, 1);
+    }).pipe(Effect.provide(memoryReceipts())),
+  ),
+);
+
+const insertReceipt = (
+  decoded: WorkOrderV1,
+  overrides: {
+    readonly projectId?: string;
+    readonly commandType?: string;
+    readonly status?: "accepted" | "rejected";
+  },
+) =>
+  Effect.gen(function* () {
+    const receipts = yield* CommandReceiptStore.CommandReceiptStoreV2;
+    return yield* receipts.insertIfAbsent({
+      commandId: CommandId.make(decoded.work_order_id),
+      projectId: ProjectId.make(overrides.projectId ?? decoded.project),
+      commandType: overrides.commandType ?? "monti.code.work_order.v1",
+      acceptedAt: yield* DateTime.now,
+      resultSequence: 0,
+      status: overrides.status ?? "accepted",
+      error: null,
+      payloadDigest: CommandReceiptStore.commandPayloadDigest(decoded),
+    });
+  });
+
+it.effect("22 ResultStore needs an accepted receipt of this order's project and command type", () =>
+  withTempDir((dir) =>
+    Effect.gen(function* () {
+      const decoded = order(O);
+      const good = goodResultFor(decoded);
+      const wrongReceipts = [
+        { projectId: "other-project" },
+        { commandType: "project.meta.update" },
+        { status: "rejected" as const },
+      ];
+      for (const [index, wrong] of wrongReceipts.entries()) {
+        const target = NodePath.join(dir, `wrong-${index}`);
+        const store = makeFileResultStore(target);
+        yield* Effect.gen(function* () {
+          yield* insertReceipt(decoded, wrong);
+          assert.equal(
+            yield* Effect.flip(store.write(decoded, good)),
+            "code_work_order:result_unbound",
+          );
+          assert.equal(yield* Effect.flip(store.read(decoded)), "code_work_order:result_unbound");
+        }).pipe(Effect.provide(memoryReceipts()));
+        assert.equal(NodeFS.existsSync(target), false);
+      }
+    }),
+  ),
+);
+
+it.effect("23 a result write is atomic: a failed replacement leaves the old file whole", () =>
+  withTempDir((dir) =>
+    Effect.gen(function* () {
+      const decoded = order(O);
+      const good = goodResultFor(decoded);
+      const target = NodePath.join(dir, "res");
+      const store = makeFileResultStore(target);
+      yield* insertReceipt(decoded, {});
+      yield* store.write(decoded, good);
+      // A read-only directory refuses the temp file; a direct overwrite of the 0600 file would succeed.
+      NodeFS.chmodSync(target, 0o500);
+      try {
+        const refusal = yield* Effect.flip(
+          store.write(decoded, { ...good, console_report: "held" }),
+        );
+        assert.equal(refusal, "code_work_order:store_unavailable");
+      } finally {
+        NodeFS.chmodSync(target, 0o700);
+      }
+      assert.deepEqual(yield* store.read(decoded), good);
+      assert.deepEqual(NodeFS.readdirSync(target), [`${sha256(ORDER_ID)}.json`]);
+    }).pipe(Effect.provide(memoryReceipts())),
+  ),
+);
+
+it.effect("24 an unreadable result file is store_unavailable, not in progress", () =>
+  withTempDir((dir) =>
+    Effect.gen(function* () {
+      const e = executorDouble();
+      const deps = depsFor(dir, { executor: e.executor });
+      yield* runWorkOrder(order(O_NO_KNOWLEDGE), deps);
+      const file = resultFilePath(dir, ORDER_ID);
+      NodeFS.chmodSync(file, 0o000);
+      try {
+        const repeat = yield* runWorkOrder(order(O_NO_KNOWLEDGE), deps);
+        assert.equal(repeat.state, "refused");
+        assert.equal(repeat.refusal, "code_work_order:store_unavailable");
+        assert.equal(e.state.calls, 1);
+      } finally {
+        NodeFS.chmodSync(file, 0o600);
+      }
+    }).pipe(Effect.provide(memoryReceipts())),
+  ),
+);
+
+it.effect("25 the fixture executor refuses any request but the slice request", () =>
+  withTempDir((dir) =>
+    Effect.gen(function* () {
+      const other = order({ ...O_NO_KNOWLEDGE, request_text: "Delete everything." });
+      const failure = yield* Effect.flip(makeSliceExecutor(dir).run(other, []));
+      assert.equal(failure._tag, "ExecutorFailed");
+      assert.deepEqual(NodeFS.readdirSync(dir), []);
+    }),
+  ),
+);
+
+it.effect("26 a results directory that is a symbolic link is refused", () =>
+  withTempDir((dir) =>
+    Effect.gen(function* () {
+      const decoded = order(O);
+      const outside = NodePath.join(dir, "outside");
+      const link = NodePath.join(dir, "results");
+      NodeFS.mkdirSync(outside);
+      NodeFS.symlinkSync(outside, link);
+      yield* insertReceipt(decoded, {});
+      const store = makeFileResultStore(link);
+      assert.equal(
+        yield* Effect.flip(store.write(decoded, goodResultFor(decoded))),
+        "code_work_order:store_unavailable",
+      );
+      assert.equal(yield* Effect.flip(store.read(decoded)), "code_work_order:store_unavailable");
+      assert.deepEqual(NodeFS.readdirSync(outside), []);
+    }).pipe(Effect.provide(memoryReceipts())),
+  ),
+);
+
+it.effect(
+  "27 bin creates its state private to the user",
+  () =>
+    Effect.sync(() => {
+      const home = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "sl03-modes-"));
+      try {
+        const run = runBin(home, JSON.stringify(O_NO_KNOWLEDGE), {
+          INVRT_CODE_EXECUTOR: "slice-fixture",
+        });
+        assert.equal(run.status, 0, run.stderr);
+        const delegation = NodePath.join(home, "delegation");
+        const mode = (path: string) => NodeFS.statSync(path).mode & 0o777;
+        assert.equal(mode(delegation), 0o700);
+        assert.equal(mode(NodePath.join(delegation, "receipts.sqlite")), 0o600);
+        assert.equal(mode(NodePath.join(delegation, "results")), 0o700);
+        assert.equal(mode(resultFilePath(NodePath.join(delegation, "results"), ORDER_ID)), 0o600);
+        assert.equal(mode(NodePath.join(delegation, "executor")), 0o700);
+      } finally {
+        NodeFS.rmSync(home, { recursive: true, force: true });
+      }
+    }),
+  TEST_TIMEOUT,
+);
+
+it.effect(
+  "28 two launches racing on one durable store execute the order once",
+  () =>
+    Effect.promise(async () => {
+      const launch = (home: string) =>
+        new Promise<CodeResultV1>((resolve, reject) => {
+          const child = NodeChildProcess.spawn(
+            process.execPath,
+            [NodeURL.fileURLToPath(new URL("./bin.ts", import.meta.url))],
+            {
+              env: { ...process.env, INVRT_CODE_HOME: home, INVRT_CODE_EXECUTOR: "slice-fixture" },
+              stdio: ["pipe", "pipe", "pipe"],
+            },
+          );
+          let stdout = "";
+          let stderr = "";
+          child.stdout.on("data", (chunk: Buffer) => (stdout += chunk.toString("utf8")));
+          child.stderr.on("data", (chunk: Buffer) => (stderr += chunk.toString("utf8")));
+          child.once("error", reject);
+          child.once("exit", (code) =>
+            code === 0
+              ? resolve(parseOneJson(stdout) as CodeResultV1)
+              : reject(new Error(`exit ${code}: ${stderr}`)),
+          );
+          child.stdin.end(JSON.stringify(O_NO_KNOWLEDGE));
+        });
+      for (let round = 0; round < 3; round += 1) {
+        const home = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "sl03-race-"));
+        try {
+          const results = await Promise.all([launch(home), launch(home)]);
+          const fresh = results.filter((r) => r.state === "built" && !r.receipt.replayed);
+          assert.equal(fresh.length, 1, JSON.stringify(results));
+          for (const r of results) {
+            assert.equal(
+              r.state === "built" || r.refusal === "code_work_order:in_progress",
+              true,
+              JSON.stringify(r),
+            );
+          }
+          // One executor repository, seed commit plus rename commit: the executor ran once.
+          const repos = NodeFS.readdirSync(NodePath.join(home, "delegation", "executor"));
+          assert.equal(repos.length, 1);
+          const commits = NodeChildProcess.spawnSync(
+            "git",
+            [
+              "-C",
+              NodePath.join(home, "delegation", "executor", repos[0] ?? ""),
+              "rev-list",
+              "--count",
+              "HEAD",
+            ],
+            { encoding: "utf8" },
+          );
+          assert.equal(commits.stdout.trim(), "2");
+        } finally {
+          NodeFS.rmSync(home, { recursive: true, force: true });
+        }
       }
     }),
   TEST_TIMEOUT,

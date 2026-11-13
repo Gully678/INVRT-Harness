@@ -35,11 +35,22 @@ export const REFUSALS = {
 const TrimmedId = Schema.NonEmptyString.check(
   Schema.makeFilter((value: string) => value === value.trim(), { expected: "a trimmed string" }),
 );
+// Canonical form `YYYY-MM-DDTHH:MM:SS[.f]Z` on a real calendar date: Date rolls 2026-02-30 and
+// hour 24 over into the next day, so a value is real only when it round-trips. The shared case
+// table (fixtures/work_order_type_cases.json) is the executable statement of this rule.
 const UtcTimestamp = Schema.String.check(
   Schema.isPattern(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/),
-  Schema.makeFilter((value: string) => !Number.isNaN(Date.parse(value)), {
-    expected: "a UTC ISO-8601 timestamp",
-  }),
+  Schema.makeFilter(
+    (value: string) =>
+      Option.exists(
+        DateTime.make(value),
+        (parsed) => DateTime.formatIso(parsed).slice(0, 19) === value.slice(0, 19),
+      ),
+    { expected: "a real UTC ISO-8601 timestamp" },
+  ),
+);
+const NonBlank = Schema.NonEmptyString.check(
+  Schema.makeFilter((value: string) => value.trim().length > 0, { expected: "a non-blank string" }),
 );
 const Hex = (length: number) =>
   Schema.String.check(Schema.isPattern(new RegExp(`^[0-9a-f]{${length}}$`)));
@@ -50,15 +61,15 @@ const Commit = Hex(40);
 export const WorkOrderV1 = Schema.Struct({
   spec: Schema.Literal(WORK_ORDER_COMMAND_TYPE),
   work_order_id: TrimmedId,
-  correlation_id: Schema.NonEmptyString,
-  organization: Schema.NonEmptyString,
-  member: Schema.NonEmptyString,
+  correlation_id: NonBlank,
+  organization: NonBlank,
+  member: NonBlank,
   project: TrimmedId,
-  story_id: Schema.NonEmptyString,
-  request_text: Schema.NonEmptyString,
+  story_id: NonBlank,
+  request_text: NonBlank,
   knowledge: Schema.Struct({
     required: Schema.Boolean,
-    brief_text: Schema.NonEmptyString,
+    brief_text: NonBlank,
     budget_chars: PositiveInt,
     destination: Schema.Literals(["code_local_device", "code_vm"]),
   }),
@@ -77,9 +88,9 @@ export type KnowledgeRef = typeof KnowledgeRef.Type;
 export const CodeResultV1 = Schema.Struct({
   spec: Schema.Literal(RESULT_SPEC),
   work_order_id: Schema.NonEmptyString,
-  correlation_id: Schema.NonEmptyString,
+  correlation_id: NonBlank,
   project: Schema.NonEmptyString,
-  story_id: Schema.NonEmptyString,
+  story_id: NonBlank,
   state: Schema.Literals(["built", "refused"]),
   refusal: Schema.NullOr(Schema.NonEmptyString),
   base: Schema.NullOr(Commit),
@@ -268,6 +279,8 @@ const record = Effect.fn("record")(function* (
   const pending: CodeResultV1 = { ...outcome, console_report: "held" };
   yield* saved(pending);
   const reported: CodeResultV1 = { ...pending, console_report: yield* report.report(pending) };
+  // SL-05 handoff: if this re-save fails after a delivery, the call returns store_unavailable
+  // while the Console already holds the result, and the stored record still says `held`.
   yield* saved(reported);
   return reported;
 });

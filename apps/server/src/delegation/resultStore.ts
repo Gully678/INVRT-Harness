@@ -59,10 +59,23 @@ const requireAcceptedReceipt = Effect.fn("requireAcceptedReceipt")(function* (or
   }
 });
 
-/** Temp file, fsync, rename: a reader sees the old file or the whole new one. */
+/** The results directory must be a real directory of this user: a symbolic link would redirect writes. */
+const requireRealDirectory = async (directory: string): Promise<void> => {
+  const stat = await NodeFSP.lstat(directory).catch((error: unknown) => {
+    if (isMissingFile(error)) return null;
+    throw error;
+  });
+  if (stat === null) return;
+  if (!stat.isDirectory() || (process.getuid !== undefined && stat.uid !== process.getuid())) {
+    throw new Error("results directory is not a real directory owned by this user");
+  }
+};
+
+/** Temp file, fsync, rename, fsync the directory: a reader sees the old file or the whole new one. */
 const writeAtomically = (file: string, content: string) =>
   Effect.tryPromise({
     try: async () => {
+      await requireRealDirectory(NodePath.dirname(file));
       await NodeFSP.mkdir(NodePath.dirname(file), { recursive: true, mode: 0o700 });
       const temp = `${file}.${process.pid}.${NodeCrypto.randomUUID()}.tmp`;
       try {
@@ -78,6 +91,12 @@ const writeAtomically = (file: string, content: string) =>
         await NodeFSP.rm(temp, { force: true });
         throw error;
       }
+      const directory = await NodeFSP.open(NodePath.dirname(file), "r");
+      try {
+        await directory.sync();
+      } finally {
+        await directory.close();
+      }
     },
     catch: () => unavailable,
   });
@@ -85,6 +104,7 @@ const writeAtomically = (file: string, content: string) =>
 const readIfPresent = (file: string) =>
   Effect.tryPromise({
     try: async () => {
+      await requireRealDirectory(NodePath.dirname(file));
       try {
         return await NodeFSP.readFile(file, "utf8");
       } catch (error) {
