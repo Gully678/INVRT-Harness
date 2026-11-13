@@ -13,6 +13,7 @@ import * as Schema from "effect/Schema";
 
 import * as CommandReceiptStore from "../orchestration-v2/CommandReceiptStore.ts";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
+import { reportToConsole, type ConsoleReportConfig } from "./consoleReport.ts";
 import { makeFileResultStore } from "./resultStore.ts";
 import { makeSliceExecutor } from "./sliceExecutor.ts";
 import {
@@ -20,6 +21,7 @@ import {
   decodeWorkOrder,
   refusedResult,
   runWorkOrder,
+  type CodeResultV1,
   type WorkOrderDeps,
 } from "./workOrder.ts";
 
@@ -30,6 +32,19 @@ import {
  * project and opens no network listener; exposing it beyond the machine needs IC-13.
  */
 const decodeJson = Schema.decodeUnknownOption(Schema.fromJsonString(Schema.Unknown));
+
+// The Console's own sender (`ec-send`) is called as a process; all four variables must be set.
+const consoleReportConfig = (): ConsoleReportConfig | null => {
+  const { INVRT_CODE_EC_SENDER_BIN, EC_BASE_URL, EC_CREDENTIAL_FILE, EC_STATE_DIR } = process.env;
+  return INVRT_CODE_EC_SENDER_BIN && EC_BASE_URL && EC_CREDENTIAL_FILE && EC_STATE_DIR
+    ? {
+        node: process.execPath,
+        senderBin: INVRT_CODE_EC_SENDER_BIN,
+        env: { EC_BASE_URL, EC_CREDENTIAL_FILE, EC_STATE_DIR },
+        timeoutMs: 20_000,
+      }
+    : null;
+};
 
 const readStdin = async (): Promise<string> => {
   const chunks: Array<Buffer> = [];
@@ -51,13 +66,18 @@ const main = async (): Promise<void> => {
     resolveInvrtStateDirectory({ homeDirectory: NodeOS.homedir(), environment: process.env }),
     "delegation",
   );
+  const consoleReport = consoleReportConfig();
+  const reportPort =
+    consoleReport === null
+      ? null
+      : { report: (result: CodeResultV1) => reportToConsole(result, consoleReport) };
   const deps: WorkOrderDeps = {
     executor:
       process.env.INVRT_CODE_EXECUTOR === "slice-fixture"
         ? makeSliceExecutor(NodePath.join(delegationHome, "executor"))
         : null,
     knowledge: null,
-    report: null,
+    report: reportPort,
     resultStore: makeFileResultStore(NodePath.join(delegationHome, "results")),
   };
   const receipts = CommandReceiptStore.layer.pipe(
