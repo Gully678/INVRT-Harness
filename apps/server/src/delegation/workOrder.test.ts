@@ -14,11 +14,12 @@ import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
+import * as Logger from "effect/Logger";
 import * as Option from "effect/Option";
 
 import * as CommandReceiptStore from "../orchestration-v2/CommandReceiptStore.ts";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
-import { makeFileResultStore } from "./resultStore.ts";
+import { makeFileResultStore, type ResultStore } from "./resultStore.ts";
 import { makeSliceExecutor } from "./sliceExecutor.ts";
 import {
   ExecutorFailed,
@@ -972,4 +973,58 @@ it.effect(
       }
     }),
   TEST_TIMEOUT,
+);
+
+it.effect("27 a failed re-save after a delivered report still returns the built result", () =>
+  withTempDir((dir) => {
+    const logs: Array<string> = [];
+    const logger = Logger.make(({ message }) => {
+      logs.push(String(message));
+    });
+    return Effect.gen(function* () {
+      const inner = makeFileResultStore(dir);
+      let writes = 0;
+      // The first save (`held`, before the report) succeeds; the re-save after the report fails.
+      const flaky: ResultStore = {
+        read: inner.read,
+        write: (o, r) => {
+          writes += 1;
+          return writes === 2
+            ? Effect.fail("code_work_order:store_unavailable" as const)
+            : inner.write(o, r);
+        },
+      };
+      const e = executorDouble();
+      const reports = { calls: 0 };
+      const report: ConsoleReportPort = {
+        report: () =>
+          Effect.sync(() => {
+            reports.calls += 1;
+            return "delivered" as const;
+          }),
+      };
+      const deps: WorkOrderDeps = {
+        executor: e.executor,
+        knowledge: null,
+        report,
+        resultStore: flaky,
+      };
+      const first = yield* runWorkOrder(order(O_NO_KNOWLEDGE), deps);
+      // CODE never tells MONTI built work is refused: the answer is the copy already on disk.
+      assert.equal(first.state, "built");
+      assert.equal(first.refusal, null);
+      assert.equal(first.head, HEAD);
+      assert.equal(first.console_report, "held");
+      const second = yield* runWorkOrder(order(O_NO_KNOWLEDGE), deps);
+      assert.deepStrictEqual(second, { ...first, receipt: { ...first.receipt, replayed: true } });
+      assert.equal(reports.calls, 1);
+      assert.equal(e.state.calls, 1);
+      const named = logs.filter((line) => line.includes("code_work_order:store_unavailable"));
+      assert.equal(named.length, 1, JSON.stringify(logs));
+    }).pipe(
+      Effect.provide(
+        Layer.mergeAll(memoryReceipts(), Logger.layer([logger], { mergeWithExisting: false })),
+      ),
+    );
+  }),
 );

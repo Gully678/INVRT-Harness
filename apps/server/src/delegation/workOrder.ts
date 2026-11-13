@@ -279,10 +279,16 @@ const record = Effect.fn("record")(function* (
   const pending: CodeResultV1 = { ...outcome, console_report: "held" };
   yield* saved(pending);
   const reported: CodeResultV1 = { ...pending, console_report: yield* report.report(pending) };
-  // SL-05 handoff: if this re-save fails after a delivery, the call returns store_unavailable
-  // while the Console already holds the result, and the stored record still says `held`.
-  yield* saved(reported);
-  return reported;
+  // A failed re-save must not turn built work into a refusal: the Console already holds the
+  // result. Answer with the copy on disk (`held`: a person must look) and name the cause.
+  return yield* saved(reported).pipe(
+    Effect.as(reported),
+    Effect.catch((failed: NotStored) =>
+      Effect.logWarning(
+        `result re-save failed after the Console report, keeping the saved held result: ${failed.refusal}`,
+      ).pipe(Effect.as(pending)),
+    ),
+  );
 });
 
 export const runWorkOrder = Effect.fn("runWorkOrder")(
