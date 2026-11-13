@@ -75,7 +75,10 @@ const dir = import.meta.dirname;
 fs.writeFileSync(dir + "/stdin.json", fs.readFileSync(0, "utf8"));
 fs.writeFileSync(dir + "/env.json", JSON.stringify(process.env));
 fs.appendFileSync(dir + "/calls.log", process.pid + "\\n");
-const c = JSON.parse(fs.readFileSync(dir + "/script.json", "utf8"));
+// Brain's own switch (agent/kb_code_packet.py): exactly "off" in the child's environment refuses.
+const c = process.env.MONTI_KB_CODE_ADAPTER === "off"
+  ? { exit: 3, stdout: '{"refusal": "kb_code_packet:adapter_disabled"}\\n' }
+  : JSON.parse(fs.readFileSync(dir + "/script.json", "utf8"));
 const finish = () => process.stdout.write(c.stdout ?? "", () => process.exit(c.exit));
 if (c.sleepMs) setTimeout(finish, c.sleepMs); else finish();
 `;
@@ -399,6 +402,15 @@ it.effect("8b the Brain environment file is read by name and only those names", 
       MONTI_VM_ID: "vm-1",
       MONTI_ORG_ID: "org-1",
     });
+    // The Brain's code-adapter switch is read by the Brain, so it is forwarded as written when present
+    // (and only then): an off switch is the Brain's to enforce, never silently dropped here.
+    assert.deepStrictEqual(parseBrainEnv(`${text}\nMONTI_KB_CODE_ADAPTER=off\n`), {
+      HERMES_HOME: "/vm/hermes",
+      MONTI_TEAM_STATE_PATH: "/vm/team state.json",
+      MONTI_VM_ID: "vm-1",
+      MONTI_ORG_ID: "org-1",
+      MONTI_KB_CODE_ADAPTER: "off",
+    });
     assert.equal(parseBrainEnv(text.replace("MONTI_VM_ID", "MONTI_VM")), null);
     assert.equal(parseBrainEnv(text.replace("MONTI_ORG_ID = org-1", "MONTI_ORG_ID=")), null);
   }),
@@ -524,6 +536,35 @@ it.effect(
         assert.equal(second.head, null);
         assert.deepStrictEqual(NodeFS.readdirSync(executorDir), repos);
         assert.equal(gitOut(repo, ["rev-list", "--count", "HEAD"]), before);
+      }),
+    ),
+  TEST_TIMEOUT,
+);
+
+it.effect(
+  "9b a Brain code-adapter switch set off in the VM env file reaches Brain and no knowledge is used",
+  () =>
+    withStub((stub) =>
+      Effect.sync(() => {
+        const envFile = NodePath.join(stub.dir, "brain.env");
+        NodeFS.writeFileSync(
+          envFile,
+          "HERMES_HOME=/h\nMONTI_TEAM_STATE_PATH=/t\nMONTI_VM_ID=v\nMONTI_ORG_ID=o\nMONTI_KB_CODE_ADAPTER=off\n",
+        );
+        stub.script(say(P1));
+        const home = NodePath.join(stub.dir, "home");
+        const result = runBin(home, O, {
+          INVRT_CODE_BRAIN_PYTHON: process.execPath,
+          INVRT_CODE_BRAIN_CLI: stub.cli,
+          INVRT_CODE_BRAIN_ENV_FILE: envFile,
+        });
+        // The refusal is Brain's own answer relayed by name; CODE never decided it.
+        assert.equal(result.state, "refused");
+        assert.equal(result.refusal, "kb_code_packet:adapter_disabled");
+        assert.equal(result.knowledge, null);
+        assert.equal(result.head, null);
+        assert.equal(stub.env().MONTI_KB_CODE_ADAPTER, "off");
+        assert.equal(NodeFS.existsSync(NodePath.join(home, "delegation", "executor")), false);
       }),
     ),
   TEST_TIMEOUT,

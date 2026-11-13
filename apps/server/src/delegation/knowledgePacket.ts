@@ -35,6 +35,12 @@ export const BRAIN_ENV_NAMES = [
   "MONTI_ORG_ID",
 ] as const;
 
+/**
+ * Names the Brain reads that may be absent. MONTI_KB_CODE_ADAPTER set to exactly "off" makes the
+ * Brain refuse (agent/kb_code_packet.py); CODE forwards it as written and never decides it.
+ */
+export const BRAIN_OPTIONAL_ENV_NAMES = ["MONTI_KB_CODE_ADAPTER"] as const;
+
 const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
 
 // Mirrors tests/br05_consumers/code_packet_contract_v1.json (a byte copy sits in fixtures/).
@@ -180,17 +186,22 @@ export const makeBrainKnowledgePort = (config: BrainKnowledgeConfig): KnowledgeP
   }),
 });
 
+const FORWARDED_ENV_NAMES: ReadonlyArray<string> = [
+  ...BRAIN_ENV_NAMES,
+  ...BRAIN_OPTIONAL_ENV_NAMES,
+];
+
 /**
- * Reads the four Brain names from a `NAME=value` env file (comments, `export`, single or double
- * quotes allowed). Other names are ignored, so nothing else in the file is forwarded. Returns
- * null when any of the four is missing or empty.
+ * Reads the four required Brain names, and the optional switch when present, from a `NAME=value`
+ * env file (comments, `export`, single or double quotes allowed). Other names are ignored, so
+ * nothing else in the file is forwarded. Returns null when a required name is missing or empty.
  */
 export const parseBrainEnv = (text: string): Record<string, string> | null => {
   const found: Record<string, string> = {};
   for (const line of text.split("\n")) {
     const match = /^\s*(?:export\s+)?([A-Z][A-Z0-9_]*)\s*=\s*(.*?)\s*$/.exec(line);
     const name = match?.[1];
-    if (name === undefined || !(BRAIN_ENV_NAMES as ReadonlyArray<string>).includes(name)) continue;
+    if (name === undefined || !FORWARDED_ENV_NAMES.includes(name)) continue;
     found[name] = (match?.[2] ?? "").replace(/^(["'])(.*)\1$/, "$2");
   }
   return BRAIN_ENV_NAMES.every((name) => (found[name] ?? "") !== "") ? found : null;
