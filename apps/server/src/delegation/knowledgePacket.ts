@@ -164,14 +164,17 @@ export const makeBrainKnowledgePort = (config: BrainKnowledgeConfig): KnowledgeP
       }),
     );
     if (answer.kind === "failed") return yield* unavailable(answer.cause);
-    // Exit 0 is the only packet. Exit 3 is a named Brain refusal; exits 1 and 2 (a fault, or
-    // an invalid request such as a requested_by mismatch) and every other status are unavailable.
+    // Exit 0 is the only packet. Exit 3 is a named Brain refusal. Exit 2 means Brain rejected the
+    // request CODE built; a request is a pure function of the order, so asking again gets the same
+    // answer: a final contract mismatch, never the transient kind. Exit 1 (a fault) and every other
+    // status are unavailable (transient).
     if (answer.code === 3) {
       const line = decodeRefusalLine(answer.stdout.trim());
       return Option.isSome(line)
         ? refuse(line.value.refusal)
         : yield* unavailable("exit 3 without a named refusal");
     }
+    if (answer.code === 2) return yield* mismatch("Brain rejected the request (exit 2)");
     if (answer.code !== 0) return yield* unavailable(`exit ${answer.code}`);
 
     const packet = Option.flatMap(decodePacketJson(answer.stdout.trim()), decodeKnowledgePacket);

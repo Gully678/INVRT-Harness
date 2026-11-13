@@ -210,7 +210,7 @@ it.effect(
 );
 
 it.effect(
-  "4b exit 2 and exit 1 are unavailable, never relayed and never an empty success",
+  "4b exit 2 is a contract mismatch and exit 1 is unavailable, never relayed and never an empty success",
   () =>
     Effect.gen(function* () {
       const unavailable = refusal("code_knowledge:brain_unavailable");
@@ -219,7 +219,8 @@ it.effect(
           exit: 2,
           stdout: `${JSON.stringify({ refusal: "kb_code_packet_cli:invalid_request" })}\n`,
         }),
-        unavailable,
+        // Deterministic for the same request: final, never the transient unavailable.
+        refusal("code_knowledge:contract_mismatch"),
       );
       assert.deepStrictEqual(yield* fetchWith({ exit: 1 }), unavailable);
       // A non-zero exit that still prints a valid packet is not a packet.
@@ -656,6 +657,11 @@ it.effect(
             "named",
             { exit: 3, stdout: '{"refusal": "kb_code_packet:destination_unqualified"}\n' },
             "kb_code_packet:destination_unqualified",
+          ],
+          [
+            "rejected",
+            { exit: 2, stdout: '{"refusal": "kb_code_packet_cli:invalid_request"}\n' },
+            "code_knowledge:contract_mismatch",
           ],
           ["empty", say(EMPTY), "code_knowledge:packet_empty"],
           ["mismatch", say({ ...P1, extra: 1 }), "code_knowledge:contract_mismatch"],
