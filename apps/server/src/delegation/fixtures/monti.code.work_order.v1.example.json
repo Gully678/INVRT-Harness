@@ -1,0 +1,18 @@
+{
+  "spec": "monti.code.work_order.v1",
+  "work_order_id": "wo:6f1c2a9e4b7d3c5a8e0f1b2c3d4e5f60",
+  "correlation_id": "slice-run-1",
+  "organization": "org-invrt-slice",
+  "member": "8d3f2b1e-6a4c-4e2f-9b7a-1c5d3e9f0a42",
+  "project": "invrt-slice",
+  "story_id": "SLICE-1",
+  "request_text": "In src/limits.py rename DEFAULT_TIMEOUT to DEFAULT_TIMEOUT_SECONDS and update its one caller.",
+  "knowledge": {
+    "required": true,
+    "brief_text": "timeout naming convention",
+    "budget_chars": 4000,
+    "destination": "code_local_device"
+  },
+  "allowed_effects": ["local_commit"],
+  "deadline": "2026-11-20T12:00:00Z"
+}

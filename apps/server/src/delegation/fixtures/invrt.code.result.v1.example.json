@@ -1,0 +1,29 @@
+{
+  "spec": "invrt.code.result.v1",
+  "work_order_id": "wo:6f1c2a9e4b7d3c5a8e0f1b2c3d4e5f60",
+  "correlation_id": "slice-run-1",
+  "project": "invrt-slice",
+  "story_id": "SLICE-1",
+  "state": "built",
+  "refusal": null,
+  "base": "1111111111111111111111111111111111111111",
+  "head": "2222222222222222222222222222222222222222",
+  "builder_model": "slice-fixture-executor",
+  "knowledge": {
+    "result_revision": "rev:fixture",
+    "included": [
+      {
+        "path_id": "path:fixture-1",
+        "revision": "r1",
+        "revision_digest": "0000000000000000000000000000000000000000000000000000000000000000"
+      }
+    ],
+    "omitted_count": 0
+  },
+  "receipt": {
+    "command_id": "wo:6f1c2a9e4b7d3c5a8e0f1b2c3d4e5f60",
+    "payload_digest": "3333333333333333333333333333333333333333333333333333333333333333",
+    "replayed": false
+  },
+  "console_report": "not_configured"
+}
