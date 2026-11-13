@@ -351,8 +351,13 @@ it.effect(
 it.effect("8 the decoder agrees with Brain's frozen contract", () =>
   Effect.sync(() => {
     const text = readFixtureText("code_packet_contract_v1.json");
-    // Byte copy of the Brain repository's tests/br05_consumers/code_packet_contract_v1.json.
-    assert.equal(sha256(text), "a9fae10f027df21db1afcc14e926d852e3578e5225aebf21f76740a8957a9aae");
+    // Brain's tests/br05_consumers/code_packet_contract_v1.json is byte sha256 a9fae10f...aae. This
+    // repository's formatter rewraps JSON on commit, so the pin is on the parsed content, which the
+    // formatter cannot change: the hash below is of JSON.stringify(JSON.parse(...)) of Brain's file.
+    assert.equal(
+      sha256(JSON.stringify(JSON.parse(text))),
+      "5f51af9afa68cf1550fccca72de8cceb71461358e2a332bb0921364ceb92b888",
+    );
     const frozen = JSON.parse(text) as {
       spec: string;
       keys: Array<string>;
